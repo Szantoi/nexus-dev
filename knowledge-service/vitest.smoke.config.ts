@@ -8,7 +8,7 @@
  */
 
 import { defineConfig } from 'vitest/config';
-import { SMOKE_TESTS } from './vitest.config';
+import { SMOKE_TESTS } from './test-suites';
 
 export default defineConfig({
   test: {

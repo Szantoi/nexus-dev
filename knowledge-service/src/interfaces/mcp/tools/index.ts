@@ -1,19 +1,25 @@
 /**
- * MCP Tools Index
- * Base tool infrastructure for MCP server
+ * MCP tool registry — composition point.
+ *
+ * registerAllTools() is called once by mcp.ts at startup. Tools registered
+ * here are automatically served by mcp.ts (tools/list + dispatch); the giant
+ * switch in mcp.ts is only consulted for tools NOT yet migrated to the
+ * registry. See README.md in this folder for the migration recipe.
  */
 
 export * from './base-tool';
 
-// Export the global registry
-export { toolRegistry, ToolRegistry } from './base-tool';
+import { registerKnowledgeTools } from './knowledge.tools';
+import { registerTaskMessageBoxTools } from './task-message-box.tools';
+import { registerWorkflowTools } from './workflow.tools';
 
-/**
- * Initialize all MCP tools
- * Tool implementations will be added as the DDD refactoring progresses
- */
-export function initializeTools(): void {
-  // TODO: Add tool registrations as they are implemented
-  // registerTerminalTools(toolRegistry);
-  // registerMailboxTools(toolRegistry);
+let registered = false;
+
+export function registerAllTools(): void {
+  if (registered) return;
+  registered = true;
+
+  registerKnowledgeTools();
+  registerTaskMessageBoxTools();
+  registerWorkflowTools();
 }

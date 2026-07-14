@@ -10,8 +10,9 @@ import { searchKnowledge, getDocumentCount, usingChroma } from './vectorStore';
 import { embeddingBackend } from './embeddings';
 import { AGENTS_CONFIG_PATH } from './config/paths';
 import { listInbox, listInboxMetadata, sendMessage, submitDone, getTaskStatus, readInboxMessage, completeInboxMessage, appendToMessage, createTask } from './mailbox';
-import { TASK_MESSAGE_BOX_TOOLS, handleTaskMessageBoxTool } from './task-message-box';
-import { WORKFLOW_TOOLS, handleWorkflowTool } from './workflowManager';
+// Registry-based tools (EPIC-KS-MCP-SPLIT): groups migrated out of this file
+// live under interfaces/mcp/tools/ and are dispatched via toolRegistry.
+import { toolRegistry, registerAllTools } from './interfaces/mcp/tools';
 import {
   getIdentity,
   listTerminals,
@@ -597,28 +598,12 @@ export function authorizeMailboxRest(req: Request, res: Response, next: () => vo
 }
 
 // ─── Tool Definitions ───────────────────────────────────────────────────────
+// NOTE: knowledge, task-message-box and workflow tool groups moved to
+// interfaces/mcp/tools/ (registry); they no longer appear in this array.
+
+registerAllTools();
 
 const TOOLS = [
-  // Knowledge tools
-  {
-    name: 'search_knowledge',
-    description: 'Search the SpaceOS knowledge base using semantic search. Returns relevant documentation chunks.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query (semantic search)',
-        },
-        limit: {
-          type: 'number',
-          description: 'Maximum number of results (default: 5, max: 20)',
-        },
-      },
-      required: ['query'],
-    },
-  },
-
   // Mailbox tools
   {
     name: 'list_inbox',
@@ -1896,12 +1881,6 @@ const TOOLS = [
     },
   },
 
-  // TaskMessageBox tools (DB-backed, 2026-06-24)
-  ...TASK_MESSAGE_BOX_TOOLS,
-
-  // Workflow Management tools (2026-07-14)
-  ...WORKFLOW_TOOLS,
-
   // Telegram tools (2026-06-24, updated 2026-06-29 for multi-bot)
   {
     name: 'telegram_reply',
@@ -2734,22 +2713,14 @@ async function handleToolCall(
   callerTerminal?: string  // Added for auth-aware tools (2026-06-24)
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   try {
-    switch (name) {
-      // Knowledge tools
-      case 'search_knowledge': {
-        const query = String(args.query || '');
-        const limit = Math.min(Number(args.limit) || 5, 20);
-        const results = await searchKnowledge(query, limit);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ query, limit, count: results.length, results }, null, 2),
-            },
-          ],
-        };
-      }
+    // Registry-based tools first (migrated groups); errors propagate to the
+    // shared catch below so the {error} JSON shape stays identical.
+    const registered = toolRegistry.getHandler(name);
+    if (registered) {
+      return await registered(args, { terminal: callerTerminal });
+    }
 
+    switch (name) {
       // Mailbox tools
       case 'list_inbox': {
         const terminal = String(args.terminal || '');
@@ -4324,27 +4295,6 @@ Requested by ${callerTerminal || 'unknown'} chat session.
         };
       }
 
-      // TaskMessageBox tools (DB-backed)
-      case 'tmb_create_task':
-      case 'tmb_read_message':
-      case 'tmb_complete_message':
-      case 'tmb_append_note':
-      case 'tmb_get_inbox':
-      case 'tmb_get_outbox':
-        return await handleTaskMessageBoxTool(name, args);
-
-      // Workflow Management tools (2026-07-14)
-      case 'list_workflows':
-      case 'get_workflow_details':
-      case 'get_workflow_state':
-      case 'advance_workflow':
-      case 'generate_workflow_task':
-      case 'set_workflow_step':
-      case 'list_epics':
-      case 'update_epic':
-      case 'workflow_summary':
-        return handleWorkflowTool(name, args);
-
       // Telegram tools (2026-06-24, updated 2026-06-29 for multi-bot, 2026-07-04 ADR-060)
       case 'telegram_reply': {
         const chatId = Number(args.chat_id);
@@ -5704,9 +5654,10 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
       }
 
       case 'tools/list': {
-        // Filter tools based on terminal permissions
+        // Legacy TOOLS array + registry-based tools, filtered by permissions
         const callerTerminal = req.mcpTerminal || 'root';
-        const visibleTools = filterToolsForTerminal(TOOLS, callerTerminal);
+        const allTools = [...TOOLS, ...toolRegistry.getDefinitions()];
+        const visibleTools = filterToolsForTerminal(allTools, callerTerminal);
 
         res.json({
           jsonrpc: '2.0',

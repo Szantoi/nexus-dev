@@ -12,13 +12,13 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from './core/logger';
+import { DATA_DIR } from './config/paths';
 
-const DATA_DIR = '/opt/nexus/src/nexus-core/knowledge-service/data';
-const DB_PATH = path.join(DATA_DIR, 'workflow.db');
+const DB_PATH = process.env.WORKFLOW_DB || path.join(DATA_DIR, 'workflow.db');
 
 // Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+if (!fs.existsSync(path.dirname(DB_PATH))) {
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 }
 
 // Initialize database

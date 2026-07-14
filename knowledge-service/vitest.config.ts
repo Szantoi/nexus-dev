@@ -8,14 +8,7 @@
  */
 
 import { defineConfig, configDefaults } from 'vitest/config';
-
-/** Tests that need a running service at TEST_API_URL (default localhost:3456). */
-export const SMOKE_TESTS = [
-  'src/__tests__/agent/**',
-  'src/__tests__/integration/api.test.ts',
-  'src/__tests__/integration/session.test.ts',
-  'src/__tests__/integration/watchInbox.integration.test.ts',
-];
+import { SMOKE_TESTS } from './test-suites';
 
 export default defineConfig({
   test: {
