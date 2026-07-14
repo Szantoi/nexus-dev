@@ -24,7 +24,7 @@ epics:
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-CLEANUP
-    status: active
+    status: done
     tasks_yaml: ../../terminals/root/todo.md
     description: >
       Biome lint + CI workflow + zod-validált env-config + szintszűrős
@@ -36,7 +36,7 @@ epics:
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-TOOLING
-    status: pending
+    status: active
     tasks_yaml: ../../terminals/root/todo.md
     description: >
       ~102 MCP tool kiszervezése a base-tool absztrakcióra,

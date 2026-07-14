@@ -3,42 +3,44 @@
 > A feladatok nyilvántartása. Új feladat ide kerül; kész feladat pipát kap és dátumot.
 > Állapot-kontextus: state.md, hosszú távú tanulságok: MEMORY.md.
 
-**Utolsó frissítés:** 2026-07-14
+**Utolsó frissítés:** 2026-07-14 (este)
 
 ## Aktív
 
-- [ ] Modernizálási terv jóváhagyatása Gáborral (fázissorrend + DDD-döntés)
+- [ ] 5. fázis: környezetfüggő teszt-bukások javítása (98 db, 15 fájl) — háttér-agent dolgozik rajta
+- [ ] 4. fázis DDD-döntés Gáborral: `domain/` + `infrastructure/` bekötése VAGY törlése
+- [ ] mcp.ts maradék ~85 tool migrálása a registry-re (recept: `src/interfaces/mcp/tools/README.md`) — csoportonként, inkrementálisan
 
-## Backlog — Knowledge-service modernizáció (audit: 2026-07-14, részletek: MEMORY.md)
+## Backlog
 
-### 1. fázis — Takarítás
-- [ ] Halott kód törlése: `server.legacy.ts`, `embeddings-old.ts`, `coldStart.prototype.ts`, `test-embedding.ts`, `pipeline/phaseCoordinator.ts.broken.bak`
-- [ ] js-yaml v5 ↔ @types/js-yaml v4 eltérés feloldása
-- [ ] ts-node VAGY tsx — az egyik kivezetése (tsx jelenleg használatlan)
-- [ ] `@xenova/transformers` (deprecated) + `sharp` kivezetése, ha az embedding tényleg csak ChromaDB-oldali
-- [ ] `engines` mező a package.json-ba
+### 3. fázis folytatása — mcp.ts dekompozíció
+- [ ] identity csoport (get_identity, list_terminals, read/write/append_memory, get_capabilities)
+- [ ] skills csoport (list_skills, get_skill, get_workflow, get_terminal_setup, ...)
+- [ ] terminal-status + focus-queue csoport
+- [ ] mailbox csoport
+- [ ] memória / projekt / telegram / epic csoportok
+- [ ] a végén: TOOLS tömb + switch teljes törlése, auth-réteg külön modulba
 
-### 2. fázis — Tooling-alap
-- [ ] Biome bevezetése (lint + format)
-- [ ] Minimál CI: `tsc --noEmit` + hermetikus vitest suite
-- [ ] Zod-validált központi config-modul (process.env egyetlen belépési ponton, fail-fast)
-- [ ] Pino strukturált logger a 944 `console.*` helyett
-- [ ] Bash scriptek → cross-platform Node scriptek (dev-start, deploy)
-
-### 3. fázis — mcp.ts dekompozíció
-- [ ] ~102 tool kiszervezése a meglévő `base-tool.ts` absztrakcióra, tool-csoportonként, inkrementálisan
-- [ ] Unit-tesztek az újonnan kiszervezett toolokra
-
-### 4. fázis — Architektúra-döntés
-- [ ] DDD-scaffolding: bekötni VAGY törölni (Gábor döntése)
+### 4. fázis — Architektúra
 - [ ] `src/routes/` maradék 2 fájl átmozgatása `interfaces/http/routes/` alá
 - [ ] `pipeline/` alfolderezés (watchers/, planning/, epics/, coordination/, integrations/)
 - [ ] Két `memoryStore.ts` (root vs pipeline) egyeztetése/átnevezése
+- [ ] `DomainError`-hierarchia kiterjesztése (72 nyers `throw new Error` cseréje)
 
-### 5. fázis — Teszt-megerősítés
-- [ ] vitest.config létrehozása
-- [ ] Élő-szerveres 8 teszt szétválasztása külön smoke-suite-ba (CI-ból ki)
+### Kisebb tételek
+- [ ] 159 `any` fokozatos csökkentése (Biome noExplicitAny warn → error ratchet)
+- [ ] Biome warn-ra vett szabályok ratchetelése (noAssignInExpressions, noControlCharactersInRegex, useIterableCallbackReturn)
+- [ ] `C:\opt\spaceos` (5 MB régi teszt-adat) törlése, ha Gábor jóváhagyja
+- [ ] deploy-to-prod.sh cross-platform kiváltása (Node), prod-layout env-fájllal
+- [ ] README.md frissítése (elavult: Voyage/Gemini setup, lint-szekció, portok)
 
 ## Kész
 
 - [x] 2026-07-14 — Knowledge-service teljes audit (architektúra, tooling, tesztek)
+- [x] 2026-07-14 — Modernizálási terv jóváhagyva (Gábor: "Csináld meg")
+- [x] 2026-07-14 — 1. fázis: halott kód (~4000 sor) törölve, dependency-k rendezve (`0d9cba7`)
+- [x] 2026-07-14 — 2. fázis: Biome + CI + zod env-config + logger + teszt-szétválasztás (`c14dc14`)
+- [x] 2026-07-14 — BUGFIX: duplikált `get_workflow` MCP tool → `get_workflow_details` (elérhetetlen tool)
+- [x] 2026-07-14 — 3. fázis indítás: ToolRegistry-varrat + 3 csoport kiszervezve + migrációs recept (`7730c93`)
+- [x] 2026-07-14 — Runtime-verifikáció Windowson: boot 3466, health OK, MCP 121 tool, registry-hívások élesben (`e349f97`)
+- [x] 2026-07-14 — workflowDb + indexer hardcodolt útvonalak → config/paths (C:\opt szemét-írás megszűnt)

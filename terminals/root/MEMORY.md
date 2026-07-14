@@ -28,4 +28,34 @@ Teljes átvizsgálás (3 párhuzamos felderítő agent: architektúra, tooling, 
 
 **Nem javasolt most:** ESM-migráció (drága, kevés haszon), Express-csere.
 
-**Státusz:** javaslat leadva Gábornak 2026-07-14-én, döntésre vár.
+**Státusz:** Gábor jóváhagyta ("Csináld meg a rendszer fejlesztését"), végrehajtás 2026-07-14-én elindult.
+
+---
+
+## 2026-07-14 (este) — Modernizáció végrehajtás, 1–3. fázis
+
+### Elkészült (commitok: 0d9cba7, c14dc14, 1c4e8e6, 7730c93, e349f97)
+
+- **1. fázis:** ~4000 sor halott kód törölve; sharp/@types/js-yaml/ts-node ki, engines be.
+- **2. fázis:** Biome (lint-gate, 0 error), CI workflow, `config/env.ts` (zod, fail-fast), `core/logger.ts` (LOG_LEVEL/LOG_FORMAT, console-kompatibilis), 944 console.* → logger codemoddal (104 fájl; kódgeneráló template-ekben szándékosan console maradt), hermetikus/smoke teszt-szétválasztás, cross-platform `scripts/dev-start.mjs`.
+- **3. fázis (elindítva):** ToolRegistry-varrat az mcp.ts-ben (registry először, legacy switch fallback), 3 csoport kiszervezve (knowledge, tmb_*, workflow), 6 unit teszt, migrációs recept a `src/interfaces/mcp/tools/README.md`-ben. Maradék ~85 tool.
+- **Runtime-verifikáció:** Windowson bootol a 3466-on; MCP tools/list 121 tool, duplikátum nincs; registry-toolok élesben hívva.
+
+### Talált és javított bugok
+
+1. **Duplikált `get_workflow` MCP tool** (Biome noDuplicateCase találat): a 2026-07-14-én hozzáadott workflow-manager tool elérhetetlen volt a legacy mögött → átnevezve `get_workflow_details`-re.
+2. **CHROMA_URL-t a kód sosem olvasta** (ChromaClient host/port beégetve; .env-ben ráadásul CHROMA_HOST néven szerepelt) → env.ts + vectorStore javítva.
+3. **workflowDb.ts beégetett `/opt/nexus/...` útja** import-időben `C:\opt\...` szemetet írt Windowson → config/paths + WORKFLOW_DB env.
+4. **indexer.ts saját KNOWLEDGE_BASE_PATH duplikátuma** más defaulttal, mint a config/paths → egyesítve.
+5. **paths.ts defaultok** a prod (`/opt/spaceos/spaceos-nexus`) beágyazást feltételezték, nem a repo-layoutot → `../` javítás.
+
+### Tanulságok (Windows dev gép)
+
+- PowerShellben a tsc/npx kimenetét fájlba kell irányítani (pipeline OOM-crash / npx.ps1 NullReference); a Git Bash tool megbízhatóbb.
+- PowerShell `Set-Content -Encoding utf8` BOM-ot ír — fájlmódosításhoz Node-szkript kell.
+- `C:\opt\spaceos` (5 MB) régi teszt-runtime-adat — még törlendő, ha Gábor jóváhagyja.
+
+### Nyitott
+
+- 5. fázis: 98 környezetfüggő tesztbukás javítása (agent dolgozik rajta).
+- 4. fázis DDD-döntés: Gábor.
