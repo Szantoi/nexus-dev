@@ -3,14 +3,17 @@
   "version": "1.0.0",
   "description": "SpaceOS Nexus — RAG knowledge service (local embed + optional Voyage AI + ChromaDB)",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "preinstall": "echo '📦 Using npm cache at ~/.npm (MSG-NEXUS-011)'",
     "ci": "npm ci --prefer-offline --cache ~/.npm",
     "build": "tsc",
     "build:cached": "../../scripts/build-cached.sh .",
     "start": "node dist/server.js",
-    "dev": "ts-node src/server.ts",
-    "index": "ts-node src/indexer.ts",
+    "dev": "tsx src/server.ts",
+    "index": "tsx src/indexer.ts",
     "validate": "./scripts/validate-imports.sh",
     "test": "vitest run --reporter=verbose",
     "test:parallel": "vitest run --pool=threads --reporter=dot",
@@ -34,18 +37,15 @@
     "gray-matter": "^4.0.3",
     "isomorphic-dompurify": "^3.18.0",
     "js-yaml": "^5.0.0",
-    "sharp": "^0.35.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
-    "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.3.0",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.9",
     "supertest": "^7.2.2",
-    "ts-node": "^10.9.2",
     "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.9"

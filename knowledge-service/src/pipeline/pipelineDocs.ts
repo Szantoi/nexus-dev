@@ -281,7 +281,7 @@ if (require.main === module) {
   const terminal = process.argv[3];
 
   if (!donePath || !terminal) {
-    console.error('Usage: npx ts-node pipelineDocs.ts <done_file_path> <terminal>');
+    console.error('Usage: npx tsx pipelineDocs.ts <done_file_path> <terminal>');
     process.exit(1);
   }
 

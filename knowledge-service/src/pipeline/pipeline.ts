@@ -165,7 +165,7 @@ export async function runPipeline(donePath: string): Promise<PipelineResult> {
 if (require.main === module) {
   const donePath = process.argv[2];
   if (!donePath) {
-    console.error('Usage: npx ts-node pipeline.ts <done_file_path>');
+    console.error('Usage: npx tsx pipeline.ts <done_file_path>');
     process.exit(1);
   }
 

@@ -127,7 +127,7 @@ export async function buildIndex(): Promise<IndexResult> {
   return { files: files.length, chunks: totalChunks, knowledgePath: KNOWLEDGE_BASE_PATH };
 }
 
-// Standalone run: ts-node src/indexer.ts
+// Standalone run: tsx src/indexer.ts
 if (require.main === module) {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { initVectorStore } = require('./vectorStore') as typeof import('./vectorStore');

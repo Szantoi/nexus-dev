@@ -1038,7 +1038,7 @@ ${result.errors.map(e => `- ❌ ${e}`).join('\n')}
 if (require.main === module) {
   const donePath = process.argv[2];
   if (!donePath) {
-    console.error('Usage: npx ts-node reviewer.ts <done_file_path>');
+    console.error('Usage: npx tsx reviewer.ts <done_file_path>');
     process.exit(1);
   }
 

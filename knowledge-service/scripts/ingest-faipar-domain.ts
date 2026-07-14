@@ -8,7 +8,7 @@
  *
  * Usage:
  *   cd /opt/spaceos/spaceos-nexus/knowledge-service
- *   npx ts-node scripts/ingest-faipar-domain.ts
+ *   npx tsx scripts/ingest-faipar-domain.ts
  *
  * Requirements:
  * - ChromaDB running (docker compose up -d)
