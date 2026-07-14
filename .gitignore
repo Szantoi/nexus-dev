@@ -7,3 +7,8 @@ logs/
 *.db-shm
 *.db-wal
 .DS_Store
+
+# Federation mailboxes (file-based, not Git)
+**/terminals/*/inbox/
+**/terminals/*/outbox/
+**/terminals/*/archive/
