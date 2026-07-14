@@ -16,14 +16,16 @@ export const ISLAND_ID = process.env.ISLAND_ID || 'spaceos';
 // Data directory for SQLite databases and runtime files
 export const DATA_DIR = process.env.DATA_DIR || join(KNOWLEDGE_SERVICE_ROOT, 'data');
 
-// Terminals directory for inbox/outbox watching
-export const TERMINALS_PATH = process.env.TERMINALS_PATH || join(KNOWLEDGE_SERVICE_ROOT, '../../terminals');
+// Terminals directory for inbox/outbox watching.
+// Default matches this repo's layout (nexus-dev/terminals); production
+// deployments override via env.
+export const TERMINALS_PATH = process.env.TERMINALS_PATH || join(KNOWLEDGE_SERVICE_ROOT, '../terminals');
 
 // Knowledge base directory for document indexing
-export const KNOWLEDGE_BASE_PATH = process.env.KNOWLEDGE_BASE_PATH || join(KNOWLEDGE_SERVICE_ROOT, '../../docs/knowledge');
+export const KNOWLEDGE_BASE_PATH = process.env.KNOWLEDGE_BASE_PATH || join(KNOWLEDGE_SERVICE_ROOT, '../docs/knowledge');
 
 // Logs directory
-export const LOGS_DIR = process.env.LOGS_DIR || join(KNOWLEDGE_SERVICE_ROOT, '../../logs');
+export const LOGS_DIR = process.env.LOGS_DIR || join(KNOWLEDGE_SERVICE_ROOT, '../logs');
 
 // ChromaDB collection name (island-specific)
 export const COLLECTION_NAME = process.env.COLLECTION_NAME || `${ISLAND_ID}-knowledge`;

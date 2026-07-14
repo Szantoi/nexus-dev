@@ -11,13 +11,7 @@ import { MarkdownTextSplitter } from '@langchain/textsplitters';
 import { addChunks } from './vectorStore';
 import { useVoyage } from './embeddings';
 import { logger } from './core/logger';
-
-// Default: resolve relative to this file's location in the repo
-// src/ → knowledge-service/ → spaceos-nexus/ → spaceos/ → docs/knowledge
-const DEFAULT_KNOWLEDGE_PATH = path.resolve(__dirname, '../../..', 'docs', 'knowledge');
-
-const KNOWLEDGE_BASE_PATH =
-  process.env.KNOWLEDGE_BASE_PATH || DEFAULT_KNOWLEDGE_PATH;
+import { KNOWLEDGE_BASE_PATH } from './config/paths';
 
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 200;
