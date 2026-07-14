@@ -1,0 +1,89 @@
+# Canonical message model — single source of truth for the message vocabulary.
+#
+# WHY this file exists (read docs/knowledge or task-message-box/README.md for the
+# full rationale): the system grew two parallel message stores with divergent
+# status vocabularies (messageRegistry: 12 UPPERCASE; task-message-box: 6 lowercase)
+# plus a central Postgres transport (pending/delivered/ack). That drift caused the
+# "DONE vs done vs Completed" black-box problem. This config is the ONE place the
+# vocabulary, its lifecycle, and every legacy→canonical mapping is declared — no
+# hardcoded status strings in code. Change the model HERE, not in TypeScript.
+#
+# Two INDEPENDENT dimensions (deliberately separated — see ADR CONCEPT doc):
+#   - type   = the message's PURPOSE (why it was sent)
+#   - status = the message's LIFECYCLE (where it is in processing)
+# 'done'/'blocked' used to be BOTH a type and a status — that conflation is fixed
+# here: they are lifecycle states, not purposes.
+
+version: "1.0"
+updated: "2026-07-12"
+
+# ── Dimension 1: type (purpose) ───────────────────────────────────────────────
+types:
+  - task        # asks the recipient to DO something
+  - question    # asks the recipient to ANSWER something
+  - response    # replies to a prior task/question (incl. done-reports)
+  - info        # informational, no action expected
+
+default_type: info
+
+# ── Dimension 2: status (lifecycle) ───────────────────────────────────────────
+statuses:
+  - unread      # arrived, awaiting pickup
+  - read        # picked up by the recipient
+  - in_progress # actively being worked
+  - completed   # finished successfully (terminal)
+  - blocked     # cannot proceed (terminal until unblocked)
+  - archived    # retired from the active set (terminal)
+
+default_status: unread
+
+# Allowed lifecycle transitions (from -> [to...]). Anything not listed is rejected.
+# This is the state machine; keep it here, not in code.
+transitions:
+  unread:      [read, in_progress, archived]
+  read:        [in_progress, completed, blocked, archived]
+  in_progress: [completed, blocked, read, archived]
+  blocked:     [in_progress, read, archived]   # unblock resumes work
+  completed:   [archived]
+  archived:    []                              # terminal
+
+# ── Legacy → canonical mappings (no data debt: every old value maps cleanly) ────
+
+# messageRegistry statuses (12, UPPERCASE) → canonical status
+legacy_status_map:
+  UNREAD:     unread
+  INJECTED:   unread
+  PENDING:    unread
+  READ:       read
+  PROCESSING: in_progress
+  DELEGATED:  in_progress
+  PROCESSED:  completed
+  COMPLETED:  completed
+  DONE:       completed
+  ARCHIVED:   archived
+  SKIPPED:    archived
+  SUPERSEDED: archived
+
+# central Postgres transport statuses <-> canonical (agreed with VPS 2026-07-12)
+central_status_map:
+  pending:   unread
+  delivered: read
+  ack:       completed
+  # failed / expired are transport-only; they have no local lifecycle equivalent.
+
+# messageRegistry / legacy types (14) → canonical type
+legacy_type_map:
+  task:           task
+  question:       question
+  response:       response
+  answer:         response
+  done:           response      # a "done report" is a response (status=completed)
+  progress:       response
+  notification:   response
+  acknowledgment: response
+  info:           info
+  escalation:     info
+  freeform:       info
+  message:        info
+  test:           info
+  blocked:        response      # a "blocked report" is a response (status=blocked)

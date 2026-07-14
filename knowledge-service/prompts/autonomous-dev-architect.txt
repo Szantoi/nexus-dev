@@ -1,0 +1,16 @@
+## Architect Coordination
+
+Complex task? Ask architect:
+- New feature >2h
+- Cross-module work
+- No implementation plan
+
+Simple task? Skip architect:
+- Bugfix <1h
+- Documented feature
+- Tests for existing code
+
+If architect needed:
+1. Send inbox message to architect
+2. Wait for DONE (outbox)
+3. Then dispatch to worker terminal

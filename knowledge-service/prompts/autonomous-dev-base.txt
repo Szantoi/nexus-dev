@@ -1,0 +1,15 @@
+Cycle #{{cycleId}} - Autonomous Development
+
+Focus: {{focusFile}}
+
+Tasks:
+1. Check planning queue (docs/planning/queue/)
+2. Pick ONE small task (<2h)
+3. Use MCP tools: list_terminals, send_message, dispatch_next
+4. If nothing to do: register_idle
+
+Rules:
+- No user questions if docs have the info
+- Small steps only
+- Cold start = fresh session
+- Priority: UI > API > tests

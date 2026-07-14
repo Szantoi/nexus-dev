@@ -1,0 +1,53 @@
+# Workflow definitions — the DECLARED expected lifecycle per message type.
+#
+# WHY this file exists: golden paths (src/eval/goldenPath.ts) are RECORDED
+# references from successful runs; workflows here are the PRESCRIBED expectations
+# the server enforces/scores against, independent of any recorded run. Declaring
+# them in config (not code) means every island runs the same expectations, and
+# changing an expectation is a config edit + review — no black magic.
+#
+# Used by:
+#   - /api/eval/conformance — score a message's actual trajectory against the
+#     declared workflow for its type
+#   - (ready for) stuck-detection: max_hours_in gives the config-driven threshold
+#     for "this message has been sitting in status X too long"
+#
+# Types are the CANONICAL types (see config/message-model.yaml): task, question,
+# response, info. Statuses are the canonical 6.
+
+version: "1.0"
+updated: "2026-07-12"
+
+workflows:
+  task:
+    # A task must be picked up, actively worked, then completed.
+    expected_trajectory: [read, in_progress, completed]
+    max_hours_in:
+      unread: 24        # nobody picked it up for a day → stuck
+      read: 24          # picked up but not started
+      in_progress: 72   # worked "forever" without completing/blocking
+
+  question:
+    # A question needs an answer; no in_progress phase is required.
+    expected_trajectory: [read, completed]
+    max_hours_in:
+      unread: 24
+      read: 48
+
+  response:
+    # A response just needs to be read and archived by the recipient.
+    expected_trajectory: [read, completed]
+    max_hours_in:
+      unread: 48
+
+  info:
+    # Informational: reading it completes it; no deadline pressure.
+    expected_trajectory: [read, completed]
+    max_hours_in:
+      unread: 168      # a week
+
+# Default applied when a message's type has no workflow entry.
+default_workflow:
+  expected_trajectory: [read, completed]
+  max_hours_in:
+    unread: 72

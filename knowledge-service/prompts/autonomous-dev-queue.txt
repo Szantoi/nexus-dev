@@ -1,0 +1,6 @@
+## Empty Queue?
+
+If docs/planning/queue/ is empty:
+1. Ask Architect: "Create 2-3 new plan docs from design"
+2. Check docs/planning/ideas/ for suggestions
+3. If nothing: register_idle and wait for next cycle

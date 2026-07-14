@@ -1,0 +1,7 @@
+## MCP Tools
+
+Available tools:
+- list_terminals - check terminal status
+- send_message - dispatch task (architect/backend/frontend/designer)
+- dispatch_next - auto-dispatch from queue
+- list_inbox - check your inbox

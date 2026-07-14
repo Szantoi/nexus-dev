@@ -1,0 +1,102 @@
+{
+  "$schema": "./terminals.schema.json",
+  "$comment": "SpaceOS 7-terminal architecture configuration (2026-06-21, sessionMode added 2026-06-24)",
+
+  "terminalsRoot": "/opt/spaceos/terminals",
+
+  "defaultSessionMode": "cold",
+
+  "terminals": {
+    "root": {
+      "session": "spaceos-root",
+      "priority": true,
+      "model": "opus",
+      "description": "Strategic decisions, agent infrastructure",
+      "sessionMode": "continuous"
+    },
+    "conductor": {
+      "session": "spaceos-conductor",
+      "priority": true,
+      "model": "sonnet",
+      "description": "Task dispatch, pipeline coordination",
+      "sessionMode": "continuous"
+    },
+    "backend": {
+      "session": "spaceos-backend",
+      "priority": false,
+      "model": "sonnet",
+      "description": ".NET + Node.js backend development",
+      "sessionMode": "cold"
+    },
+    "frontend": {
+      "session": "spaceos-frontend",
+      "priority": false,
+      "model": "sonnet",
+      "description": "React/TypeScript portal development",
+      "sessionMode": "cold"
+    },
+    "designer": {
+      "session": "spaceos-designer",
+      "priority": false,
+      "model": "sonnet",
+      "description": "UI/UX, Figma integration",
+      "sessionMode": "cold"
+    },
+    "architect": {
+      "session": "spaceos-architect",
+      "priority": false,
+      "model": "opus",
+      "description": "Consultative architecture partner",
+      "sessionMode": "cold"
+    },
+    "librarian": {
+      "session": "spaceos-librarian",
+      "priority": false,
+      "model": "haiku",
+      "description": "Knowledge base maintenance",
+      "sessionMode": "cold"
+    },
+    "explorer": {
+      "session": "spaceos-explorer",
+      "priority": false,
+      "model": "haiku",
+      "description": "Codebase research, onboarding",
+      "sessionMode": "cold"
+    },
+    "monitor": {
+      "session": "spaceos-monitor",
+      "priority": false,
+      "model": "haiku",
+      "description": "System monitoring, health checks, issue collection",
+      "sessionMode": "cold"
+    },
+    "federation": {
+      "session": "spaceos-federation",
+      "priority": false,
+      "model": "sonnet",
+      "description": "Federation gateway - cross-VPS auth and message routing",
+      "sessionMode": "cold"
+    }
+  },
+
+  "legacyAliases": {
+    "cabinet-bridge": "federation",
+    "kernel": "backend",
+    "orch": "backend",
+    "joinery": "backend",
+    "cutting": "backend",
+    "identity": "backend",
+    "inventory": "backend",
+    "procurement": "backend",
+    "sales": "backend",
+    "abstractions": "backend",
+    "infra": "backend",
+    "e2e": "backend",
+    "nexus": "backend",
+    "fe": "frontend",
+    "fe2": "frontend",
+    "portal": "frontend"
+  },
+
+  "tmuxSocket": "/tmp/spaceos.tmux"
+}

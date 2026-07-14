@@ -1,0 +1,593 @@
+/**
+ * phaseCoordinator.ts - Projekt Fazis Koordinator
+ *
+ * Osszekoti a Project Automation rendszert (TASKS.yaml) a Conductor terminallal.
+ * Automatikusan meghatarozza a projekt fazisat es ertesiti a Conductor-t.
+ *
+ * Mukodes:
+ * 1. Scanneli az aktiv projekteket (docs/projects/**/TASKS.yaml)
+ * 2. Meghatarozza az aktualis fazist (planning vs execution)
+ * 3. Ha uj fazis van, inbox uzenetet kuld a Conductor-nak
+ * 4. A Conductor dont a kovetkezo lepesekrol
+ *
+ * Fazisok:
+ * - PLANNING: nincs aktiv task, de van pending/blocked -> tervezes szukseges
+ * - EXECUTION: van in_progress task -> vegrehajtas folyamatban
+ * - BLOCKED: minden task blocked -> eszkalacio szukseges
+ * - COMPLETE: minden task done -> projekt kesz
+ * - IDLE: nincs aktiv projekt
+ *
+ * Konfiguracio (.env):
+ *   ENABLE_PHASE_COORDINATOR=true
+ *   PHASE_COORDINATOR_INTERVAL_MINUTES=30
+ */
+
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import {
+  SPACEOS_ROOT,
+  log,
+  telegram,
+} from './common';
+
+// --- Types ---
+
+export type ProjectPhase = 'planning' | 'execution' | 'blocked' | 'complete' | 'idle';
+
+export interface PhaseConfig {
+  enabled: boolean;
+  intervalMinutes: number;
+  projectsDir: string;
+  planningDir: string;
+  conductorInbox: string;
+}
+
+export interface ProjectStatus {
+  slug: string;
+  path: string;
+  phase: ProjectPhase;
+  totalTasks: number;
+  pending: number;
+  inProgress: number;
+  done: number;
+  blocked: number;
+  currentMilestone?: string;
+  nextTasks: string[];
+}
+
+export interface PhaseCheckResult {
+  timestamp: string;
+  projects: ProjectStatus[];
+  globalPhase: ProjectPhase;
+  conductorNotified: boolean;
+  message?: string;
+}
+
+// --- Default Config ---
+
+const DEFAULT_CONFIG: PhaseConfig = {
+  enabled: process.env.ENABLE_PHASE_COORDINATOR === 'true',
+  intervalMinutes: parseInt(process.env.PHASE_COORDINATOR_INTERVAL_MINUTES || '30', 10),
+  projectsDir: path.join(SPACEOS_ROOT, 'docs/projects'),
+  planningDir: path.join(SPACEOS_ROOT, 'docs/planning'),
+  conductorInbox: path.join(SPACEOS_ROOT, 'terminals/conductor/inbox'),
+};
+
+// --- State ---
+
+let lastPhase: ProjectPhase | null = null;
+let lastCheckAt: string | null = null;
+let intervalId: NodeJS.Timeout | null = null;
+
+// --- Core Logic ---
+
+/**
+ * Scan all active projects and determine their phases
+ */
+async function scanProjects(config: PhaseConfig): Promise<ProjectStatus[]> {
+  const projects: ProjectStatus[] = [];
+
+  try {
+    const entries = await fs.readdir(config.projectsDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('_')) continue; // Skip templates
+      if (entry.name.endsWith('-test')) continue; // Skip test projects
+
+      const projectPath = path.join(config.projectsDir, entry.name);
+      const tasksPath = path.join(projectPath, 'TASKS.yaml');
+
+      try {
+        const content = await fs.readFile(tasksPath, 'utf-8');
+        const tasks = yaml.load(content) as any;
+
+        if (!tasks || !tasks.milestones) continue;
+
+        // Count task statuses
+        let pending = 0;
+        let inProgress = 0;
+        let done = 0;
+        let blocked = 0;
+        let currentMilestone: string | undefined;
+        const nextTasks: string[] = [];
+
+        for (const milestone of tasks.milestones) {
+          if (!milestone.tasks) continue;
+
+          for (const task of milestone.tasks) {
+            switch (task.status) {
+              case 'pending':
+                pending++;
+                // Check if unblocked
+                if (!task.blocked_by || task.blocked_by.length === 0 ||
+                    task.blocked_by.every((b: string) => isTaskDone(tasks, b))) {
+                  nextTasks.push(`${task.id}: ${task.name}`);
+                }
+                break;
+              case 'in_progress':
+                inProgress++;
+                currentMilestone = milestone.name;
+                break;
+              case 'done':
+                done++;
+                break;
+              case 'blocked':
+              case 'escalated':
+                blocked++;
+                break;
+            }
+          }
+        }
+
+        const totalTasks = pending + inProgress + done + blocked;
+        const phase = determinePhase(pending, inProgress, done, blocked, totalTasks);
+
+        projects.push({
+          slug: entry.name,
+          path: projectPath,
+          phase,
+          totalTasks,
+          pending,
+          inProgress,
+          done,
+          blocked,
+          currentMilestone,
+          nextTasks: nextTasks.slice(0, 3), // Top 3 next tasks
+        });
+
+      } catch {
+        // No TASKS.yaml or invalid format
+      }
+    }
+  } catch (error) {
+    await log(`[PhaseCoordinator] Error scanning projects: ${error}`);
+  }
+
+  return projects;
+}
+
+/**
+ * Check if a task is done in the task chain
+ */
+function isTaskDone(tasks: any, taskId: string): boolean {
+  for (const milestone of tasks.milestones) {
+    if (!milestone.tasks) continue;
+    for (const task of milestone.tasks) {
+      if (task.id === taskId) {
+        return task.status === 'done';
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Determine project phase from task counts
+ */
+function determinePhase(
+  pending: number,
+  inProgress: number,
+  done: number,
+  blocked: number,
+  total: number
+): ProjectPhase {
+  if (total === 0) return 'idle';
+  if (done === total) return 'complete';
+  if (blocked > 0 && inProgress === 0 && pending === 0) return 'blocked';
+  if (inProgress > 0) return 'execution';
+  if (pending > 0) return 'planning';
+  return 'idle';
+}
+
+/**
+ * Check planning pipeline status
+ */
+async function checkPlanningPipeline(config: PhaseConfig): Promise<{
+  ideasCount: number;
+  selectedCount: number;
+  queueCount: number;
+  hasPendingPlans: boolean;
+}> {
+  const result = {
+    ideasCount: 0,
+    selectedCount: 0,
+    queueCount: 0,
+    hasPendingPlans: false,
+  };
+
+  try {
+    // Count ideas
+    const ideasDir = path.join(config.planningDir, 'ideas');
+    const ideas = await fs.readdir(ideasDir);
+    result.ideasCount = ideas.filter(f => f.endsWith('.md')).length;
+
+    // Count selected
+    const selectedDir = path.join(config.planningDir, 'selected');
+    const selected = await fs.readdir(selectedDir);
+    result.selectedCount = selected.filter(f => f.endsWith('.md')).length;
+
+    // Count queue
+    const queueDir = path.join(config.planningDir, 'queue');
+    const queue = await fs.readdir(queueDir);
+    result.queueCount = queue.filter(f => f.endsWith('.md')).length;
+
+    result.hasPendingPlans = result.queueCount > 0 || result.selectedCount > 0;
+  } catch {
+    // Planning dirs may not exist
+  }
+
+  return result;
+}
+
+/**
+ * Determine global phase across all projects
+ */
+function determineGlobalPhase(projects: ProjectStatus[]): ProjectPhase {
+  if (projects.length === 0) return 'idle';
+
+  // If any project is in execution, global is execution
+  if (projects.some(p => p.phase === 'execution')) return 'execution';
+
+  // If all are complete, global is complete
+  if (projects.every(p => p.phase === 'complete' || p.phase === 'idle')) return 'complete';
+
+  // If any is blocked and none in execution, global is blocked
+  if (projects.some(p => p.phase === 'blocked')) return 'blocked';
+
+  // Otherwise planning
+  return 'planning';
+}
+
+/**
+ * Create inbox message for Conductor
+ */
+async function notifyConductor(
+  config: PhaseConfig,
+  projects: ProjectStatus[],
+  globalPhase: ProjectPhase,
+  planning: { ideasCount: number; selectedCount: number; queueCount: number }
+): Promise<string> {
+  const date = new Date().toISOString().split('T')[0];
+
+  // Get next message number
+  let nextNum = 1;
+  try {
+    const files = await fs.readdir(config.conductorInbox);
+    const numbers = files
+      .filter(f => f.endsWith('.md'))
+      .map(f => {
+        const match = f.match(/^\d{4}-\d{2}-\d{2}_(\d{3})_/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+    if (numbers.length > 0) {
+      nextNum = Math.max(...numbers) + 1;
+    }
+  } catch {
+    // Directory may not exist
+  }
+
+  const slug = `phase-${globalPhase}-update`;
+  const fileName = `${date}_${nextNum.toString().padStart(3, '0')}_${slug}.md`;
+  const filePath = path.join(config.conductorInbox, fileName);
+  const msgId = `MSG-CONDUCTOR-${nextNum.toString().padStart(3, '0')}`;
+
+  // Build project summary
+  const projectSummary = projects.map(p => {
+    const emoji = {
+      planning: '[PLAN]',
+      execution: '[EXEC]',
+      blocked: '[BLOCK]',
+      complete: '[DONE]',
+      idle: '[IDLE]',
+    }[p.phase];
+    return `- **${p.slug}**: ${emoji} ${p.phase.toUpperCase()} (${p.done}/${p.totalTasks} done)${p.currentMilestone ? ` - ${p.currentMilestone}` : ''}`;
+  }).join('\n');
+
+  // Build next tasks list
+  const allNextTasks = projects
+    .flatMap(p => p.nextTasks.map(t => `- [${p.slug}] ${t}`))
+    .slice(0, 5);
+
+  const content = `---
+id: ${msgId}
+from: phase-coordinator
+to: conductor
+type: info
+priority: medium
+status: UNREAD
+model: sonnet
+created: ${date}
+---
+
+# Fazis Allapot Frissites
+
+**Globalis fazis:** ${globalPhase.toUpperCase()}
+**Idopont:** ${new Date().toISOString()}
+
+## Projektek Allapota
+
+${projectSummary || '(nincs aktiv projekt)'}
+
+## Tervezesi Pipeline
+
+- **Ideas:** ${planning.ideasCount}
+- **Selected:** ${planning.selectedCount}
+- **Queue:** ${planning.queueCount}
+
+## Kovetkezo Feladatok
+
+${allNextTasks.length > 0 ? allNextTasks.join('\n') : '(nincs elerheto feladat)'}
+
+## Teendo (${globalPhase})
+
+${getPhaseAction(globalPhase, projects, planning)}
+
+---
+
+_Automatikus fazis-koordinator uzenet_
+`;
+
+  await fs.mkdir(config.conductorInbox, { recursive: true });
+  await fs.writeFile(filePath, content);
+
+  return filePath;
+}
+
+/**
+ * Get recommended action for phase
+ */
+function getPhaseAction(
+  phase: ProjectPhase,
+  projects: ProjectStatus[],
+  planning: { queueCount: number; ideasCount: number }
+): string {
+  switch (phase) {
+    case 'planning':
+      if (planning.queueCount > 0) {
+        return `A **planning queue**-ban van ${planning.queueCount} terv. Dolgozd fel: \`docs/planning/queue/\``;
+      }
+      if (planning.ideasCount > 0) {
+        return `Van ${planning.ideasCount} otlet az **ideas** mappaban. Futtasd a plan-select folyamatot.`;
+      }
+      return 'Nincs terv a queue-ban. Kerd az Architect-et uj tervek keszitesere.';
+
+    case 'execution':
+      const inProgressProjects = projects.filter(p => p.phase === 'execution');
+      return `${inProgressProjects.length} projekt vegrehajtas alatt. Ellenorizd a terminalok allapotat es a DONE uzeneteket.`;
+
+    case 'blocked':
+      const blockedProjects = projects.filter(p => p.phase === 'blocked');
+      return `${blockedProjects.length} projekt BLOCKED allapotban. Eszkalald a Root-hoz vagy old meg a blokkolot.`;
+
+    case 'complete':
+      return 'Minden projekt kesz. Regisztralj idle allapotot vagy kerd az Architect-et uj projektek tervezesere.';
+
+    case 'idle':
+    default:
+      return 'Nincs aktiv projekt. Nezd meg a planning pipeline-t vagy kerj uj feladatot a Root-tol.';
+  }
+}
+
+/**
+ * Run phase check cycle
+ */
+export async function runPhaseCheck(
+  config: PhaseConfig = DEFAULT_CONFIG
+): Promise<PhaseCheckResult> {
+  const timestamp = new Date().toISOString();
+
+  await log(`[PhaseCoordinator] Running phase check`);
+
+  // Scan projects
+  const projects = await scanProjects(config);
+
+  // Check planning pipeline
+  const planning = await checkPlanningPipeline(config);
+
+  // Determine global phase
+  const globalPhase = determineGlobalPhase(projects);
+
+  // Check if phase changed or if we should notify anyway
+  const phaseChanged = lastPhase !== globalPhase;
+  const shouldNotify = phaseChanged || (globalPhase === 'planning' && planning.queueCount > 0);
+
+  let conductorNotified = false;
+  let message: string | undefined;
+
+  if (shouldNotify) {
+    try {
+      const inboxPath = await notifyConductor(config, projects, globalPhase, planning);
+      conductorNotified = true;
+      message = `Conductor notified: ${path.basename(inboxPath)}`;
+      await log(`[PhaseCoordinator] ${message}`);
+
+      // Telegram notification for phase changes
+      if (phaseChanged) {
+        const emoji = {
+          planning: '[PLAN]',
+          execution: '[EXEC]',
+          blocked: '[BLOCK]',
+          complete: '[DONE]',
+          idle: '[IDLE]',
+        }[globalPhase];
+        await telegram(`${emoji} *Fazis valtas:* ${lastPhase || 'start'} -> ${globalPhase}`);
+      }
+    } catch (error) {
+      message = `Error notifying conductor: ${error}`;
+      await log(`[PhaseCoordinator] ${message}`);
+    }
+  } else {
+    message = `Phase unchanged: ${globalPhase}`;
+  }
+
+  // Update state
+  lastPhase = globalPhase;
+  lastCheckAt = timestamp;
+
+  await log(`[PhaseCoordinator] Phase: ${globalPhase}, Projects: ${projects.length}, Notified: ${conductorNotified}`);
+
+  return {
+    timestamp,
+    projects,
+    globalPhase,
+    conductorNotified,
+    message,
+  };
+}
+
+// --- Scheduler ---
+
+/**
+ * Start the phase coordinator scheduler
+ */
+export function startPhaseCoordinator(config: PhaseConfig = DEFAULT_CONFIG): void {
+  if (!config.enabled) {
+    console.log('[PhaseCoordinator] Disabled (set ENABLE_PHASE_COORDINATOR=true)');
+    return;
+  }
+
+  if (intervalId) {
+    console.log('[PhaseCoordinator] Already running');
+    return;
+  }
+
+  const intervalMs = config.intervalMinutes * 60 * 1000;
+
+  console.log(`[PhaseCoordinator] Starting (every ${config.intervalMinutes} minutes)`);
+
+  // Run first check after short delay
+  setTimeout(async () => {
+    try {
+      const result = await runPhaseCheck(config);
+      console.log(`[PhaseCoordinator] Initial check: ${result.globalPhase}`);
+    } catch (err) {
+      console.error('[PhaseCoordinator] Initial check error:', err);
+    }
+  }, 10000);
+
+  // Then run on interval
+  intervalId = setInterval(async () => {
+    try {
+      await runPhaseCheck(config);
+    } catch (err) {
+      console.error('[PhaseCoordinator] Check error:', err);
+    }
+  }, intervalMs);
+}
+
+/**
+ * Stop the phase coordinator
+ */
+export function stopPhaseCoordinator(): void {
+  if (intervalId) {
+    clearInterval(intervalId);
+    intervalId = null;
+    console.log('[PhaseCoordinator] Stopped');
+  }
+}
+
+/**
+ * Get current status
+ */
+export function getPhaseCoordinatorStatus(): {
+  enabled: boolean;
+  running: boolean;
+  lastPhase: ProjectPhase | null;
+  lastCheckAt: string | null;
+  config: PhaseConfig;
+} {
+  return {
+    enabled: DEFAULT_CONFIG.enabled,
+    running: intervalId !== null,
+    lastPhase,
+    lastCheckAt,
+    config: DEFAULT_CONFIG,
+  };
+}
+
+/**
+ * Trigger manual check
+ */
+export async function triggerManualPhaseCheck(): Promise<PhaseCheckResult> {
+  return runPhaseCheck(DEFAULT_CONFIG);
+}
+
+// --- Express Router ---
+
+import { Router } from 'express';
+
+export function createPhaseCoordinatorRouter(): Router {
+  const router = Router();
+
+  // Get status
+  router.get('/status', (_req, res) => {
+    res.json(getPhaseCoordinatorStatus());
+  });
+
+  // Trigger manual check
+  router.post('/check', async (_req, res) => {
+    try {
+      const result = await triggerManualPhaseCheck();
+      res.json(result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // Start scheduler
+  router.post('/start', (_req, res) => {
+    startPhaseCoordinator();
+    res.json({ success: true, message: 'Scheduler started' });
+  });
+
+  // Stop scheduler
+  router.post('/stop', (_req, res) => {
+    stopPhaseCoordinator();
+    res.json({ success: true, message: 'Scheduler stopped' });
+  });
+
+  return router;
+}
+
+// --- Standalone execution ---
+
+if (require.main === module) {
+  console.log('=== Phase Coordinator Module ===');
+  console.log(`Enabled: ${DEFAULT_CONFIG.enabled}`);
+  console.log(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
+  console.log(`Projects dir: ${DEFAULT_CONFIG.projectsDir}`);
+
+  if (process.argv.includes('--check')) {
+    console.log('\nRunning manual phase check...');
+    triggerManualPhaseCheck()
+      .then(result => {
+        console.log('\nResult:', JSON.stringify(result, null, 2));
+      })
+      .catch(err => {
+        console.error('Error:', err);
+      });
+  }
+}

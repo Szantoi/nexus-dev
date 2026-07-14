@@ -1,0 +1,183 @@
+# Tool Permissions Configuration
+#
+# Controls which terminals can use which MCP tools.
+# Changes are auto-reloaded every 30 seconds (no restart needed).
+#
+# Permission values:
+#   - "all"     : everyone can use this tool
+#   - "none"    : no one can use this tool
+#   - [list]    : only listed terminals can use (root always has access)
+#
+# If a tool is not listed here, default is "all" (everyone can use).
+#
+# Terminal names: root, conductor, architect, librarian, explorer, backend, frontend, designer
+
+version: "1.1"
+updated: "2026-06-24"
+
+# Default permission for unlisted tools
+default: "all"
+
+permissions:
+  # ─── Focus Queue (Conductor priority tracking) ───────────────────────────────
+  # Write tools: only conductor can manage the queue
+  set_focus_queue:
+    - root
+    - conductor
+  add_focus_item:
+    - root
+    - conductor
+  set_active_task:
+    - root
+    - conductor
+  set_task_status:
+    - root
+    - conductor
+  # Read tool: everyone can see the current focus
+  get_focus_queue: "all"
+
+  # ─── Project Automation ──────────────────────────────────────────────────────
+  create_project:
+    - root
+    - conductor
+  dispatch_next:
+    - root
+    - conductor
+  list_blocked: "all"
+  get_project_status: "all"
+
+  # ─── Code Generation ─────────────────────────────────────────────────────────
+  generate_skeleton:
+    - root
+    - conductor
+    - architect
+    - backend
+  generate_endpoint:
+    - root
+    - conductor
+    - architect
+    - backend
+
+  # ─── Memory Management ───────────────────────────────────────────────────────
+  # Write tools: limited to memory managers
+  write_memory:
+    - root
+    - conductor
+    - librarian
+  append_memory:
+    - root
+    - conductor
+    - librarian
+  save_tiered_memory:
+    - root
+    - conductor
+    - librarian
+  promote_memory:
+    - root
+    - conductor
+    - librarian
+  # Read tools: everyone
+  read_memory: "all"
+  get_session_context: "all"
+
+  # ─── Mailbox (Legacy) ────────────────────────────────────────────────────────
+  # Send message: conductor orchestrates, others can send to specific terminals
+  # Federation bridges: allow cabinet-bridge to send messages to root
+  send_message:
+    - root
+    - conductor
+    - cabinet-bridge
+  # Submit done: everyone can report their own work
+  submit_done: "all"
+  # List inbox: everyone can read their own inbox
+  list_inbox: "all"
+
+  # ─── Mailbox (New - 2026-06-24) ──────────────────────────────────────────────
+  # Task creation: only root and conductor can dispatch tasks
+  create_task:
+    - root
+    - conductor
+  # Read inbox message: code enforces terminal isolation (caller=terminal)
+  read_inbox_message: "all"
+  # Complete inbox: code enforces terminal isolation (caller=terminal)
+  complete_inbox_message: "all"
+  # Append to message: code enforces terminal isolation (caller=terminal)
+  append_to_message: "all"
+
+  # ─── Epic-aware Task Routing ─────────────────────────────────────────────────
+  # Fetch task: code enforces terminal isolation (caller=terminal)
+  fetch_task: "all"
+  # Ack task: code enforces terminal isolation
+  ack_task: "all"
+  # Complete task: code enforces terminal isolation
+  complete_task: "all"
+
+  # ─── TaskMessageBox (DB-backed, 2026-06-24) ──────────────────────────────────
+  # Task creation: only root and conductor
+  tmb_create_task:
+    - root
+    - conductor
+  # Read/query: everyone (code enforces terminal isolation)
+  tmb_read_message: "all"
+  tmb_get_inbox: "all"
+  tmb_get_outbox: "all"
+  # Completion: everyone (code enforces terminal isolation)
+  tmb_complete_message: "all"
+  # Append notes: everyone (code enforces terminal isolation)
+  tmb_append_note: "all"
+
+  # ─── Session Management ──────────────────────────────────────────────────────
+  register_working: "all"
+  register_idle: "all"
+  get_terminal_status: "all"
+
+  # ─── Knowledge & Search ──────────────────────────────────────────────────────
+  search_knowledge: "all"
+  get_identity: "all"
+  list_terminals: "all"
+  get_capabilities: "all"
+  get_service_status: "all"
+
+  # ─── Skills & Workflow ───────────────────────────────────────────────────────
+  list_skills: "all"
+  get_skill: "all"
+  get_workflow: "all"
+  get_terminal_setup: "all"
+  get_project_context: "all"
+  list_terminal_docs: "all"
+  get_terminal_docs: "all"
+  get_terminals_index: "all"
+
+  # ─── Retrospective & Handoff ─────────────────────────────────────────────────
+  run_retrospective:
+    - root
+    - conductor
+    - librarian
+  apply_retrospective:
+    - root
+    - conductor
+  generate_handoff: "all"
+  generate_daily_digest:
+    - root
+    - conductor
+    - librarian
+
+  # ─── Task Status ─────────────────────────────────────────────────────────────
+  get_task_status: "all"
+
+  # ─── Marketing Team Tools ───────────────────────────────────────────────────
+  # A marketing csapat read-only hozzáférést kap a rendszerhez
+  # Nem írhatnak semmit, csak olvashatnak
+  #
+  # Ezek explicit tiltások:
+  # (Ha nincs itt, a default "all" érvényes, ami nekik read-only)
+  #
+  # A marketing csapat tagjai (marketing-pm, marketing-content, marketing-analyst)
+  # automatikusan kapnak read hozzáférést az "all" toolokhoz.
+  #
+  # Ha speciális toolokat akarunk nekik adni:
+  # marketing_dashboard:
+  #   - root
+  #   - conductor
+  #   - marketing-pm
+  #   - marketing-analyst
