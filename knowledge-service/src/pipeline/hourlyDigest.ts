@@ -10,6 +10,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SPACEOS_ROOT, telegram, log } from './common';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ let intervalId: NodeJS.Timeout | null = null;
  */
 export function startHourlyDigestScheduler(): void {
   if (intervalId) {
-    console.log('[HourlyDigest] Scheduler already running');
+    logger.info('[HourlyDigest] Scheduler already running');
     return;
   }
 
@@ -234,7 +235,7 @@ export function startHourlyDigestScheduler(): void {
   const now = new Date();
   const msUntilNextHour = (60 - now.getMinutes()) * 60 * 1000 - now.getSeconds() * 1000 - now.getMilliseconds();
 
-  console.log(`[HourlyDigest] Scheduler starting - next digest in ${Math.floor(msUntilNextHour / 1000 / 60)} minutes`);
+  logger.info(`[HourlyDigest] Scheduler starting - next digest in ${Math.floor(msUntilNextHour / 1000 / 60)} minutes`);
 
   // Schedule first run at next hour
   setTimeout(() => {
@@ -252,7 +253,7 @@ export function stopHourlyDigestScheduler(): void {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
-    console.log('[HourlyDigest] Scheduler stopped');
+    logger.info('[HourlyDigest] Scheduler stopped');
   }
 }
 
@@ -273,12 +274,12 @@ export function getHourlyDigestStatus(): { running: boolean; nextRun: Date | nul
 
 // Run standalone for testing
 if (require.main === module) {
-  console.log('Running hourly digest test...');
+  logger.info('Running hourly digest test...');
   sendHourlyDigest().then(() => {
-    console.log('Digest sent successfully');
+    logger.info('Digest sent successfully');
     process.exit(0);
   }).catch(err => {
-    console.error('Error:', err);
+    logger.error('Error:', err);
     process.exit(1);
   });
 }

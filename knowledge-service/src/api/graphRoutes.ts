@@ -46,6 +46,7 @@ import {
   validateDonePrecondition,
   validateNoSelfReference,
 } from '../graph/validators';
+import { logger } from '../core/logger';
 
 const router = Router();
 
@@ -84,7 +85,7 @@ router.get('/epics', async (req: Request, res: Response) => {
     } else if (error.message.includes('validation failed')) {
       res.status(400).json({ error: error.message });
     } else {
-      console.error('Error loading epic graph:', error);
+      logger.error('Error loading epic graph:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -121,7 +122,7 @@ router.get('/project/:slug', async (req: Request, res: Response) => {
       hint: 'Use GET /api/graph/epics for epic-level graph',
     });
   } catch (error: any) {
-    console.error('Error loading project graph:', error);
+    logger.error('Error loading project graph:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -187,7 +188,7 @@ router.post('/validate', async (req: Request, res: Response) => {
 
     res.json(response);
   } catch (error: any) {
-    console.error('Error validating YAML:', error);
+    logger.error('Error validating YAML:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -218,7 +219,7 @@ router.get('/critical-path/:type/:id', async (req: Request, res: Response) => {
     }
 
     // Load graph based on type
-    let graph;
+    let graph: Awaited<ReturnType<typeof loadEpicGraphCached>> | undefined;
     if (type === 'epic') {
       graph = await loadEpicGraphCached(EPICS_YAML_PATH);
     } else {
@@ -241,7 +242,7 @@ router.get('/critical-path/:type/:id', async (req: Request, res: Response) => {
     if (error.message.includes('not found')) {
       res.status(404).json({ error: 'Graph not found' });
     } else {
-      console.error('Error computing critical path:', error);
+      logger.error('Error computing critical path:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -273,7 +274,7 @@ router.get('/mermaid/:type/:id', async (req: Request, res: Response) => {
     }
 
     // Load graph based on type
-    let graph;
+    let graph: Awaited<ReturnType<typeof loadEpicGraphCached>> | undefined;
     if (type === 'epic') {
       graph = await loadEpicGraphCached(EPICS_YAML_PATH);
     } else {
@@ -297,7 +298,7 @@ router.get('/mermaid/:type/:id', async (req: Request, res: Response) => {
     if (error.message.includes('not found')) {
       res.status(404).json({ error: 'Graph not found' });
     } else {
-      console.error('Error generating Mermaid diagram:', error);
+      logger.error('Error generating Mermaid diagram:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -435,7 +436,7 @@ router.put('/epics/:id', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error updating epic:', error);
+    logger.error('Error updating epic:', error);
     res.status(500).json({
       error: 'Internal server error',
       message: error.message,

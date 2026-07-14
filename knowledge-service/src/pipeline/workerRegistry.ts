@@ -1,3 +1,4 @@
+import { logger } from '../core/logger';
 // Worker Registry - Track parallel work session states
 // Part of ADR-049 Phase 3: Parallel Workers
 
@@ -40,7 +41,7 @@ export function registerWorker(id: string, config: WorkSessionConfig, sessionNam
     sessionName,
   });
 
-  console.log(`[WorkerRegistry] Registered worker: ${id} (${config.model}, task: ${config.taskId})`);
+  logger.info(`[WorkerRegistry] Registered worker: ${id} (${config.model}, task: ${config.taskId})`);
 }
 
 /**
@@ -79,13 +80,13 @@ export function getAllWorkers(): WorkerState[] {
 export function markWorkerDone(id: string): void {
   const worker = workers.get(id);
   if (!worker) {
-    console.warn(`[WorkerRegistry] Worker not found: ${id}`);
+    logger.warn(`[WorkerRegistry] Worker not found: ${id}`);
     return;
   }
 
   worker.status = 'done';
   worker.completedAt = new Date().toISOString();
-  console.log(`[WorkerRegistry] Worker ${id} marked as DONE`);
+  logger.info(`[WorkerRegistry] Worker ${id} marked as DONE`);
 
   // Trigger dependent workers (workers that depend on this one)
   triggerDependentWorkers(id);
@@ -97,14 +98,14 @@ export function markWorkerDone(id: string): void {
 export function markWorkerFailed(id: string, reason?: string): void {
   const worker = workers.get(id);
   if (!worker) {
-    console.warn(`[WorkerRegistry] Worker not found: ${id}`);
+    logger.warn(`[WorkerRegistry] Worker not found: ${id}`);
     return;
   }
 
   worker.status = 'failed';
   worker.completedAt = new Date().toISOString();
   worker.failureReason = reason;
-  console.error(`[WorkerRegistry] Worker ${id} marked as FAILED: ${reason || 'Unknown error'}`);
+  logger.error(`[WorkerRegistry] Worker ${id} marked as FAILED: ${reason || 'Unknown error'}`);
 }
 
 /**
@@ -123,7 +124,7 @@ function triggerDependentWorkers(completedWorkerId: string): void {
     });
 
     if (allDone) {
-      console.log(`[WorkerRegistry] All dependencies done for ${worker.id}, ready to start`);
+      logger.info(`[WorkerRegistry] All dependencies done for ${worker.id}, ready to start`);
       // TODO: Trigger session start (will be implemented in sessionStarter.ts)
     }
   }
@@ -163,7 +164,7 @@ export function queueWorker(id: string, config: WorkSessionConfig): void {
     sessionName: '', // Will be set when actually started
   });
 
-  console.log(`[WorkerRegistry] Worker ${id} queued, waiting for dependencies: ${config.depends_on?.join(', ')}`);
+  logger.info(`[WorkerRegistry] Worker ${id} queued, waiting for dependencies: ${config.depends_on?.join(', ')}`);
 }
 
 /**
@@ -171,7 +172,7 @@ export function queueWorker(id: string, config: WorkSessionConfig): void {
  */
 export function removeWorker(id: string): void {
   workers.delete(id);
-  console.log(`[WorkerRegistry] Worker ${id} removed from registry`);
+  logger.info(`[WorkerRegistry] Worker ${id} removed from registry`);
 }
 
 /**
@@ -179,7 +180,7 @@ export function removeWorker(id: string): void {
  */
 export function clearRegistry(): void {
   workers.clear();
-  console.log('[WorkerRegistry] Registry cleared');
+  logger.info('[WorkerRegistry] Registry cleared');
 }
 
 /**
@@ -212,7 +213,7 @@ export async function processQueue(
         worker.sessionName = result.sessionName;
         worker.startedAt = new Date().toISOString();
         started.push(worker.id);
-        console.log(`[WorkerRegistry] Queued worker ${worker.id} started (dependencies complete)`);
+        logger.info(`[WorkerRegistry] Queued worker ${worker.id} started (dependencies complete)`);
       }
     }
   }

@@ -12,6 +12,7 @@ import {
   log,
   telegram,
 } from './common';
+import { logger } from '../core/logger';
 
 // --- Types ---
 
@@ -166,7 +167,7 @@ async function analyzeProject(tasksPath: string): Promise<ProjectStatus | null> 
   const projectDir = path.dirname(tasksPath);
   const slug = path.basename(projectDir);
 
-  let stat;
+  let stat: { mtime: Date };
   try {
     stat = await fs.stat(tasksPath);
   } catch {
@@ -413,15 +414,15 @@ export function createPhaseCoordinatorRouter(): Router {
 // --- Standalone Execution ---
 
 if (require.main === module) {
-  console.log('Running Phase Coordinator standalone...');
+  logger.info('Running Phase Coordinator standalone...');
   runPhaseCheck()
     .then(result => {
-      console.log('Phase check result:');
-      console.log(JSON.stringify(result, null, 2));
+      logger.info('Phase check result:');
+      logger.info(JSON.stringify(result, null, 2));
       process.exit(0);
     })
     .catch(err => {
-      console.error('Error:', err);
+      logger.error('Error:', err);
       process.exit(1);
     });
 }

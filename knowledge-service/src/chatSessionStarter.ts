@@ -23,6 +23,7 @@ import * as path from 'path';
 import * as terminalsConfig from './config/terminals';
 import { MemoryStore } from './memoryStore';
 import { buildContextFromConversation, IncomingTelegramMessage } from './telegram/contextBuilder';
+import { logger } from './core/logger';
 
 const execAsync = promisify(exec);
 
@@ -103,7 +104,7 @@ Session típus: CHAT (Haiku, gyors válaszok)
 Terminál: ${terminal}`;
   } catch {
     // Fallback: CLAUDE-CHAT.md doesn't exist, use hardcoded prompt
-    console.warn(`[ChatSessionStarter] CLAUDE-CHAT.md not found for ${terminal}, using fallback prompt`);
+    logger.warn(`[ChatSessionStarter] CLAUDE-CHAT.md not found for ${terminal}, using fallback prompt`);
 
     return `Te a ${terminal.toUpperCase()} terminál CHAT session-je vagy.
 
@@ -138,7 +139,7 @@ export async function startChatSession(
 ): Promise<{ success: boolean; message: string }> {
   // SECURITY: Validate terminal name
   if (!terminalsConfig.getTerminal(terminal)) {
-    console.error(`[ChatSessionStarter] SECURITY: Invalid terminal name: ${terminal}`);
+    logger.error(`[ChatSessionStarter] SECURITY: Invalid terminal name: ${terminal}`);
     return {
       success: false,
       message: `Invalid terminal name: ${terminal}`,
@@ -150,19 +151,19 @@ export async function startChatSession(
 
   // Check if already running
   if (await isChatSessionRunning(terminal)) {
-    console.log(`[ChatSessionStarter] ${sessionName} already running`);
+    logger.info(`[ChatSessionStarter] ${sessionName} already running`);
     return {
       success: true,
       message: `Chat session ${sessionName} already running`,
     };
   }
 
-  console.log(`[ChatSessionStarter] Starting chat session: ${sessionName} (Haiku, continuous)`);
+  logger.info(`[ChatSessionStarter] Starting chat session: ${sessionName} (Haiku, continuous)`);
 
   try {
     // 1. Create tmux session
     await execAsync(`tmux -S ${TMUX_SOCKET} new-session -d -s ${sessionName} -c "${workdir}"`);
-    console.log(`[ChatSessionStarter] ✓ Created tmux session ${sessionName}`);
+    logger.info(`[ChatSessionStarter] ✓ Created tmux session ${sessionName}`);
 
     // Wait for session to be ready
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -183,7 +184,7 @@ export async function startChatSession(
         }
       }
     } catch (err) {
-      console.warn(`[ChatSessionStarter] Failed to load chat memories:`, err);
+      logger.warn(`[ChatSessionStarter] Failed to load chat memories:`, err);
     }
 
     // 2b. Load from Telegram conversation history (telegram.db)
@@ -199,12 +200,12 @@ export async function startChatSession(
         }
       }
     } catch (err) {
-      console.warn(`[ChatSessionStarter] Failed to load Telegram history:`, err);
+      logger.warn(`[ChatSessionStarter] Failed to load Telegram history:`, err);
     }
 
     // 3. Send claude command with Haiku model
     await execAsync(`tmux -S ${TMUX_SOCKET} send-keys -t ${sessionName} "claude --model haiku" Enter`);
-    console.log(`[ChatSessionStarter] ✓ Started claude with Haiku model`);
+    logger.info(`[ChatSessionStarter] ✓ Started claude with Haiku model`);
 
     // Wait for claude to initialize
     await new Promise(resolve => setTimeout(resolve, 10000));
@@ -223,12 +224,12 @@ export async function startChatSession(
 
     // Send Enter to submit
     tmuxSendKeys(sessionName, 'Enter');
-    console.log(`[ChatSessionStarter] ✓ Injected initialization prompt`);
+    logger.info(`[ChatSessionStarter] ✓ Injected initialization prompt`);
 
     // 5. Wait for response
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    console.log(`[ChatSessionStarter] ✓ Chat session ${sessionName} ready`);
+    logger.info(`[ChatSessionStarter] ✓ Chat session ${sessionName} ready`);
 
     return {
       success: true,
@@ -236,7 +237,7 @@ export async function startChatSession(
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[ChatSessionStarter] Failed to start ${sessionName}:`, msg);
+    logger.error(`[ChatSessionStarter] Failed to start ${sessionName}:`, msg);
     return {
       success: false,
       message: `Failed to start chat session: ${msg}`,
@@ -259,12 +260,12 @@ export async function injectToChatSession(
 
   // Check if session is running
   if (!await isChatSessionRunning(terminal)) {
-    console.error(`[ChatSessionStarter] Session ${sessionName} not running`);
+    logger.error(`[ChatSessionStarter] Session ${sessionName} not running`);
     return false;
   }
 
   try {
-    console.log(`[ChatSessionStarter] Injecting message to ${sessionName}: ${message.slice(0, 50)}...`);
+    logger.info(`[ChatSessionStarter] Injecting message to ${sessionName}: ${message.slice(0, 50)}...`);
 
     // Clear input buffer first
     tmuxSendKeys(sessionName, 'Escape');
@@ -284,10 +285,10 @@ export async function injectToChatSession(
     // Submit with Enter
     tmuxSendKeys(sessionName, 'Enter');
 
-    console.log(`[ChatSessionStarter] ✓ Message injected to ${sessionName}`);
+    logger.info(`[ChatSessionStarter] ✓ Message injected to ${sessionName}`);
     return true;
   } catch (error) {
-    console.error(`[ChatSessionStarter] Failed to inject to ${sessionName}:`, error);
+    logger.error(`[ChatSessionStarter] Failed to inject to ${sessionName}:`, error);
     return false;
   }
 }
@@ -311,10 +312,10 @@ export async function injectTelegramWithContext(
   // Check if session is running
   if (!await isChatSessionRunning(terminal)) {
     // Try to start the session
-    console.log(`[ChatSessionStarter] ${sessionName} not running, starting...`);
+    logger.info(`[ChatSessionStarter] ${sessionName} not running, starting...`);
     const result = await startChatSession(terminal);
     if (!result.success) {
-      console.error(`[ChatSessionStarter] Failed to start ${sessionName}: ${result.message}`);
+      logger.error(`[ChatSessionStarter] Failed to start ${sessionName}: ${result.message}`);
       return false;
     }
     // Wait for session to be ready
@@ -329,8 +330,8 @@ export async function injectTelegramWithContext(
       language: 'hu',
     });
 
-    console.log(`[ChatSessionStarter] Injecting Telegram message with context to ${sessionName}`);
-    console.log(`[ChatSessionStarter] Context length: ${context.length} chars`);
+    logger.info(`[ChatSessionStarter] Injecting Telegram message with context to ${sessionName}`);
+    logger.info(`[ChatSessionStarter] Context length: ${context.length} chars`);
 
     // Clear input buffer first
     tmuxSendKeys(sessionName, 'Escape');
@@ -350,10 +351,10 @@ export async function injectTelegramWithContext(
     // Submit with Enter
     tmuxSendKeys(sessionName, 'Enter');
 
-    console.log(`[ChatSessionStarter] ✓ Telegram message injected with context to ${sessionName}`);
+    logger.info(`[ChatSessionStarter] ✓ Telegram message injected with context to ${sessionName}`);
     return true;
   } catch (error) {
-    console.error(`[ChatSessionStarter] Failed to inject Telegram message to ${sessionName}:`, error);
+    logger.error(`[ChatSessionStarter] Failed to inject Telegram message to ${sessionName}:`, error);
     return false;
   }
 }

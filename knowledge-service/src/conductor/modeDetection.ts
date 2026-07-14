@@ -4,6 +4,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 export type OperationMode = 'manual' | 'planning_pipeline' | 'structured_program';
 
@@ -42,7 +43,7 @@ export function detectOperationMode(): OperationMode {
       }
     }
   } catch (error) {
-    console.warn('[modeDetection] Failed to read EPICS.yaml:', error);
+    logger.warn('[modeDetection] Failed to read EPICS.yaml:', error);
     // Continue to next check
   }
 
@@ -56,7 +57,7 @@ export function detectOperationMode(): OperationMode {
       }
     }
   } catch (error) {
-    console.warn('[modeDetection] Failed to check planning queue:', error);
+    logger.warn('[modeDetection] Failed to check planning queue:', error);
   }
 
   // 4. Default: manual mode

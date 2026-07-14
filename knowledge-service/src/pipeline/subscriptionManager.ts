@@ -14,6 +14,7 @@ import { pipelineEvents, type PipelineEvent, type PipelineEventType } from './ev
 import { broadcastToTerminal } from '../routes/subscriptionRoutes';
 import { sendNotification } from '../telegram/telegramService';
 import { startWorkSession } from '../sessionStarter';
+import { logger } from '../core/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export class SubscriptionManager {
 
     this.subscriptions.set(subscription.id, subscription);
 
-    console.log(`[SubscriptionManager] ${terminal} subscribed to ${type}:${target} (${events.join(',')})`);
+    logger.info(`[SubscriptionManager] ${terminal} subscribed to ${type}:${target} (${events.join(',')})`);
 
     return subscription;
   }
@@ -122,7 +123,7 @@ export class SubscriptionManager {
     }
 
     this.subscriptions.delete(subscriptionId);
-    console.log(`[SubscriptionManager] Unsubscribed: ${subscriptionId}`);
+    logger.info(`[SubscriptionManager] Unsubscribed: ${subscriptionId}`);
 
     return true;
   }
@@ -209,7 +210,7 @@ export class SubscriptionManager {
       if (deliveryMethod === 'auto' || deliveryMethod === 'sse') {
         const delivered = this.tryDeliverSSE(terminal, event, subscription);
         if (delivered) {
-          console.log(`[SubscriptionManager] Delivered via SSE to ${terminal}`);
+          logger.info(`[SubscriptionManager] Delivered via SSE to ${terminal}`);
           return;
         }
       }
@@ -218,13 +219,13 @@ export class SubscriptionManager {
       // This is the PRIMARY delivery method - terminals should work on next task
       if (event.type === 'outbox:done' || event.type === 'outbox:blocked') {
         const taskPrompt = this.buildCheckpointTaskPrompt(subscription, event);
-        console.log(`[SubscriptionManager] Starting work session for ${terminal} (checkpoint trigger)`);
+        logger.info(`[SubscriptionManager] Starting work session for ${terminal} (checkpoint trigger)`);
 
         const result = await startWorkSession(terminal, taskPrompt, 'sonnet');
         if (result.success) {
-          console.log(`[SubscriptionManager] Work session started: ${result.sessionName}`);
+          logger.info(`[SubscriptionManager] Work session started: ${result.sessionName}`);
         } else {
-          console.log(`[SubscriptionManager] Work session already running or failed: ${result.message}`);
+          logger.info(`[SubscriptionManager] Work session already running or failed: ${result.message}`);
         }
       }
 
@@ -232,11 +233,11 @@ export class SubscriptionManager {
       if (deliveryMethod === 'auto' || deliveryMethod === 'telegram') {
         const delivered = await this.deliverTelegram(subscription, event);
         if (delivered) {
-          console.log(`[SubscriptionManager] Delivered via Telegram for subscription ${subscription.id}`);
+          logger.info(`[SubscriptionManager] Delivered via Telegram for subscription ${subscription.id}`);
         }
       }
     } catch (error) {
-      console.error(`[SubscriptionManager] Delivery failed:`, error);
+      logger.error(`[SubscriptionManager] Delivery failed:`, error);
     }
   }
 
@@ -320,7 +321,7 @@ Subscription ID: ${subscription.id}
       const success = await sendNotification(message);
       return success;
     } catch (error) {
-      console.error(`[SubscriptionManager] Telegram delivery error:`, error);
+      logger.error(`[SubscriptionManager] Telegram delivery error:`, error);
       return false;
     }
   }
@@ -385,7 +386,7 @@ Subscription ID: ${subscription.id}
       const matches = this.findMatchingSubscriptions(event);
 
       if (matches.length > 0) {
-        console.log(`[SubscriptionManager] Event ${event.type} matched ${matches.length} subscriptions`);
+        logger.info(`[SubscriptionManager] Event ${event.type} matched ${matches.length} subscriptions`);
       }
 
       matches.forEach(sub => {
@@ -393,7 +394,7 @@ Subscription ID: ${subscription.id}
       });
     });
 
-    console.log('[SubscriptionManager] Attached to Event Bus');
+    logger.info('[SubscriptionManager] Attached to Event Bus');
   }
 
   /**
@@ -411,7 +412,7 @@ Subscription ID: ${subscription.id}
     }
 
     if (cleanedCount > 0) {
-      console.log(`[SubscriptionManager] Cleaned up ${cleanedCount} expired subscriptions`);
+      logger.info(`[SubscriptionManager] Cleaned up ${cleanedCount} expired subscriptions`);
     }
 
     return cleanedCount;
@@ -522,7 +523,7 @@ export function parseCheckpointsFromEpics(epicsPath = DEFAULT_EPICS_PATH): {
 
     return results;
   } catch (error) {
-    console.error('[SubscriptionManager] Error parsing EPICS.yaml:', error);
+    logger.error('[SubscriptionManager] Error parsing EPICS.yaml:', error);
     return [];
   }
 }
@@ -556,12 +557,12 @@ export function subscribeToAllCheckpoints(
         expiresIn: 86400 * 30, // 30 days - checkpoints are long-lived
       });
 
-      console.log(`[SubscriptionManager] Auto-subscribed ${terminal} to checkpoint ${checkpoint.id} (${messageId})`);
+      logger.info(`[SubscriptionManager] Auto-subscribed ${terminal} to checkpoint ${checkpoint.id} (${messageId})`);
       count++;
     }
   }
 
-  console.log(`[SubscriptionManager] Created ${count} checkpoint subscriptions from EPICS.yaml`);
+  logger.info(`[SubscriptionManager] Created ${count} checkpoint subscriptions from EPICS.yaml`);
   return count;
 }
 

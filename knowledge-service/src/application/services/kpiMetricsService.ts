@@ -13,6 +13,7 @@
  */
 
 import { getFullTerminalStatus } from '../../terminalStatus';
+import { logger } from '../../core/logger';
 
 // Terminal names as defined in validation.ts
 type TerminalName = 'root' | 'conductor' | 'backend' | 'frontend' | 'designer' | 'architect' | 'librarian' | 'explorer' | 'monitor';
@@ -126,7 +127,7 @@ function getInboxQueueCount(): number {
         }
       }
     } catch (err) {
-      console.error(`Error reading inbox for ${terminal}:`, err);
+      logger.error(`Error reading inbox for ${terminal}:`, err);
     }
   }
 
@@ -228,7 +229,7 @@ function getLatestCompletedTask(): TaskSummaryDto {
         }
       }
     } catch (err) {
-      console.error(`Error reading outbox for ${terminal}:`, err);
+      logger.error(`Error reading outbox for ${terminal}:`, err);
     }
   }
 

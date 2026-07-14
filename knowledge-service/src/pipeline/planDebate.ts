@@ -15,6 +15,7 @@ import {
   getFullPath,
   PlanConfig
 } from './planConfig';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -476,7 +477,7 @@ export async function runPlanDebate(): Promise<DebateResult> {
 
 if (require.main === module) {
   runPlanDebate().then(result => {
-    console.log('Debate result:', JSON.stringify(result, null, 2));
+    logger.info('Debate result:', JSON.stringify(result, null, 2));
     process.exit(result.success ? 0 : 1);
   });
 }

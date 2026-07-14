@@ -13,6 +13,7 @@ import * as path from 'path';
 import { loadActiveEpic, getEpicProgress, getNextCheckpoint } from './epicManager';
 import { detectOperationMode, getModeDescription } from './modeDetection';
 import type { Epic, Checkpoint } from './epicManager';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const TERMINALS_DIR = process.env.TERMINALS_PATH || path.join(SPACEOS_ROOT, 'terminals');
@@ -409,7 +410,7 @@ export async function generateAndDeliverBriefing(): Promise<{ messageId: string;
   const markdown = formatBriefingMarkdown(briefingData);
   const messageId = await deliverBriefingToInbox(markdown);
 
-  console.log(`[conductorBriefing] Generated briefing: ${messageId}`);
+  logger.info(`[conductorBriefing] Generated briefing: ${messageId}`);
   
   return { messageId, briefingData };
 }

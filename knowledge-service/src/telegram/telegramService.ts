@@ -20,6 +20,7 @@ import {
 } from './conversationManager';
 import { startChatSession } from '../chatSessionStarter';
 import { sendFromTerminal } from './multiBotManager';
+import { logger } from '../core/logger';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ function injectToTmuxSession(
   text: string
 ): boolean {
   if (!sessionExists(sessionName)) {
-    console.log(`[TelegramService] Session ${sessionName} not found`);
+    logger.info(`[TelegramService] Session ${sessionName} not found`);
     return false;
   }
 
@@ -144,10 +145,10 @@ function injectToTmuxSession(
     const cmd = `tmux send-keys -t ${sessionName} -l '${safeText}' && sleep 2 && tmux send-keys -t ${sessionName} -H 0d`;
     execSync(cmd, { timeout: 15000 });
 
-    console.log(`[TelegramService] Injected message into ${sessionName}`);
+    logger.info(`[TelegramService] Injected message into ${sessionName}`);
     return true;
   } catch (err) {
-    console.error(`[TelegramService] Failed to inject into ${sessionName}:`, err);
+    logger.error(`[TelegramService] Failed to inject into ${sessionName}:`, err);
     return false;
   }
 }
@@ -194,19 +195,19 @@ export async function injectTelegramMessageToTerminal(
 ): Promise<boolean> {
   const sessionName = TERMINAL_SESSIONS[targetTerminal];
   if (!sessionName) {
-    console.error(`[TelegramService] Unknown terminal: ${targetTerminal}`);
+    logger.error(`[TelegramService] Unknown terminal: ${targetTerminal}`);
     return false;
   }
 
   // ADR-049 Phase 1: Auto-start chat session if not running
   if (!sessionExists(sessionName)) {
-    console.log(`[TelegramService] Chat session ${sessionName} not running, starting...`);
+    logger.info(`[TelegramService] Chat session ${sessionName} not running, starting...`);
     const result = await startChatSession(targetTerminal);
     if (!result.success) {
-      console.error(`[TelegramService] Failed to start chat session: ${result.message}`);
+      logger.error(`[TelegramService] Failed to start chat session: ${result.message}`);
       return false;
     }
-    console.log(`[TelegramService] ✓ Chat session ${sessionName} started`);
+    logger.info(`[TelegramService] ✓ Chat session ${sessionName} started`);
 
     // Wait a bit for session to be ready
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -238,9 +239,9 @@ async function processResponseQueue(): Promise<void> {
     if (item.fromTerminal && item.fromTerminal !== 'unknown') {
       success = await sendFromTerminal(item.fromTerminal, item.chatId, item.message);
       if (success) {
-        console.log(`[TelegramService] Sent via ${item.fromTerminal} bot: msg ${item.id}`);
+        logger.info(`[TelegramService] Sent via ${item.fromTerminal} bot: msg ${item.id}`);
       } else {
-        console.log(`[TelegramService] ${item.fromTerminal} bot not active, falling back to global`);
+        logger.info(`[TelegramService] ${item.fromTerminal} bot not active, falling back to global`);
       }
     }
 
@@ -258,7 +259,7 @@ async function processResponseQueue(): Promise<void> {
       markResponseSent(item.id);
     } else {
       markResponseFailed(item.id, error);
-      console.error(`[TelegramService] Failed to send message ${item.id}: ${error}`);
+      logger.error(`[TelegramService] Failed to send message ${item.id}: ${error}`);
     }
 
     // Small delay between messages to respect rate limits
@@ -275,7 +276,7 @@ async function runCleanupTasks(): Promise<void> {
   const retried = retryFailedResponses();
 
   if (expired > 0 || cleaned > 0 || retried > 0) {
-    console.log(`[TelegramService] Cleanup: expired=${expired}, cleaned=${cleaned}, retried=${retried}`);
+    logger.info(`[TelegramService] Cleanup: expired=${expired}, cleaned=${cleaned}, retried=${retried}`);
   }
 }
 
@@ -285,19 +286,19 @@ async function runCleanupTasks(): Promise<void> {
 export function startResponseWorker(): void {
   if (workerInterval) return;
 
-  console.log('[TelegramService] Starting response worker...');
+  logger.info('[TelegramService] Starting response worker...');
 
   // Process queue every 1 second
   workerInterval = setInterval(() => {
     processResponseQueue().catch(err => {
-      console.error('[TelegramService] Response queue error:', err);
+      logger.error('[TelegramService] Response queue error:', err);
     });
   }, 1000);
 
   // Run cleanup every 5 minutes
   cleanupInterval = setInterval(() => {
     runCleanupTasks().catch(err => {
-      console.error('[TelegramService] Cleanup error:', err);
+      logger.error('[TelegramService] Cleanup error:', err);
     });
   }, 5 * 60 * 1000);
 }
@@ -314,7 +315,7 @@ export function stopResponseWorker(): void {
     clearInterval(cleanupInterval);
     cleanupInterval = null;
   }
-  console.log('[TelegramService] Response worker stopped');
+  logger.info('[TelegramService] Response worker stopped');
 }
 
 // ─── Exports ─────────────────────────────────────────────────────────────────

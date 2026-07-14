@@ -29,6 +29,7 @@ import {
   QueuedTask,
   RoutingDecision,
 } from './epicRouter';
+import { logger } from '../core/logger';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -125,17 +126,17 @@ export class ProjectDispatcher {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.warn('[ProjectDispatcher] Already running');
+      logger.warn('[ProjectDispatcher] Already running');
       return;
     }
 
     if (!this.config.enabled) {
-      console.log('[ProjectDispatcher] Disabled by configuration');
+      logger.info('[ProjectDispatcher] Disabled by configuration');
       return;
     }
 
     this.isRunning = true;
-    console.log('[ProjectDispatcher] Starting...');
+    logger.info('[ProjectDispatcher] Starting...');
 
     // Initialize Chokidar watcher
     const watchPattern = path.join(this.config.terminalsDir, '*/outbox/*.md');
@@ -160,10 +161,10 @@ export class ProjectDispatcher {
     });
 
     this.watcher.on('error', (error) => {
-      console.error('[ProjectDispatcher] Watcher error:', error);
+      logger.error('[ProjectDispatcher] Watcher error:', error);
     });
 
-    console.log(`[ProjectDispatcher] Watching: ${watchPattern}`);
+    logger.info(`[ProjectDispatcher] Watching: ${watchPattern}`);
   }
 
   /**
@@ -174,7 +175,7 @@ export class ProjectDispatcher {
       return;
     }
 
-    console.log('[ProjectDispatcher] Stopping...');
+    logger.info('[ProjectDispatcher] Stopping...');
     this.isRunning = false;
 
     if (this.watcher) {
@@ -182,7 +183,7 @@ export class ProjectDispatcher {
       this.watcher = null;
     }
 
-    console.log('[ProjectDispatcher] Stopped');
+    logger.info('[ProjectDispatcher] Stopped');
   }
 
   /**
@@ -207,13 +208,13 @@ export class ProjectDispatcher {
       // Mark as processed
       this.processedFiles.add(filePath);
 
-      console.log(`[ProjectDispatcher] Processing DONE: ${doneMessage.task_id} from ${doneMessage.from}`);
+      logger.info(`[ProjectDispatcher] Processing DONE: ${doneMessage.task_id} from ${doneMessage.from}`);
 
       // Process the DONE message
       await this.processProjectDone(doneMessage);
 
     } catch (error) {
-      console.error(`[ProjectDispatcher] Error processing file ${filePath}:`, error);
+      logger.error(`[ProjectDispatcher] Error processing file ${filePath}:`, error);
     }
   }
 
@@ -266,7 +267,7 @@ export class ProjectDispatcher {
       done.epic_id || null
     );
 
-    console.log(`[ProjectDispatcher] Epic routing decision: ${routingDecision.nextAction} - ${routingDecision.reason}`);
+    logger.info(`[ProjectDispatcher] Epic routing decision: ${routingDecision.nextAction} - ${routingDecision.reason}`);
 
     // ── Legacy project TASKS.yaml processing ──
     const projects = await this.scanActiveProjects();
@@ -285,7 +286,7 @@ export class ProjectDispatcher {
           continue;
         }
 
-        console.log(`[ProjectDispatcher] Matched task ${task.id} in project ${project.slug}`);
+        logger.info(`[ProjectDispatcher] Matched task ${task.id} in project ${project.slug}`);
 
         // 4. Mark task as done
         task.status = 'done';
@@ -298,7 +299,7 @@ export class ProjectDispatcher {
         // 6. Find next unblocked tasks
         const nextTasks = this.findUnblockedTasks(tasks, task.triggers_on_done);
 
-        console.log(`[ProjectDispatcher] Found ${nextTasks.length} unblocked tasks`);
+        logger.info(`[ProjectDispatcher] Found ${nextTasks.length} unblocked tasks`);
 
         // 7. Queue tasks via epicRouter instead of direct dispatch
         for (const nextTask of nextTasks) {
@@ -312,7 +313,7 @@ export class ProjectDispatcher {
         await this.checkMilestoneCompletion(project, tasks);
 
       } catch (error) {
-        console.error(`[ProjectDispatcher] Error processing project ${project.slug}:`, error);
+        logger.error(`[ProjectDispatcher] Error processing project ${project.slug}:`, error);
       }
     }
 
@@ -341,7 +342,7 @@ export class ProjectDispatcher {
 
     // If terminal is already working, queue the task
     if (ctx?.status === 'working') {
-      console.log(`[ProjectDispatcher] Terminal ${task.terminal} is busy, queuing task ${task.id}`);
+      logger.info(`[ProjectDispatcher] Terminal ${task.terminal} is busy, queuing task ${task.id}`);
       queueTask(
         `TASK-${task.id}`,
         task.terminal,
@@ -354,11 +355,11 @@ export class ProjectDispatcher {
 
     // If same epic context, dispatch immediately
     if (!currentEpicId || currentEpicId === taskEpicId) {
-      console.log(`[ProjectDispatcher] Same epic context, dispatching task ${task.id}`);
+      logger.info(`[ProjectDispatcher] Same epic context, dispatching task ${task.id}`);
       await this.dispatchTask(project, tasks, task, previousDone);
     } else {
       // Different epic - queue and let epicRouter decide
-      console.log(`[ProjectDispatcher] Different epic (current: ${currentEpicId}, task: ${taskEpicId}), queuing task ${task.id}`);
+      logger.info(`[ProjectDispatcher] Different epic (current: ${currentEpicId}, task: ${taskEpicId}), queuing task ${task.id}`);
       queueTask(
         `TASK-${task.id}`,
         task.terminal,
@@ -373,7 +374,7 @@ export class ProjectDispatcher {
    * Dispatch a task that was in the epicRouter queue
    */
   private async dispatchQueuedTask(queuedTask: QueuedTask, previousDone: DoneMessage): Promise<void> {
-    console.log(`[ProjectDispatcher] Dispatching queued task ${queuedTask.message_id} to ${queuedTask.terminal}`);
+    logger.info(`[ProjectDispatcher] Dispatching queued task ${queuedTask.message_id} to ${queuedTask.terminal}`);
 
     // Mark as dispatched in epicRouter
     epicDispatchTask(queuedTask.terminal, queuedTask);
@@ -412,7 +413,7 @@ export class ProjectDispatcher {
 
       return projects;
     } catch (error) {
-      console.error('[ProjectDispatcher] Error scanning projects:', error);
+      logger.error('[ProjectDispatcher] Error scanning projects:', error);
       return [];
     }
   }
@@ -426,7 +427,7 @@ export class ProjectDispatcher {
     for (const taskId of triggeredIds) {
       const task = this.findTaskById(tasks, taskId);
       if (!task) {
-        console.warn(`[ProjectDispatcher] Task not found: ${taskId}`);
+        logger.warn(`[ProjectDispatcher] Task not found: ${taskId}`);
         continue;
       }
 
@@ -466,11 +467,11 @@ export class ProjectDispatcher {
     task: Task,
     previousDone: DoneMessage
   ): Promise<void> {
-    console.log(`[ProjectDispatcher] Dispatching task ${task.id}: ${task.name}`);
+    logger.info(`[ProjectDispatcher] Dispatching task ${task.id}: ${task.name}`);
 
     // 1. Run generator if auto_generate is true
     if (task.auto_generate && task.generator) {
-      console.log(`[ProjectDispatcher] Running generator: ${task.generator}`);
+      logger.info(`[ProjectDispatcher] Running generator: ${task.generator}`);
       // TODO: Implement generator execution (Track B)
       // await this.runGenerator(task.generator, task.generator_params || {});
     }
@@ -484,8 +485,10 @@ export class ProjectDispatcher {
     task.msg_id = this.extractMsgId(inboxPath);
 
     // 3.5 Update epicRouter terminal context (2026-06-24)
+    // Lazy-loaded to break the projectDispatcher <-> epicRouter cycle;
+    // dynamic import works under both the CJS build and vitest's ESM transform.
     const epicId = (task as any).epic_id || `project-${project.slug}`;
-    const { setTerminalContext } = require('./epicRouter');
+    const { setTerminalContext } = await import('./epicRouter');
     setTerminalContext(
       task.terminal,
       epicId,
@@ -505,7 +508,7 @@ export class ProjectDispatcher {
       await this.notifyTelegram(`🚀 Task dispatched: ${task.name} → ${task.terminal}`);
     }
 
-    console.log(`[ProjectDispatcher] Task ${task.id} dispatched to ${task.terminal}`);
+    logger.info(`[ProjectDispatcher] Task ${task.id} dispatched to ${task.terminal}`);
   }
 
   /**
@@ -652,7 +655,7 @@ ${task.auto_generate ? `
 
       if (allTasksDone && milestone.tasks.length > 0) {
         milestone.status = 'done';
-        console.log(`[ProjectDispatcher] ✅ Milestone completed: ${milestone.name}`);
+        logger.info(`[ProjectDispatcher] ✅ Milestone completed: ${milestone.name}`);
 
         if (this.config.notifyTelegram && tasks.config.notify_telegram) {
           await this.notifyTelegram(`✅ Milestone completed: ${milestone.name} (${project.slug})`);
@@ -674,12 +677,12 @@ ${task.auto_generate ? `
       const { sendTelegramMessage } = await import('./telegramBot');
       const chatId = process.env.TELEGRAM_CHAT_ID || '';
       if (!chatId) {
-        console.log('[ProjectDispatcher] Telegram notification skipped: no TELEGRAM_CHAT_ID');
+        logger.info('[ProjectDispatcher] Telegram notification skipped: no TELEGRAM_CHAT_ID');
         return;
       }
       await sendTelegramMessage(chatId, message);
     } catch (error) {
-      console.error('[ProjectDispatcher] Telegram notification failed:', error);
+      logger.error('[ProjectDispatcher] Telegram notification failed:', error);
     }
   }
 }

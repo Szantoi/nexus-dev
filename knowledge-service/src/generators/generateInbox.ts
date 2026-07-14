@@ -8,6 +8,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { toSlug } from './utils/casing';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
@@ -73,7 +74,7 @@ export async function generateInbox(params: GenerateInboxParams): Promise<Genera
     // Write inbox file
     await fs.writeFile(filePath, content, 'utf-8');
 
-    console.log(`[GenerateInbox] Created ${msgId} at ${filePath}`);
+    logger.info(`[GenerateInbox] Created ${msgId} at ${filePath}`);
 
     return {
       success: true,
@@ -81,7 +82,7 @@ export async function generateInbox(params: GenerateInboxParams): Promise<Genera
       msgId,
     };
   } catch (error) {
-    console.error('[GenerateInbox] Error:', error);
+    logger.error('[GenerateInbox] Error:', error);
     return {
       success: false,
       filePath: '',

@@ -38,6 +38,7 @@ import {
 } from '../../../pipeline/epicRouter';
 import { terminateColdSession } from '../../../sessionStarter';
 import { getSessionMode } from '../../../config/terminals';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -157,7 +158,7 @@ router.get('/terminals', (_req: Request, res: Response) => {
       count: terminals.length,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting terminals:', error);
+    logger.error('[EpicRouter API] Error getting terminals:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -181,7 +182,7 @@ router.get('/terminals/:terminal', (req: Request, res: Response) => {
       terminal: context,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting terminal:', error);
+    logger.error('[EpicRouter API] Error getting terminal:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -203,7 +204,7 @@ router.get('/queue', (_req: Request, res: Response) => {
       totalQueued,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting queue stats:', error);
+    logger.error('[EpicRouter API] Error getting queue stats:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -224,7 +225,7 @@ router.get('/queue/terminal/:terminal', (req: Request, res: Response) => {
       count: tasks.length,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting terminal queue:', error);
+    logger.error('[EpicRouter API] Error getting terminal queue:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -245,7 +246,7 @@ router.get('/queue/epic/:epicId', (req: Request, res: Response) => {
       count: tasks.length,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting epic queue:', error);
+    logger.error('[EpicRouter API] Error getting epic queue:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -270,7 +271,7 @@ router.post('/queue', (req: Request, res: Response) => {
       message: `Task ${messageId} queued for ${terminal}`,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error queueing task:', error);
+    logger.error('[EpicRouter API] Error queueing task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -293,7 +294,7 @@ router.get('/routing/:terminal', requireTerminalAuth, (req: Request, res: Respon
       decision,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error getting routing decision:', error);
+    logger.error('[EpicRouter API] Error getting routing decision:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -322,7 +323,7 @@ router.post('/task/:terminal/complete', requireTerminalAuth, (req: Request, res:
       decision,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error completing task:', error);
+    logger.error('[EpicRouter API] Error completing task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -357,7 +358,7 @@ router.post('/dispatch/:terminal', requireTerminalAuth, (req: Request, res: Resp
       reason: decision.reason,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error dispatching task:', error);
+    logger.error('[EpicRouter API] Error dispatching task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -377,7 +378,7 @@ router.get('/projects', (_req: Request, res: Response) => {
       count: projects.length,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error listing projects:', error);
+    logger.error('[EpicRouter API] Error listing projects:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -407,7 +408,7 @@ router.post('/projects', (req: Request, res: Response) => {
       project,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error creating project:', error);
+    logger.error('[EpicRouter API] Error creating project:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -425,7 +426,7 @@ router.get('/epics', (_req: Request, res: Response) => {
       count: epics.length,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error listing epics:', error);
+    logger.error('[EpicRouter API] Error listing epics:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -459,7 +460,7 @@ router.post('/epics', (req: Request, res: Response) => {
       epic,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error creating epic:', error);
+    logger.error('[EpicRouter API] Error creating epic:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -555,7 +556,7 @@ router.get('/fetch/:terminal/:messageId', requireTerminalAuth, async (req: Reque
       }
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error fetching task:', error);
+    logger.error('[EpicRouter API] Error fetching task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -609,7 +610,7 @@ router.post('/ack/:terminal/:messageId', requireTerminalAuth, async (req: Reques
       terminal,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error acknowledging task:', error);
+    logger.error('[EpicRouter API] Error acknowledging task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -632,7 +633,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       message: `Synced ${result.projects} projects and ${result.epics} epics`,
     });
   } catch (error) {
-    console.error('[EpicRouter API] Error syncing:', error);
+    logger.error('[EpicRouter API] Error syncing:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
@@ -779,7 +780,7 @@ export async function completeTaskForMcp(terminal: string, messageId: string, su
     const taskSummary = summary || `Task ${messageId} completed`;
     const terminateResult = await terminateColdSession(terminal, messageId, taskSummary, 'done');
     sessionTerminated = terminateResult.success;
-    console.log(`[EpicRouter] Cold session terminate for ${terminal}: ${terminateResult.message}`);
+    logger.info(`[EpicRouter] Cold session terminate for ${terminal}: ${terminateResult.message}`);
   }
 
   return {

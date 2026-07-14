@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { sendNotification } from '../telegram/telegramService';
 import { pipelineEvents, type PipelineEvent } from './eventBus';
+import { logger } from '../core/logger';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ function loadEpics(): EpicsData {
     const content = fs.readFileSync(EPICS_PATH, 'utf-8');
     return yaml.load(content) as EpicsData;
   } catch (error) {
-    console.error('[EpicNotifications] Failed to load EPICS.yaml:', error);
+    logger.error('[EpicNotifications] Failed to load EPICS.yaml:', error);
     return { epics: [] };
   }
 }
@@ -125,7 +126,7 @@ export async function notifyCheckpointComplete(
   ].join('\n');
 
   await sendNotification(message);
-  console.log(`[EpicNotifications] Checkpoint complete: ${checkpointId} in ${epicId}`);
+  logger.info(`[EpicNotifications] Checkpoint complete: ${checkpointId} in ${epicId}`);
 }
 
 /**
@@ -152,7 +153,7 @@ export async function notifyEpicComplete(epicId: string): Promise<void> {
     .join('\n');
 
   await sendNotification(message);
-  console.log(`[EpicNotifications] Epic complete: ${epicId}`);
+  logger.info(`[EpicNotifications] Epic complete: ${epicId}`);
 }
 
 /**
@@ -176,7 +177,7 @@ export async function notifySessionStarted(
     .join('\n');
 
   await sendNotification(message);
-  console.log(`[EpicNotifications] Session started: ${terminal} -> ${taskId}`);
+  logger.info(`[EpicNotifications] Session started: ${terminal} -> ${taskId}`);
 }
 
 /**
@@ -234,7 +235,7 @@ export async function notifyTaskDone(
     .join('\n');
 
   await sendNotification(message);
-  console.log(`[EpicNotifications] Task done: ${terminal} -> ${taskId}`);
+  logger.info(`[EpicNotifications] Task done: ${terminal} -> ${taskId}`);
 }
 
 /**
@@ -293,7 +294,7 @@ export async function notifyTaskBlocked(
     .join('\n');
 
   await sendNotification(message);
-  console.log(`[EpicNotifications] Task blocked: ${terminal} -> ${taskId}`);
+  logger.info(`[EpicNotifications] Task blocked: ${terminal} -> ${taskId}`);
 }
 
 // ─── Helper Functions ──────────────────────────────────────────────────────────
@@ -322,7 +323,7 @@ function isDuplicate(taskId: string, eventType: 'done' | 'blocked'): boolean {
   const now = Date.now();
 
   if (lastSent && now - lastSent < DEDUP_WINDOW_MS) {
-    console.log(`[EpicNotifications] Skipping duplicate ${eventType} for ${taskId} (sent ${Math.round((now - lastSent) / 1000)}s ago)`);
+    logger.info(`[EpicNotifications] Skipping duplicate ${eventType} for ${taskId} (sent ${Math.round((now - lastSent) / 1000)}s ago)`);
     return true;
   }
 
@@ -360,7 +361,7 @@ export function attachEpicNotifications(): void {
 
             // Check if this completes a checkpoint
             if (epicId && checkpointId) {
-              console.log(`[EpicNotifications] Found checkpoint data: epic=${epicId}, cp=${checkpointId}`);
+              logger.info(`[EpicNotifications] Found checkpoint data: epic=${epicId}, cp=${checkpointId}`);
               await completeCheckpoint(epicId, checkpointId, event.terminal);
             }
           }
@@ -382,11 +383,11 @@ export function attachEpicNotifications(): void {
           break;
       }
     } catch (error) {
-      console.error('[EpicNotifications] Event handler error:', error);
+      logger.error('[EpicNotifications] Event handler error:', error);
     }
   });
 
-  console.log('[EpicNotifications] Attached to Event Bus');
+  logger.info('[EpicNotifications] Attached to Event Bus');
 }
 
 /**
@@ -399,10 +400,10 @@ function saveEpics(data: EpicsData): boolean {
       noRefs: true,
     });
     fs.writeFileSync(EPICS_PATH, yamlContent, 'utf-8');
-    console.log('[EpicNotifications] EPICS.yaml updated');
+    logger.info('[EpicNotifications] EPICS.yaml updated');
     return true;
   } catch (error) {
-    console.error('[EpicNotifications] Failed to save EPICS.yaml:', error);
+    logger.error('[EpicNotifications] Failed to save EPICS.yaml:', error);
     return false;
   }
 }
@@ -412,42 +413,42 @@ function saveEpics(data: EpicsData): boolean {
  * Called when outbox:done event includes these fields
  */
 async function completeCheckpoint(epicId: string, checkpointId: string, terminal: string): Promise<void> {
-  console.log(`[EpicNotifications] Completing checkpoint: epic=${epicId}, cp=${checkpointId}, from=${terminal}`);
+  logger.info(`[EpicNotifications] Completing checkpoint: epic=${epicId}, cp=${checkpointId}, from=${terminal}`);
 
   const data = loadEpics();
   const epic = data.epics.find(e => e.id === epicId);
 
   if (!epic) {
-    console.log(`[EpicNotifications] Epic ${epicId} not found`);
+    logger.info(`[EpicNotifications] Epic ${epicId} not found`);
     return;
   }
 
   if (!epic.checkpoints) {
-    console.log(`[EpicNotifications] Epic ${epicId} has no checkpoints`);
+    logger.info(`[EpicNotifications] Epic ${epicId} has no checkpoints`);
     return;
   }
 
   const checkpoint = epic.checkpoints.find(cp => cp.id === checkpointId);
   if (!checkpoint) {
-    console.log(`[EpicNotifications] Checkpoint ${checkpointId} not found in ${epicId}`);
+    logger.info(`[EpicNotifications] Checkpoint ${checkpointId} not found in ${epicId}`);
     return;
   }
 
   if (checkpoint.status === 'done') {
-    console.log(`[EpicNotifications] Checkpoint ${checkpointId} already done`);
+    logger.info(`[EpicNotifications] Checkpoint ${checkpointId} already done`);
     return;
   }
 
   // Update checkpoint status to done
   checkpoint.status = 'done';
-  console.log(`[EpicNotifications] Checkpoint ${checkpointId} marked as done`);
+  logger.info(`[EpicNotifications] Checkpoint ${checkpointId} marked as done`);
 
   // Check if all checkpoints are now done
   const allDone = epic.checkpoints.every(c => c.status === 'done');
   if (allDone) {
     epic.status = 'done';
     (epic as any).completed_date = new Date().toISOString().split('T')[0];
-    console.log(`[EpicNotifications] Epic ${epicId} marked as done (all checkpoints complete)`);
+    logger.info(`[EpicNotifications] Epic ${epicId} marked as done (all checkpoints complete)`);
   }
 
   // Save the updated EPICS.yaml

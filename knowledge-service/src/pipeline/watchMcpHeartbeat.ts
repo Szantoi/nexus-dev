@@ -14,6 +14,7 @@ import {
   telegram,
   log,
 } from './common';
+import { logger } from '../core/logger';
 
 const MCP_NUDGE_COOLDOWN = 600; // 10 minutes between MCP nudges
 
@@ -100,7 +101,7 @@ export async function watchMcpHeartbeat(): Promise<{ processed: number; nudged: 
 // Run standalone
 if (require.main === module) {
   watchMcpHeartbeat().then(result => {
-    console.log(`[watchMcpHeartbeat] Processed: ${result.processed}, Nudged: ${result.nudged.length}`);
-    result.nudged.forEach(n => console.log(`  - ${n.session} (${n.terminal}): ${n.reason}`));
+    logger.info(`[watchMcpHeartbeat] Processed: ${result.processed}, Nudged: ${result.nudged.length}`);
+    result.nudged.forEach(n => logger.info(`  - ${n.session} (${n.terminal}): ${n.reason}`));
   });
 }

@@ -13,6 +13,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { toPascalCase, toCamelCase } from './utils/casing';
 import { GeneratedFile, Property } from './types';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const BACKEND_DIR = process.env.BACKEND_DIR || `${SPACEOS_ROOT}/backend`;
@@ -52,7 +53,7 @@ export async function generateEndpoint(params: GenerateEndpointParams): Promise<
   const pascalAggregate = toPascalCase(aggregate);
   const pascalAction = toPascalCase(action);
 
-  console.log(`[GenerateEndpoint] Generating endpoint: ${http} ${route}`);
+  logger.info(`[GenerateEndpoint] Generating endpoint: ${http} ${route}`);
 
   // 1. Generate Command
   files.push({
@@ -108,11 +109,11 @@ export async function generateEndpoint(params: GenerateEndpointParams): Promise<
       }
     } catch (error) {
       errors.push(`${file.path}: ${error}`);
-      console.error(`[GenerateEndpoint] Error writing ${file.path}:`, error);
+      logger.error(`[GenerateEndpoint] Error writing ${file.path}:`, error);
     }
   }
 
-  console.log(`[GenerateEndpoint] Created ${filesCreated.length}, appended ${filesAppended.length}, skipped ${filesSkipped.length}`);
+  logger.info(`[GenerateEndpoint] Created ${filesCreated.length}, appended ${filesAppended.length}, skipped ${filesSkipped.length}`);
 
   return {
     success: errors.length === 0,
@@ -366,7 +367,7 @@ async function writeGeneratedFile(file: GeneratedFile): Promise<{
       return { status: 'created' };
     } else {
       // Skip existing files in 'create' mode
-      console.warn(`[Generator] SKIP: File exists: ${file.path}`);
+      logger.warn(`[Generator] SKIP: File exists: ${file.path}`);
       return { status: 'skipped' };
     }
   }

@@ -11,6 +11,8 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { log } from './pipeline/common';
+import { TERMINALS_PATH } from './config/paths';
+import { logger } from './core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const GOALS_DIR = process.env.GOALS_DIR || `${SPACEOS_ROOT}/store/goals`;
@@ -106,7 +108,7 @@ async function logGoalEvent(event: string, goalId: string, details?: string): Pr
     await fs.mkdir(path.dirname(GOALS_LOG), { recursive: true });
     await fs.appendFile(GOALS_LOG, line);
   } catch (err) {
-    console.error('[GoalStore] Failed to log:', err);
+    logger.error('[GoalStore] Failed to log:', err);
   }
 
   await log(`[GoalStore] ${event}: ${goalId}${details ? ` - ${details}` : ''}`);
@@ -183,7 +185,7 @@ export async function listGoals(status?: GoalStatus): Promise<Goal[]> {
   } catch (err) {
     // Directory might not exist yet
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.error('[GoalStore] Error listing goals:', err);
+      logger.error('[GoalStore] Error listing goals:', err);
     }
   }
 
@@ -275,7 +277,7 @@ export async function expireGoal(goalId: string): Promise<Goal | null> {
  * Check if a DONE outbox exists matching pattern
  */
 async function checkDoneOutbox(terminal: string, pattern: string): Promise<{ met: boolean; details: string }> {
-  const outboxPath = `/opt/spaceos/terminals/${terminal}/outbox`;
+  const outboxPath = path.join(TERMINALS_PATH, terminal, 'outbox');
 
   try {
     const files = await fs.readdir(outboxPath);

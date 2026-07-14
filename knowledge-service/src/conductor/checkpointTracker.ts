@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { Checkpoint, Epic, loadActiveEpic } from './epicManager';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
@@ -22,7 +23,7 @@ function parseCondition(condition: string): { type: 'message' | 'epic'; target: 
   try {
     const parts = condition.trim().split(' ');
     if (parts.length !== 2) {
-      console.warn('[checkpointTracker] Invalid condition format:', condition);
+      logger.warn('[checkpointTracker] Invalid condition format:', condition);
       return null;
     }
 
@@ -35,10 +36,10 @@ function parseCondition(condition: string): { type: 'message' | 'epic'; target: 
       return { type: 'epic', target, status: status.toLowerCase() };
     }
 
-    console.warn('[checkpointTracker] Unknown condition target:', target);
+    logger.warn('[checkpointTracker] Unknown condition target:', target);
     return null;
   } catch (error) {
-    console.error('[checkpointTracker] Failed to parse condition:', condition, error);
+    logger.error('[checkpointTracker] Failed to parse condition:', condition, error);
     return null;
   }
 }
@@ -52,7 +53,7 @@ function checkMessageStatus(messageId: string, expectedStatus: string): boolean 
     // Extract terminal name from message ID (MSG-BACKEND-103 → backend)
     const parts = messageId.split('-');
     if (parts.length < 3) {
-      console.warn('[checkpointTracker] Invalid message ID format:', messageId);
+      logger.warn('[checkpointTracker] Invalid message ID format:', messageId);
       return false;
     }
 
@@ -92,7 +93,7 @@ function checkMessageStatus(messageId: string, expectedStatus: string): boolean 
 
     return false;
   } catch (error) {
-    console.error('[checkpointTracker] Failed to check message status:', messageId, error);
+    logger.error('[checkpointTracker] Failed to check message status:', messageId, error);
     return false;
   }
 }
@@ -116,7 +117,7 @@ function checkEpicStatus(epicId: string, expectedStatus: string): boolean {
     const epic = data.epics.find((e: any) => e.id === epicId);
     return epic && epic.status === expectedStatus;
   } catch (error) {
-    console.error('[checkpointTracker] Failed to check epic status:', epicId, error);
+    logger.error('[checkpointTracker] Failed to check epic status:', epicId, error);
     return false;
   }
 }
@@ -153,7 +154,7 @@ export function checkCheckpointCompletion(checkpoint: Checkpoint): boolean {
 export function updateCheckpointStatus(epicId: string, checkpointId: string, status: 'pending' | 'done'): boolean {
   try {
     if (!fs.existsSync(EPICS_PATH)) {
-      console.error('[checkpointTracker] EPICS.yaml not found');
+      logger.error('[checkpointTracker] EPICS.yaml not found');
       return false;
     }
 
@@ -161,19 +162,19 @@ export function updateCheckpointStatus(epicId: string, checkpointId: string, sta
     const data = yaml.load(content) as any;
 
     if (!data || !data.epics) {
-      console.error('[checkpointTracker] Invalid EPICS.yaml structure');
+      logger.error('[checkpointTracker] Invalid EPICS.yaml structure');
       return false;
     }
 
     const epic = data.epics.find((e: any) => e.id === epicId);
     if (!epic || !epic.checkpoints) {
-      console.error(`[checkpointTracker] Epic ${epicId} not found or has no checkpoints`);
+      logger.error(`[checkpointTracker] Epic ${epicId} not found or has no checkpoints`);
       return false;
     }
 
     const checkpoint = epic.checkpoints.find((cp: any) => cp.id === checkpointId);
     if (!checkpoint) {
-      console.error(`[checkpointTracker] Checkpoint ${checkpointId} not found in epic ${epicId}`);
+      logger.error(`[checkpointTracker] Checkpoint ${checkpointId} not found in epic ${epicId}`);
       return false;
     }
 
@@ -184,10 +185,10 @@ export function updateCheckpointStatus(epicId: string, checkpointId: string, sta
     const yamlContent = yaml.dump(data, { lineWidth: -1 });
     fs.writeFileSync(EPICS_PATH, yamlContent, 'utf-8');
 
-    console.log(`[checkpointTracker] Checkpoint ${checkpointId} marked as ${status.toUpperCase()}`);
+    logger.info(`[checkpointTracker] Checkpoint ${checkpointId} marked as ${status.toUpperCase()}`);
     return true;
   } catch (error) {
-    console.error('[checkpointTracker] Failed to update checkpoint status:', error);
+    logger.error('[checkpointTracker] Failed to update checkpoint status:', error);
     return false;
   }
 }
@@ -211,7 +212,7 @@ export function updateActiveEpicCheckpoints(): number {
         const updated = updateCheckpointStatus(epic.id, checkpoint.id, 'done');
         if (updated) {
           newlyCompleted++;
-          console.log(`[checkpointTracker] ✅ Checkpoint completed: ${checkpoint.id} - ${checkpoint.name}`);
+          logger.info(`[checkpointTracker] ✅ Checkpoint completed: ${checkpoint.id} - ${checkpoint.name}`);
         }
       }
     }

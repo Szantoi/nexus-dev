@@ -26,6 +26,7 @@ import {
   telegram,
 } from './common';
 import { queryMessages } from '../messageRegistry';
+import { logger } from '../core/logger';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -312,6 +313,6 @@ export async function trackConductorActivity(): Promise<void> {
 
 if (require.main === module) {
   watchConductorProgress().then(result => {
-    console.log('[WatchConductorProgress] Result:', JSON.stringify(result, null, 2));
+    logger.info('[WatchConductorProgress] Result:', JSON.stringify(result, null, 2));
   });
 }

@@ -7,6 +7,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadActiveEpic, getEpicProgress, getNextCheckpoint, Epic } from './epicManager';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const STATE_DIR = process.env.CONDUCTOR_STATE_DIR || `${SPACEOS_ROOT}/terminals/conductor`;
@@ -51,7 +52,7 @@ export function saveGoalState(
   try {
     const activeEpic = loadActiveEpic();
     if (!activeEpic) {
-      console.log('[sessionState] No active epic to save');
+      logger.info('[sessionState] No active epic to save');
       return false;
     }
 
@@ -75,10 +76,10 @@ export function saveGoalState(
     };
 
     fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
-    console.log(`[sessionState] ✓ Goal state saved (${activeEpic.id} @ ${progress}%)`);
+    logger.info(`[sessionState] ✓ Goal state saved (${activeEpic.id} @ ${progress}%)`);
     return true;
   } catch (error) {
-    console.error('[sessionState] Failed to save goal state:', error);
+    logger.error('[sessionState] Failed to save goal state:', error);
     return false;
   }
 }
@@ -90,7 +91,7 @@ export function saveGoalState(
 export function loadGoalState(): GoalState | null {
   try {
     if (!fs.existsSync(STATE_FILE)) {
-      console.log('[sessionState] No previous session state found');
+      logger.info('[sessionState] No previous session state found');
       return null;
     }
 
@@ -102,14 +103,14 @@ export function loadGoalState(): GoalState | null {
     const hoursSinceSave = (Date.now() - savedAt.getTime()) / (1000 * 60 * 60);
 
     if (hoursSinceSave > 24) {
-      console.log(`[sessionState] State too old (${hoursSinceSave.toFixed(1)}h), ignoring`);
+      logger.info(`[sessionState] State too old (${hoursSinceSave.toFixed(1)}h), ignoring`);
       return null;
     }
 
-    console.log(`[sessionState] ✓ Loaded previous state (${state.epicId} @ ${state.epicProgress}%)`);
+    logger.info(`[sessionState] ✓ Loaded previous state (${state.epicId} @ ${state.epicProgress}%)`);
     return state;
   } catch (error) {
-    console.error('[sessionState] Failed to load goal state:', error);
+    logger.error('[sessionState] Failed to load goal state:', error);
     return null;
   }
 }
@@ -178,9 +179,9 @@ export function clearGoalState(): void {
   try {
     if (fs.existsSync(STATE_FILE)) {
       fs.unlinkSync(STATE_FILE);
-      console.log('[sessionState] Goal state cleared');
+      logger.info('[sessionState] Goal state cleared');
     }
   } catch (error) {
-    console.error('[sessionState] Failed to clear goal state:', error);
+    logger.error('[sessionState] Failed to clear goal state:', error);
   }
 }

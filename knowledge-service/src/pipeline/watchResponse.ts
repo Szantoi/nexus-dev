@@ -18,6 +18,7 @@ import {
 } from './common';
 import { queryMessages } from '../messageRegistry';
 import { pipelineEvents } from './eventBus';
+import { logger } from '../core/logger';
 
 const RESPONSE_COOLDOWN = 300; // 5 perc cooldown ugyanarra a response-ra
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
@@ -177,6 +178,6 @@ Olvasd el a választ: ${response.filePath}`;
 // Standalone futtatás
 if (require.main === module) {
   watchResponse().then(result => {
-    console.log(`[watchResponse] Found: ${result.found}, Routed: ${result.routed.join(', ') || 'none'}, Skipped: ${result.skipped.join(', ') || 'none'}`);
+    logger.info(`[watchResponse] Found: ${result.found}, Routed: ${result.routed.join(', ') || 'none'}, Skipped: ${result.skipped.join(', ') || 'none'}`);
   });
 }

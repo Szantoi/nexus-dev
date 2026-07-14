@@ -15,11 +15,12 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
 import { telegram, log } from '../pipeline/common';
+import { DISPATCH_DB } from '../config/paths';
+import { logger } from '../core/logger';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const DATA_DIR = process.env.DATA_DIR || '/opt/spaceos/spaceos-nexus/knowledge-service/data';
-const DB_PATH = path.join(DATA_DIR, 'dispatch.db');
+const DB_PATH = DISPATCH_DB;
 
 // Default daily budget (tokens)
 const DEFAULT_DAILY_BUDGET = 100000;
@@ -198,7 +199,7 @@ export function initDispatchDb(): Database.Database {
   if (db) return db;
 
   // Ensure data directory exists
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
   db = new Database(DB_PATH);
   db.pragma('journal_mode = WAL');
@@ -206,7 +207,7 @@ export function initDispatchDb(): Database.Database {
   // Execute inline schema
   db.exec(SCHEMA);
 
-  console.log('[DispatchDB] Initialized at', DB_PATH);
+  logger.info('[DispatchDB] Initialized at', DB_PATH);
   return db;
 }
 
@@ -448,7 +449,7 @@ async function checkAndAlert(terminal: string): Promise<void> {
     await telegram(message);
     await log(`[BudgetAlert] ${message}`);
   } catch (err) {
-    console.error('[BudgetAlert] Failed to send:', err);
+    logger.error('[BudgetAlert] Failed to send:', err);
   }
 }
 

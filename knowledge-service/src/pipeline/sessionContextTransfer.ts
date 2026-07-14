@@ -8,6 +8,7 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { logger } from '../core/logger';
 
 export interface ContextTransferParams {
   fromTerminal: string;
@@ -42,7 +43,7 @@ async function createInboxMessage(
     await fs.writeFile(filePath, content, 'utf-8');
     return true;
   } catch (err) {
-    console.warn('[SessionContextTransfer] Failed to create inbox message:', err);
+    logger.warn('[SessionContextTransfer] Failed to create inbox message:', err);
     return false;
   }
 }

@@ -15,6 +15,7 @@ import Database from 'better-sqlite3';
 import * as crypto from 'crypto';
 import { telegram, log } from '../pipeline/common';
 import { getDispatchMode, canDispatch, queueDispatch, markDispatchExecuting } from './tokenBudget';
+import { logger } from '../core/logger';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -267,7 +268,7 @@ Reply with proposal ID to approve/reject.`;
   try {
     await telegram(message);
   } catch (err) {
-    console.error('[DispatchProposal] Failed to send notification:', err);
+    logger.error('[DispatchProposal] Failed to send notification:', err);
   }
 }
 

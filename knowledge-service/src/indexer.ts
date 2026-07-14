@@ -10,6 +10,7 @@ import * as path from 'path';
 import { MarkdownTextSplitter } from '@langchain/textsplitters';
 import { addChunks } from './vectorStore';
 import { useVoyage } from './embeddings';
+import { logger } from './core/logger';
 
 // Default: resolve relative to this file's location in the repo
 // src/ → knowledge-service/ → spaceos-nexus/ → spaceos/ → docs/knowledge
@@ -73,7 +74,7 @@ export async function buildIndex(): Promise<IndexResult> {
   }
 
   const files = await findMdFiles(KNOWLEDGE_BASE_PATH);
-  console.log(`📚 Indexing ${files.length} .md files from: ${KNOWLEDGE_BASE_PATH}`);
+  logger.info(`📚 Indexing ${files.length} .md files from: ${KNOWLEDGE_BASE_PATH}`);
 
   const splitter = new MarkdownTextSplitter({
     chunkSize: CHUNK_SIZE,
@@ -113,17 +114,17 @@ export async function buildIndex(): Promise<IndexResult> {
 
     await addChunks(chunks);
     totalChunks += chunks.length;
-    console.log(`   ✓ ${relativePath} [${domain}] → ${chunks.length} chunks`);
+    logger.info(`   ✓ ${relativePath} [${domain}] → ${chunks.length} chunks`);
 
     // Voyage AI free tier is 3 RPM — only throttle when actually calling Voyage.
     // Local/Xenova embedding has no such limit and doesn't need this delay.
     if (useVoyage() && fileIdx < files.length - 1) {
-      console.log(`   💤 Rate limit delay (40s, Voyage AI free tier)...`);
+      logger.info(`   💤 Rate limit delay (40s, Voyage AI free tier)...`);
       await new Promise(resolve => setTimeout(resolve, 40000));
     }
   }
 
-  console.log(`✅ Done: ${files.length} files → ${totalChunks} chunks`);
+  logger.info(`✅ Done: ${files.length} files → ${totalChunks} chunks`);
   return { files: files.length, chunks: totalChunks, knowledgePath: KNOWLEDGE_BASE_PATH };
 }
 
@@ -134,10 +135,10 @@ if (require.main === module) {
   (async () => {
     await initVectorStore();
     const result = await buildIndex();
-    console.log(result);
+    logger.info(result);
     process.exit(0);
   })().catch(err => {
-    console.error(err);
+    logger.error(err);
     process.exit(1);
   });
 }

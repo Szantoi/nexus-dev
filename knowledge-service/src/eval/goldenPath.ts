@@ -19,11 +19,12 @@ import { join } from 'path';
 import { DATA_DIR } from '../config/paths';
 import { getMessage, getStatusHistory } from '../task-message-box/store';
 import { StatusHistoryEntry } from '../task-message-box/types';
+import { logger } from '../core/logger';
 
 // Config-driven storage location (default under the island's DATA_DIR).
 export const GOLDEN_PATHS_DIR = process.env.GOLDEN_PATHS_DIR || join(DATA_DIR, 'golden-paths');
 
-const log = (msg: string) => console.log(`[GoldenPath] ${msg}`);
+const log = (msg: string) => logger.info(`[GoldenPath] ${msg}`);
 
 export interface GoldenPath {
   name: string;                 // stable id, e.g. "backend-implement-task"

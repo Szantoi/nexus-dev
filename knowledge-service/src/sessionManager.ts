@@ -23,6 +23,7 @@ import {
 } from './terminalConfig';
 import * as terminalsConfig from './config/terminals';
 import { handleSessionEnd, type SessionEndContext } from './sessionHooks';
+import { logger } from './core/logger';
 
 const TMUX_SOCKET = terminalsConfig.getTmuxSocket();
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
@@ -93,7 +94,7 @@ function logSessionAction(action: SessionActionResult): void {
 
     fs.appendFileSync(logFile, JSON.stringify(action) + '\n');
   } catch (error) {
-    console.error('[SessionManager] Failed to log action:', error);
+    logger.error('[SessionManager] Failed to log action:', error);
   }
 }
 
@@ -586,7 +587,7 @@ export async function stopSession(options: SessionStopOptions): Promise<SessionA
       try {
         await handleSessionEnd(endContext);
       } catch (hookError) {
-        console.error(`[SessionManager] Session end hook failed: ${hookError}`);
+        logger.error(`[SessionManager] Session end hook failed: ${hookError}`);
       }
     }
 

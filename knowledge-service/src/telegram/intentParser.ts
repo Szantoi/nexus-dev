@@ -148,7 +148,7 @@ function extractMentionTargets(text: string): { targets: string[]; cleanText: st
 
   // Find all @mentions
   const mentionPattern = /@(\w+)/g;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = mentionPattern.exec(text)) !== null) {
     const resolved = resolveTerminal(match[1]);
     if (resolved && !mentions.includes(resolved)) {

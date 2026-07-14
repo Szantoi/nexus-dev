@@ -30,6 +30,7 @@ import { isValidTransition, canonicalTypes, canonicalStatuses } from './message-
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 import { DATA_DIR, TERMINALS_PATH } from '../config/paths';
+import { logger } from '../core/logger';
 
 const DB_PATH = path.join(DATA_DIR, 'taskmessagebox.db');
 const TERMINALS_ROOT = TERMINALS_PATH;
@@ -151,7 +152,7 @@ function migrateTypeCheckIfStale(db: Database.Database): void {
   const sameSet = canon.length === present.length && canon.every((t) => present.includes(t));
   if (sameSet) return; // already canonical
 
-  console.log(`[TaskMessageBox] messages.type CHECK drift ${JSON.stringify(present)} → ${JSON.stringify(canon)}; rebuilding table (config-driven).`);
+  logger.info(`[TaskMessageBox] messages.type CHECK drift ${JSON.stringify(present)} → ${JSON.stringify(canon)}; rebuilding table (config-driven).`);
   const oldCols = new Set((db.prepare(`PRAGMA table_info(messages)`).all() as Array<{ name: string }>).map((c) => c.name));
   const colList = MESSAGE_COLUMNS.filter((c) => oldCols.has(c)).join(', ');
 
@@ -196,7 +197,7 @@ export async function initDatabase(): Promise<void> {
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_to_island ON messages(to_island)`);
 
-  console.log('[TaskMessageBox] Database initialized:', DB_PATH);
+  logger.info('[TaskMessageBox] Database initialized:', DB_PATH);
 }
 
 export function getDb(): Database.Database {
@@ -753,7 +754,7 @@ export async function updateMessageStatus(
     const from = row.status;
     if (!isValidTransition(from, toStatus)) {
       const msg = `Invalid status transition for ${id}: ${from} → ${toStatus}`;
-      console.warn(`[TaskMessageBox] ⚠️ ${msg}`);
+      logger.warn(`[TaskMessageBox] ⚠️ ${msg}`);
       return { success: false, error: msg };
     }
 
@@ -772,7 +773,7 @@ export async function updateMessageStatus(
       ` WHERE id = ?`
     ).run(toStatus, JSON.stringify(history), id);
 
-    console.log(`[TaskMessageBox] ${id}: ${from} → ${toStatus} (by ${changedBy || 'system'})`);
+    logger.info(`[TaskMessageBox] ${id}: ${from} → ${toStatus} (by ${changedBy || 'system'})`);
     return { success: true };
   } catch (err) {
     return { success: false, error: (err as Error).message };
@@ -814,7 +815,7 @@ export function verifyAllMessages(): { total: number; valid: number; invalid: st
     if (generateContentHash(r.title, r.description) !== r.content_hash) invalid.push(r.id);
   }
   if (invalid.length > 0) {
-    console.warn(`[TaskMessageBox] ⚠️ Hash verification: ${invalid.length}/${rows.length} messages FAILED integrity check`);
+    logger.warn(`[TaskMessageBox] ⚠️ Hash verification: ${invalid.length}/${rows.length} messages FAILED integrity check`);
   }
   return { total: rows.length, valid: rows.length - invalid.length, invalid };
 }

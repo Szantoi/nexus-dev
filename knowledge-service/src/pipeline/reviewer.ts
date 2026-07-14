@@ -16,6 +16,7 @@ import {
   type ReviewDecision
 } from './reviewLog';
 import { runPreReviewGate, type ProjectType } from './preReviewGate';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ async function runSingleReview(
     return parseReviewResponse(rawResponse);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    console.error(`[Reviewer] API call failed for ${model}: ${errorMsg}`);
+    logger.error(`[Reviewer] API call failed for ${model}: ${errorMsg}`);
     return {
       verdict: 'ERROR',
       feedback: `Review hiba: ${errorMsg}`,
@@ -1038,14 +1039,14 @@ ${result.errors.map(e => `- ❌ ${e}`).join('\n')}
 if (require.main === module) {
   const donePath = process.argv[2];
   if (!donePath) {
-    console.error('Usage: npx tsx reviewer.ts <done_file_path>');
+    logger.error('Usage: npx tsx reviewer.ts <done_file_path>');
     process.exit(1);
   }
 
   handleDoneReview(donePath).then(result => {
-    console.log(`Review result: ${result.approved ? 'APPROVED' : 'REJECTED'}`);
+    logger.info(`Review result: ${result.approved ? 'APPROVED' : 'REJECTED'}`);
     if (result.resultPath) {
-      console.log(`Reject inbox: ${result.resultPath}`);
+      logger.info(`Reject inbox: ${result.resultPath}`);
     }
     process.exit(result.approved ? 0 : 1);
   });

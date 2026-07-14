@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { createTask, queryCreationLog, getDailySummary } from '../../../task-audit/taskCreation';
 import { verifyToken } from '../../../task-audit/auth';
 import { generateAndPublishDailyReport } from '../../../task-audit/dailyReport';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.post('/create', async (req: Request, res: Response) => {
       res.status(400).json(result);
     }
   } catch (error) {
-    console.error('[Task API] Error:', error);
+    logger.error('[Task API] Error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -69,7 +70,7 @@ router.get('/audit', async (req: Request, res: Response) => {
     });
     res.json({ entries, total: entries.length });
   } catch (error) {
-    console.error('[Task API] Audit query error:', error);
+    logger.error('[Task API] Audit query error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -83,7 +84,7 @@ router.get('/daily-summary', async (req: Request, res: Response) => {
     const summary = await getDailySummary(date);
     res.json(summary);
   } catch (error) {
-    console.error('[Task API] Summary error:', error);
+    logger.error('[Task API] Summary error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -103,7 +104,7 @@ router.post('/daily-report', async (req: Request, res: Response) => {
       markdownPath,
     });
   } catch (error) {
-    console.error('[Task API] Daily report error:', error);
+    logger.error('[Task API] Daily report error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

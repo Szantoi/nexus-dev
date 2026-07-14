@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from '../core/logger';
 
 const TERMINALS_DIR = process.env.TERMINALS_DIR || '/opt/spaceos/terminals';
 
@@ -179,7 +180,7 @@ function loadMemoryFile(terminal: string, domain: string): DomainMemory | null {
       path: memoryPath,
     };
   } catch (error) {
-    console.error(`[KnowledgeLoader] Failed to load ${memoryPath}:`, error);
+    logger.error(`[KnowledgeLoader] Failed to load ${memoryPath}:`, error);
     return null;
   }
 }

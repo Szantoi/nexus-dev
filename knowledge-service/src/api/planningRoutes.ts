@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import matter from 'gray-matter';
 import DOMPurify from 'isomorphic-dompurify';
 import { verifyToken } from '../task-audit/auth';
+import { logger } from '../core/logger';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -364,7 +365,7 @@ export function createPlanningRouter(): Router {
 
       res.json(response);
     } catch (err) {
-      console.error('[PlanningAPI] Failed to load focus:', err);
+      logger.error('[PlanningAPI] Failed to load focus:', err);
       res.status(500).json({ error: 'Failed to load focus data' });
     }
   });
@@ -378,7 +379,7 @@ export function createPlanningRouter(): Router {
       const data = await readFocusFileCached();
       res.json(data);
     } catch (err) {
-      console.error('[PlanningAPI] Failed to read focus file:', err);
+      logger.error('[PlanningAPI] Failed to read focus file:', err);
       res.status(500).json({ error: 'Failed to read focus file' });
     }
   });
@@ -434,7 +435,7 @@ export function createPlanningRouter(): Router {
         updated_at: updated.updated_at,
       });
     } catch (err) {
-      console.error('[PlanningAPI] Failed to update focus:', err);
+      logger.error('[PlanningAPI] Failed to update focus:', err);
       res.status(500).json({ error: 'Failed to update focus' });
     }
   });
@@ -487,7 +488,7 @@ export function createPlanningRouter(): Router {
         ...updated,
       });
     } catch (err) {
-      console.error('[PlanningAPI] Failed to update focus file:', err);
+      logger.error('[PlanningAPI] Failed to update focus file:', err);
       res.status(500).json({ error: 'Failed to update focus file' });
     }
   });

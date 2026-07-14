@@ -30,6 +30,7 @@ import {
   telegram,
 } from './common';
 import { detectPaneState } from './paneState';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -283,7 +284,7 @@ let restartInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function startAutoRestartScheduler(config: AutoRestartConfig = DEFAULT_CONFIG): void {
   if (!config.enabled) {
-    console.log('[AutoRestart] Scheduler disabled');
+    logger.info('[AutoRestart] Scheduler disabled');
     return;
   }
 
@@ -294,7 +295,7 @@ export function startAutoRestartScheduler(config: AutoRestartConfig = DEFAULT_CO
     try {
       await checkAndRestartAll(config);
     } catch (error) {
-      console.error('[AutoRestart] Scheduler error:', error);
+      logger.error('[AutoRestart] Scheduler error:', error);
     }
   }, checkIntervalMs);
 
@@ -303,7 +304,7 @@ export function startAutoRestartScheduler(config: AutoRestartConfig = DEFAULT_CO
       ? `daily at ${config.schedule.hour}:${String(config.schedule.minute ?? 0).padStart(2, '0')}`
       : `every ${config.schedule.hours} hours`;
 
-  console.log(`[AutoRestart] Scheduler started: ${scheduleDesc} (${config.mode} mode)`);
+  logger.info(`[AutoRestart] Scheduler started: ${scheduleDesc} (${config.mode} mode)`);
 }
 
 /**
@@ -313,7 +314,7 @@ export function stopAutoRestartScheduler(): void {
   if (restartInterval) {
     clearInterval(restartInterval);
     restartInterval = null;
-    console.log('[AutoRestart] Scheduler stopped');
+    logger.info('[AutoRestart] Scheduler stopped');
   }
 }
 

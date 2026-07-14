@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
@@ -118,7 +119,7 @@ function loadTokensConfig(): TokensFile {
     return tokensConfig;
   } catch (error) {
     // Return empty config if file doesn't exist
-    console.warn(`[Auth] Token config not found at ${TOKEN_CONFIG_PATH}, using defaults`);
+    logger.warn(`[Auth] Token config not found at ${TOKEN_CONFIG_PATH}, using defaults`);
     return {
       version: '1.0',
       tokens: [

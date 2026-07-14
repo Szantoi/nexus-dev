@@ -21,6 +21,7 @@ import { NWT_MS } from '../constants/nwt';
 
 // Goal Persistence Phase 3: Context Saturation Detection (2026-07-04)
 import { checkContextSaturation, incrementTurnCount } from '../conductor/contextSaturation';
+import { logger } from '../core/logger';
 
 export interface NightwatchResult {
   timestamp: string;
@@ -133,16 +134,16 @@ let intervalId: NodeJS.Timeout | null = null;
 
 export function startNightwatchScheduler(intervalMs = NWT_MS): void {
   if (intervalId) {
-    console.log('[Nightwatch] Scheduler already running');
+    logger.info('[Nightwatch] Scheduler already running');
     return;
   }
 
-  console.log(`[Nightwatch] Scheduler starting (interval: ${intervalMs}ms)`);
+  logger.info(`[Nightwatch] Scheduler starting (interval: ${intervalMs}ms)`);
 
   // Run immediately
   runNightwatch()
-    .then(result => console.log('[Nightwatch] Initial run complete'))
-    .catch(err => console.error('[Nightwatch] Initial run error:', err));
+    .then(result => logger.info('[Nightwatch] Initial run complete'))
+    .catch(err => logger.error('[Nightwatch] Initial run error:', err));
 
   // Then run on interval
   intervalId = setInterval(async () => {
@@ -162,9 +163,9 @@ export function startNightwatchScheduler(intervalMs = NWT_MS): void {
         `goals:${result.goals.triggered.length}/${result.goals.checked}`,
       ].join(' ');
 
-      console.log(`[Nightwatch] ${summary} (${result.durationMs}ms)`);
+      logger.info(`[Nightwatch] ${summary} (${result.durationMs}ms)`);
     } catch (err) {
-      console.error('[Nightwatch] Cycle error:', err);
+      logger.error('[Nightwatch] Cycle error:', err);
     }
   }, intervalMs);
 }
@@ -173,27 +174,27 @@ export function stopNightwatchScheduler(): void {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
-    console.log('[Nightwatch] Scheduler stopped');
+    logger.info('[Nightwatch] Scheduler stopped');
   }
 }
 
 // Run standalone
 if (require.main === module) {
   runNightwatch().then(result => {
-    console.log('\n=== Nightwatch Results ===');
-    console.log(`Timestamp: ${result.timestamp}`);
-    console.log(`Duration: ${result.durationMs}ms`);
-    console.log('\nPriority:');
-    console.log(`  Checked: ${result.priority.checked}`);
-    console.log(`  Started: ${result.priority.started.join(', ') || 'none'}`);
-    console.log('\nDone:');
-    console.log(`  Found: ${result.done.found}`);
-    console.log(`  Triggered: ${result.done.triggered.join(', ') || 'none'}`);
-    console.log('\nStuck:');
-    console.log(`  Processed: ${result.stuck.processed}`);
-    console.log(`  Nudged: ${result.stuck.nudged.map(n => `${n.session}(${n.reason})`).join(', ') || 'none'}`);
-    console.log('\nIdle:');
-    console.log(`  Processed: ${result.idle.processed}`);
-    console.log(`  Shutdown: ${result.idle.shutdown}`);
+    logger.info('\n=== Nightwatch Results ===');
+    logger.info(`Timestamp: ${result.timestamp}`);
+    logger.info(`Duration: ${result.durationMs}ms`);
+    logger.info('\nPriority:');
+    logger.info(`  Checked: ${result.priority.checked}`);
+    logger.info(`  Started: ${result.priority.started.join(', ') || 'none'}`);
+    logger.info('\nDone:');
+    logger.info(`  Found: ${result.done.found}`);
+    logger.info(`  Triggered: ${result.done.triggered.join(', ') || 'none'}`);
+    logger.info('\nStuck:');
+    logger.info(`  Processed: ${result.stuck.processed}`);
+    logger.info(`  Nudged: ${result.stuck.nudged.map(n => `${n.session}(${n.reason})`).join(', ') || 'none'}`);
+    logger.info('\nIdle:');
+    logger.info(`  Processed: ${result.idle.processed}`);
+    logger.info(`  Shutdown: ${result.idle.shutdown}`);
   });
 }

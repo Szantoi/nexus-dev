@@ -5,6 +5,7 @@
  */
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { logger } from '../core/logger';
 
 // Use environment variable for testability
 const getSpaceOSRoot = () => process.env.SPACEOS_ROOT || '/opt/spaceos';
@@ -98,7 +99,7 @@ export async function logWorkSessionRequest(entry: Omit<WorkSessionRequest, 'req
   const line = JSON.stringify(fullEntry) + '\n';
   await fs.appendFile(logPath, line, 'utf-8');
 
-  console.log(`[WorkSessionLog] Request logged: ${fullEntry.request_id} from ${fullEntry.from_terminal}`);
+  logger.info(`[WorkSessionLog] Request logged: ${fullEntry.request_id} from ${fullEntry.from_terminal}`);
   return fullEntry;
 }
 
@@ -119,7 +120,7 @@ export async function logWorkSessionSpawn(entry: Omit<WorkSessionSpawn, 'spawn_i
   const line = JSON.stringify(fullEntry) + '\n';
   await fs.appendFile(logPath, line, 'utf-8');
 
-  console.log(`[WorkSessionLog] Spawn logged: ${fullEntry.spawn_id} for ${fullEntry.terminal} (${fullEntry.model})`);
+  logger.info(`[WorkSessionLog] Spawn logged: ${fullEntry.spawn_id} for ${fullEntry.terminal} (${fullEntry.model})`);
   return fullEntry;
 }
 

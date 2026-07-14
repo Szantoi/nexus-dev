@@ -17,6 +17,7 @@ import {
   isPrioritySession
 } from './common';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
+import { logger } from '../core/logger';
 
 // NWT-based timeouts (1 NWT = 2 minutes = 120 seconds)
 // INBOX_NUDGE = 3 NWT ≈ 6 minutes, but we use 2.5 NWT for ~5 min nudge cooldown
@@ -263,6 +264,6 @@ export async function runWatchInbox(): Promise<WatchInboxResult> {
 
 if (require.main === module) {
   runWatchInbox().then(result => {
-    console.log('WatchInbox result:', JSON.stringify(result, null, 2));
+    logger.info('WatchInbox result:', JSON.stringify(result, null, 2));
   });
 }

@@ -323,11 +323,11 @@ let metricsIntervalId: NodeJS.Timeout | null = null;
  */
 export function startMetricsScheduler(intervalMs: number = 60000): void {
   if (metricsIntervalId) {
-    console.log('[SystemMetrics] Scheduler already running');
+    logger.info('[SystemMetrics] Scheduler already running');
     return;
   }
 
-  console.log(`[SystemMetrics] Scheduler starting (interval: ${intervalMs}ms)`);
+  logger.info(`[SystemMetrics] Scheduler starting (interval: ${intervalMs}ms)`);
 
   // Collect immediately
   storeMetricsHistory();
@@ -339,7 +339,7 @@ export function startMetricsScheduler(intervalMs: number = 60000): void {
     // Check alerts
     const alerts = checkAlerts();
     if (alerts.length > 0) {
-      console.log(`[SystemMetrics] ⚠️ Alerts: ${alerts.join(', ')}`);
+      logger.info(`[SystemMetrics] ⚠️ Alerts: ${alerts.join(', ')}`);
     }
   }, intervalMs);
 }
@@ -351,13 +351,14 @@ export function stopMetricsScheduler(): void {
   if (metricsIntervalId) {
     clearInterval(metricsIntervalId);
     metricsIntervalId = null;
-    console.log('[SystemMetrics] Scheduler stopped');
+    logger.info('[SystemMetrics] Scheduler stopped');
   }
 }
 
 // ─── Express Router ────────────────────────────────────────────────────────────
 
 import { Router, Request, Response } from 'express';
+import { logger } from '../core/logger';
 
 export function createMetricsRouter(): Router {
   const router = Router();
@@ -458,12 +459,12 @@ export function createMetricsRouter(): Router {
   router.get('/', (_req: Request, res: Response) => {
     try {
       const prometheusFormat = generatePrometheusMetrics();
-      console.log(`[SystemMetrics] Prometheus metrics requested`);
+      logger.info(`[SystemMetrics] Prometheus metrics requested`);
       res.set('Content-Type', 'text/plain; version=0.0.4');
       res.send(prometheusFormat);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[SystemMetrics] Error generating Prometheus metrics:`, err);
+      logger.error(`[SystemMetrics] Error generating Prometheus metrics:`, err);
       res.status(500).json({ error: msg });
     }
   });
@@ -478,7 +479,7 @@ export function createMetricsRouter(): Router {
  */
 export function incrementNightwatchCycle(): void {
   prometheusMetrics.nightwatch_cycle_count++;
-  console.log(`[SystemMetrics] Nightwatch cycle: ${prometheusMetrics.nightwatch_cycle_count}`);
+  logger.info(`[SystemMetrics] Nightwatch cycle: ${prometheusMetrics.nightwatch_cycle_count}`);
 }
 
 /**
@@ -489,7 +490,7 @@ export function incrementTaskProcessed(type: 'done' | 'blocked'): void {
     prometheusMetrics.pipeline_task_processed[type] = 0;
   }
   prometheusMetrics.pipeline_task_processed[type]++;
-  console.log(`[SystemMetrics] Task processed (${type}): ${prometheusMetrics.pipeline_task_processed[type]}`);
+  logger.info(`[SystemMetrics] Task processed (${type}): ${prometheusMetrics.pipeline_task_processed[type]}`);
 }
 
 /**
@@ -497,7 +498,7 @@ export function incrementTaskProcessed(type: 'done' | 'blocked'): void {
  */
 export function setTerminalSessionActive(terminal: string, active: boolean): void {
   prometheusMetrics.terminal_session_active[terminal] = active ? 1 : 0;
-  console.log(`[SystemMetrics] Terminal session ${terminal}: ${active ? 'active' : 'inactive'}`);
+  logger.info(`[SystemMetrics] Terminal session ${terminal}: ${active ? 'active' : 'inactive'}`);
 }
 
 /**
@@ -507,7 +508,7 @@ export function recordMcpToolCall(responseTimeMs: number): void {
   prometheusMetrics.mcp_tool_calls_total++;
   prometheusMetrics.mcp_response_time_sum += responseTimeMs;
   prometheusMetrics.mcp_response_time_count++;
-  console.log(`[SystemMetrics] MCP tool call #${prometheusMetrics.mcp_tool_calls_total} (${responseTimeMs}ms)`);
+  logger.info(`[SystemMetrics] MCP tool call #${prometheusMetrics.mcp_tool_calls_total} (${responseTimeMs}ms)`);
 }
 
 /**
@@ -586,28 +587,28 @@ export function generatePrometheusMetrics(): string {
 
 if (require.main === module) {
   const metrics = collectSystemMetrics();
-  console.log('=== System Metrics ===');
-  console.log(`Timestamp: ${metrics.timestamp}`);
-  console.log(`\nCPU:`);
-  console.log(`  Load avg: ${metrics.cpu.loadAvg1} / ${metrics.cpu.loadAvg5} / ${metrics.cpu.loadAvg15}`);
-  console.log(`  Cores: ${metrics.cpu.cores}`);
-  console.log(`  Load %: ${((metrics.cpu.loadAvg1 / metrics.cpu.cores) * 100).toFixed(1)}%`);
-  console.log(`\nMemory:`);
-  console.log(`  Total: ${metrics.memory.totalMb} MB`);
-  console.log(`  Used: ${metrics.memory.usedMb} MB (${metrics.memory.usedPercent}%)`);
-  console.log(`  Available: ${metrics.memory.availableMb} MB`);
-  console.log(`\nDisk:`);
-  console.log(`  Total: ${metrics.disk.totalGb} GB`);
-  console.log(`  Used: ${metrics.disk.usedGb} GB (${metrics.disk.usedPercent}%)`);
-  console.log(`  Free: ${metrics.disk.freeGb} GB`);
-  console.log(`\nProcesses:`);
-  console.log(`  Running: ${metrics.processes.running}/${metrics.processes.total}`);
+  logger.info('=== System Metrics ===');
+  logger.info(`Timestamp: ${metrics.timestamp}`);
+  logger.info(`\nCPU:`);
+  logger.info(`  Load avg: ${metrics.cpu.loadAvg1} / ${metrics.cpu.loadAvg5} / ${metrics.cpu.loadAvg15}`);
+  logger.info(`  Cores: ${metrics.cpu.cores}`);
+  logger.info(`  Load %: ${((metrics.cpu.loadAvg1 / metrics.cpu.cores) * 100).toFixed(1)}%`);
+  logger.info(`\nMemory:`);
+  logger.info(`  Total: ${metrics.memory.totalMb} MB`);
+  logger.info(`  Used: ${metrics.memory.usedMb} MB (${metrics.memory.usedPercent}%)`);
+  logger.info(`  Available: ${metrics.memory.availableMb} MB`);
+  logger.info(`\nDisk:`);
+  logger.info(`  Total: ${metrics.disk.totalGb} GB`);
+  logger.info(`  Used: ${metrics.disk.usedGb} GB (${metrics.disk.usedPercent}%)`);
+  logger.info(`  Free: ${metrics.disk.freeGb} GB`);
+  logger.info(`\nProcesses:`);
+  logger.info(`  Running: ${metrics.processes.running}/${metrics.processes.total}`);
 
   const alerts = checkAlerts();
   if (alerts.length > 0) {
-    console.log(`\n⚠️ Alerts:`);
-    alerts.forEach(a => console.log(`  - ${a}`));
+    logger.info(`\n⚠️ Alerts:`);
+    alerts.forEach(a => logger.info(`  - ${a}`));
   } else {
-    console.log(`\n✅ No alerts`);
+    logger.info(`\n✅ No alerts`);
   }
 }

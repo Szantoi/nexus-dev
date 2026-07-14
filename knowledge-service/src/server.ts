@@ -8,15 +8,17 @@
 
 import 'dotenv/config';
 import path from 'path';
+import { env } from './config/env';
 import { createApp, initialize, startServices, createGracefulShutdown } from './bootstrap';
 import { setHealthMetrics } from './interfaces/http/routes';
 import { usingChroma, getDocumentCount } from './vectorStore';
 import { embeddingBackend } from './embeddings';
 import { KNOWLEDGE_BASE_PATH, COLLECTION_NAME } from './config/paths';
+import { logger } from './core/logger';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PORT = parseInt(process.env.PORT || '3456', 10);
+const PORT = env.PORT;
 const reactBuildPath = path.join(__dirname, '../public');
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -54,6 +56,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('Fatal startup error:', err);
+  logger.error('Fatal startup error:', err);
   process.exit(1);
 });

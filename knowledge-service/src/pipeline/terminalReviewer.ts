@@ -20,6 +20,7 @@ import {
   type ReviewDecision
 } from './reviewLog';
 import * as terminalsConfig from '../config/terminals';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -945,7 +946,7 @@ async function logReviewAudit(entry: ReviewAuditEntry): Promise<void> {
     const logLine = JSON.stringify(entry) + '\n';
     await fs.appendFile(logFile, logLine, 'utf-8');
   } catch (error) {
-    console.error(`[ReviewAPI] Failed to write audit log:`, error);
+    logger.error(`[ReviewAPI] Failed to write audit log:`, error);
   }
 }
 
@@ -1011,6 +1012,6 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
     await fs.writeFile(filePath, content, 'utf-8');
     await log(`[ReviewAPI] Manual review request created: ${filename}`);
   } catch (error) {
-    console.error(`[ReviewAPI] Failed to create manual review request:`, error);
+    logger.error(`[ReviewAPI] Failed to create manual review request:`, error);
   }
 }

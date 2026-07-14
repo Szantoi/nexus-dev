@@ -17,6 +17,7 @@ import {
 } from '../../../mailbox';
 import { validate, TerminalParamSchema, TerminalSchema } from '../../../validation';
 import { triggerImmediatePipelineAsync } from '../../../pipeline/immediatePipeline';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -286,7 +287,7 @@ router.get('/:terminal/subscribe', (req: Request, res: Response) => {
   }
   sseClients.get('all')!.add(res);
 
-  console.log(`[SSE] Client subscribed to terminal: ${terminal} (total: ${sseClients.get(terminal)?.size || 0})`);
+  logger.info(`[SSE] Client subscribed to terminal: ${terminal} (total: ${sseClients.get(terminal)?.size || 0})`);
 
   // Keep connection alive with heartbeat every 30s
   const heartbeat = setInterval(() => {
@@ -298,7 +299,7 @@ router.get('/:terminal/subscribe', (req: Request, res: Response) => {
     clearInterval(heartbeat);
     sseClients.get(terminal)?.delete(res);
     sseClients.get('all')?.delete(res);
-    console.log(`[SSE] Client disconnected from terminal: ${terminal}`);
+    logger.info(`[SSE] Client disconnected from terminal: ${terminal}`);
   });
 });
 

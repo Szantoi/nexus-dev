@@ -89,6 +89,7 @@ export interface QueueResponseInput {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 import { DATA_DIR } from '../config/paths';
+import { logger } from '../core/logger';
 const DB_PATH = process.env.TELEGRAM_DB_PATH || path.join(DATA_DIR, 'telegram.db');
 
 // Conversation expires after 24 hours of inactivity
@@ -167,7 +168,7 @@ function getDb(): DatabaseType {
     db.pragma('synchronous = NORMAL');
     db.exec(SCHEMA);
 
-    console.log(`[ConversationManager] Database initialized at ${DB_PATH}`);
+    logger.info(`[ConversationManager] Database initialized at ${DB_PATH}`);
   }
   return db;
 }
@@ -577,5 +578,5 @@ export function getRecentMessagesForTerminal(
 try {
   getDb();
 } catch (err) {
-  console.error('[ConversationManager] Failed to initialize database:', err);
+  logger.error('[ConversationManager] Failed to initialize database:', err);
 }

@@ -11,6 +11,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import matter from 'gray-matter';
+import { logger } from './core/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -350,7 +351,7 @@ export async function createTask(params: {
         queueTask(msgId, to, epic_id || null, project_id || null, priority);
         return { success: true, id: msgId, path: filePath, queued: true };
       } catch (err) {
-        console.warn('[Mailbox] Epic router not available, task will be dispatched normally');
+        logger.warn('[Mailbox] Epic router not available, task will be dispatched normally');
       }
     }
 
@@ -421,7 +422,7 @@ export async function sendMessage(
       return { id: msgId, path: filePath, queued: true };
     } catch (err) {
       // Epic router not available, fall back to normal dispatch
-      console.warn('[Mailbox] Epic router not available, task will be dispatched normally');
+      logger.warn('[Mailbox] Epic router not available, task will be dispatched normally');
     }
   }
 

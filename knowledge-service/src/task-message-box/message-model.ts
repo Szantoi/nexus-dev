@@ -17,9 +17,10 @@
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { MESSAGE_MODEL_CONFIG_PATH } from '../config/paths';
+import { logger } from '../core/logger';
 
-const log = (msg: string) => console.log(`[MessageModel] ${msg}`);
-const warn = (msg: string) => console.warn(`[MessageModel] ⚠️ ${msg}`);
+const log = (msg: string) => logger.info(`[MessageModel] ${msg}`);
+const warn = (msg: string) => logger.warn(`[MessageModel] ⚠️ ${msg}`);
 
 // ─── Config shape ─────────────────────────────────────────────────────────────
 

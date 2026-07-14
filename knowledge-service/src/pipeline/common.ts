@@ -6,6 +6,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as terminalsConfig from '../config/terminals';
 import { getUnreadMessages, queryMessages } from '../messageRegistry';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -300,7 +301,7 @@ export async function log(message: string): Promise<void> {
     await fs.mkdir(LOG_DIR, { recursive: true });
     await fs.appendFile(logFile, `${timestamp} ${message}\n`);
   } catch {
-    console.log(`[Pipeline] ${message}`);
+    logger.info(`[Pipeline] ${message}`);
   }
 }
 

@@ -16,6 +16,7 @@ import { loadActiveEpics, getEpicProgress } from '../conductor/epicManager';
 import { getTerminalStatusAggregate, type StatusAggregateSummary } from './terminalStatusAggregator';
 import { completeInboxMessage } from '../mailbox';
 import { createTask } from '../mailbox';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
@@ -58,7 +59,7 @@ async function saveCycleCount(count: number): Promise<void> {
   try {
     await fs.writeFile(CYCLE_STATE_FILE, String(count), 'utf-8');
   } catch (error) {
-    console.error('[watchMonitor] Failed to save cycle count:', error);
+    logger.error('[watchMonitor] Failed to save cycle count:', error);
   }
 }
 
@@ -158,7 +159,7 @@ Stuck Sessions: ${stuckSessions.join(', ') || 'none'}`,
     }
 
   } catch (error) {
-    console.error('[watchMonitor] Failed to process health check:', error);
+    logger.error('[watchMonitor] Failed to process health check:', error);
     await log(`[watchMonitor] ❌ ERROR processing health check: ${error}`);
     return { processed: false, action: 'manual_review', healthScore: 0 };
   }
@@ -197,7 +198,7 @@ async function archiveOldHealthChecks(): Promise<number> {
 
     return archivedCount;
   } catch (error) {
-    console.error('[watchMonitor] Failed to archive old health checks:', error);
+    logger.error('[watchMonitor] Failed to archive old health checks:', error);
     return 0;
   }
 }
@@ -378,7 +379,7 @@ ${checkpointDetails}
 
     return prompt;
   } catch (error) {
-    console.error('[watchMonitor] Failed to build mode-aware health check:', error);
+    logger.error('[watchMonitor] Failed to build mode-aware health check:', error);
     // Fallback to generic health check
     return `# Scheduled Health Check — Fallback (Mode Detection Error)
 
@@ -490,7 +491,7 @@ ${modeAwarePrompt}
       messageId,
     };
   } catch (error) {
-    console.error('[watchMonitor] Auto-processing failed:', error);
+    logger.error('[watchMonitor] Auto-processing failed:', error);
     return { triggered: true, reason: 'Mode-aware health check scheduled (auto-processing failed)', messageId };
   }
 }

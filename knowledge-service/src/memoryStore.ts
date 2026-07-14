@@ -19,6 +19,7 @@
 import Database from 'better-sqlite3';
 import * as path from 'path';
 import { getTerminalsRoot } from './config/terminals';
+import { logger } from './core/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,7 @@ export class MemoryStore {
 
     this.initSchema();
 
-    console.log(`[MemoryStore] Initialized for terminal: ${terminal} (WAL mode)`);
+    logger.info(`[MemoryStore] Initialized for terminal: ${terminal} (WAL mode)`);
   }
 
   /**
@@ -198,7 +199,7 @@ export class MemoryStore {
    */
   close(): void {
     this.db.close();
-    console.log(`[MemoryStore] Closed database for terminal: ${this.terminal}`);
+    logger.info(`[MemoryStore] Closed database for terminal: ${this.terminal}`);
   }
 
   /**
@@ -206,7 +207,7 @@ export class MemoryStore {
    */
   vacuum(): void {
     this.db.exec('VACUUM');
-    console.log(`[MemoryStore] Vacuumed database for terminal: ${this.terminal}`);
+    logger.info(`[MemoryStore] Vacuumed database for terminal: ${this.terminal}`);
   }
 }
 

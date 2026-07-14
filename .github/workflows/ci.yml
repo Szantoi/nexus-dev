@@ -1,0 +1,39 @@
+# CI — knowledge-service quality gate
+#
+# Runs on every push/PR: typecheck + lint (errors only) + hermetic tests.
+# Live-server smoke tests (npm run test:smoke) are NOT run here — they need
+# a booted service + ChromaDB and are run manually against dev/prod.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  knowledge-service:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: knowledge-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: knowledge-service/package-lock.json
+
+      - name: Install
+        run: npm ci --prefer-offline
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint (errors fail, warnings reported)
+        run: npx biome check src --diagnostic-level=error
+
+      - name: Hermetic tests
+        run: npx vitest run --reporter=dot

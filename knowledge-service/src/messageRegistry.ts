@@ -16,6 +16,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { DATA_DIR, MESSAGE_REGISTRY_DB } from './config/paths';
+import { logger } from './core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -273,7 +274,7 @@ function initSchema(): void {
     END
   `);
 
-  console.log('[MessageRegistry] Database schema initialized');
+  logger.info('[MessageRegistry] Database schema initialized');
 }
 
 // ─── Hash Functions ──────────────────────────────────────────────────────────
@@ -320,7 +321,7 @@ export async function stampFileWithHash(filePath: string): Promise<string> {
     // Check if frontmatter exists
     const frontmatterMatch = content.match(/^(---\n)([\s\S]*?)(\n---)/);
     if (!frontmatterMatch) {
-      console.warn(`[MessageRegistry] No frontmatter in ${filePath}`);
+      logger.warn(`[MessageRegistry] No frontmatter in ${filePath}`);
       return bodyHash;
     }
 
@@ -342,10 +343,10 @@ export async function stampFileWithHash(filePath: string): Promise<string> {
     const newContent = frontmatterStart + frontmatterContent + frontmatterEnd + restOfFile;
     await fs.writeFile(filePath, newContent, 'utf-8');
 
-    console.log(`[MessageRegistry] Stamped ${path.basename(filePath)} with hash: ${bodyHash.slice(0, 12)}...`);
+    logger.info(`[MessageRegistry] Stamped ${path.basename(filePath)} with hash: ${bodyHash.slice(0, 12)}...`);
     return bodyHash;
   } catch (err) {
-    console.error(`[MessageRegistry] Failed to stamp ${filePath}:`, err);
+    logger.error(`[MessageRegistry] Failed to stamp ${filePath}:`, err);
     return 'STAMP_ERROR';
   }
 }
@@ -455,7 +456,7 @@ export async function registerMessage(input: MessageInput): Promise<RegisteredMe
   // Check if already registered (idempotent)
   const existing = database.prepare('SELECT * FROM messages WHERE message_id = ?').get(input.messageId);
   if (existing) {
-    console.log(`[MessageRegistry] Message ${input.messageId} already registered`);
+    logger.info(`[MessageRegistry] Message ${input.messageId} already registered`);
     return rowToMessage(existing as Record<string, unknown>);
   }
 
@@ -496,7 +497,7 @@ export async function registerMessage(input: MessageInput): Promise<RegisteredMe
   logStatusChange(input.messageId, null, input.status, 'inbox_watcher', 'Initial registration');
 
   const id = result.lastInsertRowid as number;
-  console.log(`[MessageRegistry] Registered message #${id}: ${input.messageId} (${input.type}/${input.priority}) [hash: ${contentHash.slice(0, 12)}...]`);
+  logger.info(`[MessageRegistry] Registered message #${id}: ${input.messageId} (${input.type}/${input.priority}) [hash: ${contentHash.slice(0, 12)}...]`);
 
   const selectStmt = database.prepare('SELECT * FROM messages WHERE id = ?');
   return rowToMessage(selectStmt.get(id) as Record<string, unknown>);
@@ -516,7 +517,7 @@ export async function updateStatus(
 
   const current = database.prepare('SELECT * FROM messages WHERE message_id = ?').get(messageId) as Record<string, unknown> | undefined;
   if (!current) {
-    console.warn(`[MessageRegistry] Message ${messageId} not found`);
+    logger.warn(`[MessageRegistry] Message ${messageId} not found`);
     return null;
   }
 
@@ -573,7 +574,7 @@ export async function updateStatus(
   invalidateModelCache(terminal);
 
   const isFirstRead = oldStatus === 'UNREAD' && newStatus === 'READ';
-  console.log(`[MessageRegistry] ${messageId}: ${oldStatus} → ${newStatus}${isFirstRead ? ' [FIRST READ]' : ''}${responseTimeMs ? ` (${Math.round(responseTimeMs / 1000)}s)` : ''}`);
+  logger.info(`[MessageRegistry] ${messageId}: ${oldStatus} → ${newStatus}${isFirstRead ? ' [FIRST READ]' : ''}${responseTimeMs ? ` (${Math.round(responseTimeMs / 1000)}s)` : ''}`);
 
   const updated = database.prepare('SELECT * FROM messages WHERE message_id = ?').get(messageId);
   return rowToMessage(updated as Record<string, unknown>);
@@ -646,7 +647,7 @@ export function batchUpdateStatus(
         terminalsToInvalidate.add(current.terminal as string);
         updated++;
       } catch (err) {
-        console.error(`[MessageRegistry] Batch update failed for ${messageId}:`, err);
+        logger.error(`[MessageRegistry] Batch update failed for ${messageId}:`, err);
         failed.push(messageId);
       }
     }
@@ -659,7 +660,7 @@ export function batchUpdateStatus(
     invalidateModelCache(terminal);
   }
 
-  console.log(`[MessageRegistry] Batch update: ${updated} updated, ${failed.length} failed`);
+  logger.info(`[MessageRegistry] Batch update: ${updated} updated, ${failed.length} failed`);
   return { updated, failed };
 }
 
@@ -987,7 +988,7 @@ export function closeMessageRegistry(): void {
   if (db) {
     db.close();
     db = null;
-    console.log('[MessageRegistry] Database connection closed');
+    logger.info('[MessageRegistry] Database connection closed');
   }
 }
 
@@ -1035,9 +1036,9 @@ export async function syncWithFilesystem(): Promise<{ registered: number; update
       } catch { /* outbox doesn't exist */ }
     }
 
-    console.log(`[MessageRegistry] Sync complete: ${registered} registered, ${updated} updated`);
+    logger.info(`[MessageRegistry] Sync complete: ${registered} registered, ${updated} updated`);
   } catch (err) {
-    console.error('[MessageRegistry] Sync error:', err);
+    logger.error('[MessageRegistry] Sync error:', err);
   }
 
   return { registered, updated };
@@ -1094,7 +1095,7 @@ async function syncMessageFile(
 
     return 'registered';
   } catch (err) {
-    console.error(`[MessageRegistry] Error syncing ${filePath}:`, err);
+    logger.error(`[MessageRegistry] Error syncing ${filePath}:`, err);
     return 'skipped';
   }
 }

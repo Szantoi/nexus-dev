@@ -18,6 +18,7 @@ import { getBlockedTasks, getInProgressTasks } from './projectMatcher';
 import { loadEpicGraphCached } from '../graph/epicsLoader';
 import { generateMermaid } from '../graph/mermaidGenerator';
 import { WorkflowGraph } from '../graph/types';
+import { logger } from '../core/logger';
 
 /**
  * Update project STATUS.md file
@@ -34,7 +35,7 @@ export async function updateProjectStatus(
 
   await fs.writeFile(statusPath, statusMd, 'utf-8');
 
-  console.log(`[StatusUpdater] Updated ${statusPath}`);
+  logger.info(`[StatusUpdater] Updated ${statusPath}`);
 }
 
 /**
@@ -346,7 +347,7 @@ ${epicTable}${mermaidSection}
 ---
 `;
   } catch (error: any) {
-    console.warn('[StatusUpdater] Failed to generate epic status:', error.message);
+    logger.warn('[StatusUpdater] Failed to generate epic status:', error.message);
     return `## Epic Dependency Status
 
 ⚠️ _Epic graph not available (${error.message})_
@@ -407,7 +408,7 @@ export async function updateCodebaseStatusWithEpics(
 ${epicSection}
 `;
         await fs.writeFile(statusPath, content, 'utf-8');
-        console.log(`[StatusUpdater] Created ${statusPath} with epic status`);
+        logger.info(`[StatusUpdater] Created ${statusPath} with epic status`);
         return;
       }
       throw err;
@@ -432,9 +433,9 @@ ${epicSection}
 
     // Write updated content
     await fs.writeFile(statusPath, content, 'utf-8');
-    console.log(`[StatusUpdater] Updated ${statusPath} with epic status`);
+    logger.info(`[StatusUpdater] Updated ${statusPath} with epic status`);
   } catch (error: any) {
-    console.error('[StatusUpdater] Failed to update Codebase_Status.md:', error);
+    logger.error('[StatusUpdater] Failed to update Codebase_Status.md:', error);
     throw error;
   }
 }

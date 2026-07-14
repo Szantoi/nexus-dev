@@ -5,6 +5,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SPACEOS_ROOT, log, telegram } from './common';
 import { loadPipelineConfig, getNextMessageNum } from './pipelineConfig';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -151,7 +152,7 @@ export async function runCronLibrarian(): Promise<LibrarianResult> {
 
 if (require.main === module) {
   runCronLibrarian().then(result => {
-    console.log('Librarian result:', JSON.stringify(result, null, 2));
+    logger.info('Librarian result:', JSON.stringify(result, null, 2));
     process.exit(result.created || result.skipped ? 0 : 1);
   });
 }

@@ -12,6 +12,7 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import { saveTieredMemory } from './pipeline/memoryStore';
 import { log as pipelineLog } from './pipeline/common';
+import { MEMORY_DB } from './config/paths';
 
 const log = (prefix: string, message: string) => pipelineLog(`[${prefix}] ${message}`);
 
@@ -37,9 +38,7 @@ export interface DailyDigestResult {
 
 // ─── Database Path ───────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const DATA_DIR = process.env.DATA_DIR || `${SPACEOS_ROOT}/spaceos-nexus/knowledge-service/data`;
-const DB_PATH = path.join(DATA_DIR, 'memory.db');
+const DB_PATH = MEMORY_DB;
 
 let db: Database.Database | null = null;
 

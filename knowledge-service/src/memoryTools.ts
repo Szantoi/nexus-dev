@@ -13,6 +13,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from './core/logger';
 
 const MEMORY_DIR = path.join(__dirname, '..', '..', '..', 'docs', 'memory');
 const MEMORY_ARCHIVE_DIR = path.join(MEMORY_DIR, 'archive');
@@ -176,8 +177,8 @@ function suggestAction(
  *
  * @example
  * const report = await getMemoryHealthReport();
- * console.log(`Total size: ${report.system_total_kb} KB`);
- * console.log(`Warnings: ${report.warnings.length}`);
+ * logger.info(`Total size: ${report.system_total_kb} KB`);
+ * logger.info(`Warnings: ${report.warnings.length}`);
  */
 export async function getMemoryHealthReport(): Promise<MemoryHealthReport> {
   const terminals = getAllTerminals();
@@ -283,7 +284,7 @@ const PRESERVE_HEADERS = [
  *   strategy: 'moderate',
  *   dry_run: true
  * });
- * console.log(`Reduction: ${result.reduction_ratio * 100}%`);
+ * logger.info(`Reduction: ${result.reduction_ratio * 100}%`);
  */
 export async function compressMemory(params: CompressMemoryParams): Promise<CompressMemoryResult> {
   const { terminal, strategy, preserve_sections = [], dry_run = true } = params;
@@ -363,7 +364,7 @@ const PATTERN_REGEXES: Record<string, RegExp> = {
  *   min_frequency: 3,
  *   pattern_types: ['workflow', 'decision']
  * });
- * console.log(`Found ${result.total_patterns_found} patterns`);
+ * logger.info(`Found ${result.total_patterns_found} patterns`);
  */
 export async function extractPatterns(params: ExtractPatternsParams): Promise<ExtractPatternsResult> {
   const { terminal, min_frequency = 3, pattern_types } = params;

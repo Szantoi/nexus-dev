@@ -15,6 +15,7 @@
 // ─── Terminal Domains (7-terminal architecture 2026-06-21) ──────────────────
 
 import * as terminalsConfig from '../config/terminals';
+import { logger } from '../core/logger';
 
 /**
  * Terminal domain groupings - NEW 7-terminal architecture
@@ -233,8 +234,8 @@ export function getTrustedByTerminal(terminal: string): string[] {
 export function printTrustMatrix(): void {
   const allTerminals = Array.from(new Set(Object.values(TERMINAL_DOMAINS).flat()));
 
-  console.log('\n=== Trust Matrix ===');
-  console.log('From \\ To'.padEnd(15) + allTerminals.map(t => t.slice(0, 8).padEnd(10)).join(''));
+  logger.info('\n=== Trust Matrix ===');
+  logger.info('From \\ To'.padEnd(15) + allTerminals.map(t => t.slice(0, 8).padEnd(10)).join(''));
 
   for (const from of allTerminals) {
     const row = from.padEnd(15);
@@ -242,7 +243,7 @@ export function printTrustMatrix(): void {
       if (from === to) return '  -  '.padEnd(10);
       return (isTrustedTerminal(from, to) ? '  ✓  ' : '  ✗  ').padEnd(10);
     }).join('');
-    console.log(row + trusts);
+    logger.info(row + trusts);
   }
-  console.log('');
+  logger.info('');
 }

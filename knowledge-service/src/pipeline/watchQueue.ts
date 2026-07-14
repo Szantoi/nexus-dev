@@ -15,6 +15,7 @@ import {
   log,
 } from './common';
 import { getStatus } from '../terminalStatus';
+import { logger } from '../core/logger';
 
 const QUEUE_CHECK_COOLDOWN = 300; // 5 perc cooldown ugyanarra a task-ra
 
@@ -153,6 +154,6 @@ Kérlek dispatch-old ki a feladatot a ${task.terminal} terminálnak.`;
 // Standalone futtatás
 if (require.main === module) {
   watchQueue().then(result => {
-    console.log(`[watchQueue] Checked: ${result.checked}, Dispatched: ${result.dispatched.join(', ') || 'none'}, Skipped: ${result.skipped.join(', ') || 'none'}`);
+    logger.info(`[watchQueue] Checked: ${result.checked}, Dispatched: ${result.dispatched.join(', ') || 'none'}, Skipped: ${result.skipped.join(', ') || 'none'}`);
   });
 }

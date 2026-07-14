@@ -53,6 +53,7 @@ import {
   stopMessageRouter,
   stopChannelCoordinator,
 } from '../../../pipeline';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -83,7 +84,7 @@ router.get('/mode', (_req: Request, res: Response) => {
     const mode = getDispatchMode();
     res.json({ mode });
   } catch (error) {
-    console.error('[Control API] Mode error:', error);
+    logger.error('[Control API] Mode error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -109,7 +110,7 @@ router.post('/mode', async (req: Request, res: Response) => {
       updatedBy: auth.holder,
     });
   } catch (error) {
-    console.error('[Control API] Set mode error:', error);
+    logger.error('[Control API] Set mode error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -121,7 +122,7 @@ router.get('/budget', (_req: Request, res: Response) => {
     const summary = getDailyBudgetSummary();
     res.json(summary);
   } catch (error) {
-    console.error('[Control API] Budget error:', error);
+    logger.error('[Control API] Budget error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -132,7 +133,7 @@ router.get('/budget/:terminal', (req: Request, res: Response) => {
     const status = getTerminalBudgetStatus(terminal);
     res.json(status);
   } catch (error) {
-    console.error('[Control API] Terminal budget error:', error);
+    logger.error('[Control API] Terminal budget error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -158,7 +159,7 @@ router.post('/budget/:terminal', async (req: Request, res: Response) => {
       ...status,
     });
   } catch (error) {
-    console.error('[Control API] Set budget error:', error);
+    logger.error('[Control API] Set budget error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -183,7 +184,7 @@ router.post('/usage', async (req: Request, res: Response) => {
       budgetStatus: status,
     });
   } catch (error) {
-    console.error('[Control API] Usage error:', error);
+    logger.error('[Control API] Usage error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -194,7 +195,7 @@ router.get('/usage', (req: Request, res: Response) => {
     const stats = getUsageStats(terminal);
     res.json(stats);
   } catch (error) {
-    console.error('[Control API] Usage stats error:', error);
+    logger.error('[Control API] Usage stats error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -215,7 +216,7 @@ router.get('/can-dispatch', (req: Request, res: Response) => {
     const check = canDispatch(terminal, estimatedTokens, priority);
     res.json(check);
   } catch (error) {
-    console.error('[Control API] Can dispatch error:', error);
+    logger.error('[Control API] Can dispatch error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -228,7 +229,7 @@ router.get('/queue', (_req: Request, res: Response) => {
       queue,
     });
   } catch (error) {
-    console.error('[Control API] Queue error:', error);
+    logger.error('[Control API] Queue error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -251,7 +252,7 @@ router.post('/queue', async (req: Request, res: Response) => {
       priority: priority || 'medium',
     });
   } catch (error) {
-    console.error('[Control API] Queue add error:', error);
+    logger.error('[Control API] Queue add error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -308,7 +309,7 @@ router.post('/dispatch', async (req: Request, res: Response) => {
       budgetWarning,
     });
   } catch (error) {
-    console.error('[Control API] Dispatch error:', error);
+    logger.error('[Control API] Dispatch error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -354,7 +355,7 @@ router.post('/emergency-stop', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('[Control API] Emergency stop error:', error);
+    logger.error('[Control API] Emergency stop error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -370,7 +371,7 @@ router.get('/proposals', (_req: Request, res: Response) => {
       stats,
     });
   } catch (error) {
-    console.error('[Control API] Proposals error:', error);
+    logger.error('[Control API] Proposals error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -385,7 +386,7 @@ router.get('/proposals/:id', (req: Request, res: Response) => {
     }
     res.json(proposal);
   } catch (error) {
-    console.error('[Control API] Proposal error:', error);
+    logger.error('[Control API] Proposal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -418,7 +419,7 @@ router.post('/proposals', async (req: Request, res: Response) => {
       proposal,
     });
   } catch (error) {
-    console.error('[Control API] Create proposal error:', error);
+    logger.error('[Control API] Create proposal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -442,7 +443,7 @@ router.post('/proposals/:id/approve', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[Control API] Approve proposal error:', error);
+    logger.error('[Control API] Approve proposal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -467,7 +468,7 @@ router.post('/proposals/:id/reject', async (req: Request, res: Response) => {
 
     res.json(result);
   } catch (error) {
-    console.error('[Control API] Reject proposal error:', error);
+    logger.error('[Control API] Reject proposal error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -483,7 +484,7 @@ router.post('/proposals/approve-all', async (req: Request, res: Response) => {
       ...result,
     });
   } catch (error) {
-    console.error('[Control API] Approve all error:', error);
+    logger.error('[Control API] Approve all error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -497,7 +498,7 @@ router.post('/proposals/expire', async (req: Request, res: Response) => {
       expired,
     });
   } catch (error) {
-    console.error('[Control API] Expire proposals error:', error);
+    logger.error('[Control API] Expire proposals error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -518,7 +519,7 @@ router.get('/windows', (_req: Request, res: Response) => {
       defaultMode,
     });
   } catch (error) {
-    console.error('[Control API] Windows error:', error);
+    logger.error('[Control API] Windows error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -543,7 +544,7 @@ router.post('/windows', (req: Request, res: Response) => {
 
     res.json({ success: true, message: `Window "${name}" added` });
   } catch (error) {
-    console.error('[Control API] Add window error:', error);
+    logger.error('[Control API] Add window error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -560,7 +561,7 @@ router.delete('/windows/:name', (req: Request, res: Response) => {
 
     res.json({ success: true, message: `Window "${name}" removed` });
   } catch (error) {
-    console.error('[Control API] Remove window error:', error);
+    logger.error('[Control API] Remove window error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -572,7 +573,7 @@ router.get('/windows/check/:terminal', (req: Request, res: Response) => {
 
     res.json(check);
   } catch (error) {
-    console.error('[Control API] Window check error:', error);
+    logger.error('[Control API] Window check error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -589,7 +590,7 @@ router.post('/windows/session/start', (req: Request, res: Response) => {
     registerWindowSession(terminal, windowName, sessionId);
     res.json({ success: true, message: `Session registered for ${terminal} in window "${windowName}"` });
   } catch (error) {
-    console.error('[Control API] Register session error:', error);
+    logger.error('[Control API] Register session error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -606,7 +607,7 @@ router.post('/windows/session/end', (req: Request, res: Response) => {
     endWindowSession(terminal);
     res.json({ success: true, message: `Session ended for ${terminal}` });
   } catch (error) {
-    console.error('[Control API] End session error:', error);
+    logger.error('[Control API] End session error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -616,7 +617,7 @@ router.get('/windows/sessions', (_req: Request, res: Response) => {
     const sessions = getAllActiveSessions();
     res.json({ sessions });
   } catch (error) {
-    console.error('[Control API] Get sessions error:', error);
+    logger.error('[Control API] Get sessions error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -633,7 +634,7 @@ router.post('/windows/default-mode', (req: Request, res: Response) => {
     setDefaultMode(mode);
     res.json({ success: true, defaultMode: mode });
   } catch (error) {
-    console.error('[Control API] Set default mode error:', error);
+    logger.error('[Control API] Set default mode error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -644,7 +645,7 @@ router.post('/windows/load-defaults', (_req: Request, res: Response) => {
     const windows = getWindows();
     res.json({ success: true, windowsLoaded: windows.length, windows });
   } catch (error) {
-    console.error('[Control API] Load defaults error:', error);
+    logger.error('[Control API] Load defaults error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

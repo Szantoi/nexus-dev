@@ -10,6 +10,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 export interface EpicInfo {
   epic: string;
@@ -54,7 +55,7 @@ function loadEpics(): Record<string, EpicYaml> {
     epicsCacheTime = now;
     return epicsCache;
   } catch (err) {
-    console.warn('[DependencyResolver] Could not load EPICS.yaml:', err);
+    logger.warn('[DependencyResolver] Could not load EPICS.yaml:', err);
     return {};
   }
 }

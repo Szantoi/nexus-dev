@@ -167,7 +167,7 @@ function parseIdeasFromResponse(
   // Look for structured idea blocks
   // Pattern: ### [Title]\n...\n---
   const ideaRegex = /###\s+(.+?)\n([\s\S]*?)(?=###|$)/g;
-  let match;
+  let match: RegExpExecArray | null;
   let num = startNum;
 
   while ((match = ideaRegex.exec(response)) !== null) {
@@ -437,12 +437,12 @@ async function scheduleNextRun(config: IdeaScanConfig): Promise<void> {
       const result = await runIdeaScan(config);
 
       if (result.ideasCreated > 0) {
-        console.log(`[IdeaScan] Cycle ${result.cycleId}: ${result.ideasCreated} ideas (next in ${currentIntervalMinutes}min)`);
+        logger.info(`[IdeaScan] Cycle ${result.cycleId}: ${result.ideasCreated} ideas (next in ${currentIntervalMinutes}min)`);
       } else if (result.skipped) {
-        console.log(`[IdeaScan] Cycle ${result.cycleId}: skipped - ${result.skipReason}`);
+        logger.info(`[IdeaScan] Cycle ${result.cycleId}: skipped - ${result.skipReason}`);
       }
     } catch (err) {
-      console.error('[IdeaScan] Cycle error:', err);
+      logger.error('[IdeaScan] Cycle error:', err);
     }
 
     // Schedule next run with updated interval
@@ -454,12 +454,12 @@ async function scheduleNextRun(config: IdeaScanConfig): Promise<void> {
 
 export async function startIdeaScanScheduler(config: IdeaScanConfig = DEFAULT_CONFIG): Promise<void> {
   if (!config.enabled) {
-    console.log('[IdeaScan] Scheduler disabled (set ENABLE_IDEA_SCAN=true)');
+    logger.info('[IdeaScan] Scheduler disabled (set ENABLE_IDEA_SCAN=true)');
     return;
   }
 
   if (timeoutId) {
-    console.log('[IdeaScan] Scheduler already running');
+    logger.info('[IdeaScan] Scheduler already running');
     return;
   }
 
@@ -468,35 +468,35 @@ export async function startIdeaScanScheduler(config: IdeaScanConfig = DEFAULT_CO
   const initialInterval = calculateNextInterval(ideaCount, config);
   currentIntervalMinutes = initialInterval;
 
-  console.log(`[IdeaScan] Scheduler starting (dynamic: ${config.minIntervalMinutes}-${config.maxIntervalMinutes} min)`);
-  console.log(`   📁 Project: ${config.projectPath}`);
-  console.log(`   💡 Ideas dir: ${config.ideasDir}`);
-  console.log(`   🎯 Threshold: ${config.ideasThreshold} ideas`);
-  console.log(`   📊 Current: ${ideaCount} ideas → next in ${initialInterval}min`);
+  logger.info(`[IdeaScan] Scheduler starting (dynamic: ${config.minIntervalMinutes}-${config.maxIntervalMinutes} min)`);
+  logger.info(`   📁 Project: ${config.projectPath}`);
+  logger.info(`   💡 Ideas dir: ${config.ideasDir}`);
+  logger.info(`   🎯 Threshold: ${config.ideasThreshold} ideas`);
+  logger.info(`   📊 Current: ${ideaCount} ideas → next in ${initialInterval}min`);
 
   // Run first scan after initial delay
   setTimeout(async () => {
     try {
       const result = await runIdeaScan(config);
-      console.log(`[IdeaScan] Initial cycle: ${result.ideasCreated} ideas created`);
+      logger.info(`[IdeaScan] Initial cycle: ${result.ideasCreated} ideas created`);
 
       // Start dynamic scheduling
       scheduleNextRun(config);
     } catch (err) {
-      console.error('[IdeaScan] Initial cycle error:', err);
+      logger.error('[IdeaScan] Initial cycle error:', err);
       // Still start scheduler even if initial run fails
       scheduleNextRun(config);
     }
   }, 10000); // 10 sec initial delay
 
-  console.log(`   💡 Idea Scan: ENABLED (dynamic interval)`);
+  logger.info(`   💡 Idea Scan: ENABLED (dynamic interval)`);
 }
 
 export function stopIdeaScanScheduler(): void {
   if (timeoutId) {
     clearTimeout(timeoutId);
     timeoutId = null;
-    console.log('[IdeaScan] Scheduler stopped');
+    logger.info('[IdeaScan] Scheduler stopped');
   }
 }
 
@@ -529,6 +529,7 @@ export async function triggerManualIdeaScan(): Promise<IdeaScanResult> {
 // ─── Express Router ──────────────────────────────────────────────────────────
 
 import { Router } from 'express';
+import { logger } from '../core/logger';
 
 export function createIdeaScanRouter(): Router {
   const router = Router();
@@ -573,20 +574,20 @@ export function createIdeaScanRouter(): Router {
 // ─── Run standalone ──────────────────────────────────────────────────────────
 
 if (require.main === module) {
-  console.log('=== Idea Scan Module ===');
-  console.log(`Enabled: ${DEFAULT_CONFIG.enabled}`);
-  console.log(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
-  console.log(`Project: ${DEFAULT_CONFIG.projectPath}`);
-  console.log(`Ideas dir: ${DEFAULT_CONFIG.ideasDir}`);
+  logger.info('=== Idea Scan Module ===');
+  logger.info(`Enabled: ${DEFAULT_CONFIG.enabled}`);
+  logger.info(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
+  logger.info(`Project: ${DEFAULT_CONFIG.projectPath}`);
+  logger.info(`Ideas dir: ${DEFAULT_CONFIG.ideasDir}`);
 
   if (process.argv.includes('--scan')) {
-    console.log('\nRunning manual scan...');
+    logger.info('\nRunning manual scan...');
     triggerManualIdeaScan()
       .then(result => {
-        console.log('\nResult:', JSON.stringify(result, null, 2));
+        logger.info('\nResult:', JSON.stringify(result, null, 2));
       })
       .catch(err => {
-        console.error('Error:', err);
+        logger.error('Error:', err);
       });
   }
 }

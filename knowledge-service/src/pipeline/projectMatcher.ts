@@ -10,6 +10,7 @@
  */
 
 import { Task, TaskChain, DoneMessage } from './projectDispatcher';
+import { logger } from '../core/logger';
 
 /**
  * Match DONE message to a task in the task chain
@@ -25,7 +26,7 @@ export function matchDoneToTask(tasks: TaskChain, done: DoneMessage): Task | nul
     .find(t => t.msg_id === done.task_id);
 
   if (exactMatch) {
-    console.log(`[ProjectMatcher] Exact match by msg_id: ${done.task_id}`);
+    logger.info(`[ProjectMatcher] Exact match by msg_id: ${done.task_id}`);
     return exactMatch;
   }
 
@@ -36,7 +37,7 @@ export function matchDoneToTask(tasks: TaskChain, done: DoneMessage): Task | nul
       .find(t => t.msg_id === done.ref);
 
     if (refMatch) {
-      console.log(`[ProjectMatcher] Match by ref: ${done.ref}`);
+      logger.info(`[ProjectMatcher] Match by ref: ${done.ref}`);
       return refMatch;
     }
   }
@@ -51,12 +52,12 @@ export function matchDoneToTask(tasks: TaskChain, done: DoneMessage): Task | nul
     );
 
   if (fuzzyMatch) {
-    console.log(`[ProjectMatcher] Fuzzy match for terminal ${done.from}: task ${fuzzyMatch.id}`);
+    logger.info(`[ProjectMatcher] Fuzzy match for terminal ${done.from}: task ${fuzzyMatch.id}`);
     return fuzzyMatch;
   }
 
   // No match found
-  console.log(`[ProjectMatcher] No match found for ${done.task_id} from ${done.from}`);
+  logger.info(`[ProjectMatcher] No match found for ${done.task_id} from ${done.from}`);
   return null;
 }
 
@@ -91,7 +92,7 @@ export function matchDoneToTaskStrict(
   if (exactMatch) {
     // Verify status if required
     if (requireInProgress && exactMatch.status !== 'in_progress') {
-      console.warn(
+      logger.warn(
         `[ProjectMatcher] Task ${exactMatch.id} found but status is ${exactMatch.status}, expected in_progress`
       );
       return null;
@@ -107,7 +108,7 @@ export function matchDoneToTaskStrict(
 
     if (refMatch) {
       if (requireInProgress && refMatch.status !== 'in_progress') {
-        console.warn(
+        logger.warn(
           `[ProjectMatcher] Ref task ${refMatch.id} found but status is ${refMatch.status}, expected in_progress`
         );
         return null;

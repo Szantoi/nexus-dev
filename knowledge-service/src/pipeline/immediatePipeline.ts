@@ -20,6 +20,7 @@ import { promisify } from 'util';
 import { handleDoneReview, runDualReview } from './reviewer';
 import { runPipeline } from './pipeline';
 import { log, telegram, SPACEOS_ROOT, TMUX_SOCKET } from './common';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -237,12 +238,12 @@ export function triggerImmediatePipelineAsync(
   triggerImmediatePipeline(donePath, ctx)
     .then(result => {
       if (result.error) {
-        console.error(`[ImmediatePipeline] Failed: ${result.error}`);
+        logger.error(`[ImmediatePipeline] Failed: ${result.error}`);
       } else {
-        console.log(`[ImmediatePipeline] Complete: approved=${result.approved}, injected=${result.injected}`);
+        logger.info(`[ImmediatePipeline] Complete: approved=${result.approved}, injected=${result.injected}`);
       }
     })
     .catch(err => {
-      console.error(`[ImmediatePipeline] Unhandled error:`, err);
+      logger.error(`[ImmediatePipeline] Unhandled error:`, err);
     });
 }

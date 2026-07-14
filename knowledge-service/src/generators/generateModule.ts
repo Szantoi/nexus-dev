@@ -14,6 +14,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { GeneratedFile, Property } from './types';
 import { toPascalCase, toCamelCase, toSlug } from './utils/casing';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const BACKEND_DIR = process.env.BACKEND_DIR || `${SPACEOS_ROOT}/backend`;
@@ -50,7 +51,7 @@ export async function generateModule(params: GenerateModuleParams): Promise<Gene
   const pascalAggregate = toPascalCase(aggregate);
   const camelAggregate = toCamelCase(aggregate);
 
-  console.log(`[GenerateModule] Generating skeleton for ${pascalAggregate} in ${module}`);
+  logger.info(`[GenerateModule] Generating skeleton for ${pascalAggregate} in ${module}`);
 
   // 1. Generate Status Enum
   files.push({
@@ -153,11 +154,11 @@ export async function generateModule(params: GenerateModuleParams): Promise<Gene
       }
     } catch (error) {
       errors.push(`${file.path}: ${error}`);
-      console.error(`[GenerateModule] Error writing ${file.path}:`, error);
+      logger.error(`[GenerateModule] Error writing ${file.path}:`, error);
     }
   }
 
-  console.log(`[GenerateModule] Generated ${filesCreated.length} files, skipped ${filesSkipped.length}`);
+  logger.info(`[GenerateModule] Generated ${filesCreated.length} files, skipped ${filesSkipped.length}`);
 
   return {
     success: errors.length === 0,

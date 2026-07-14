@@ -346,26 +346,26 @@ export async function runMonitoringCheck(
 
 export function startRootMonitorScheduler(config: RootMonitorConfig = DEFAULT_CONFIG): void {
   if (!config.enabled) {
-    console.log('[RootMonitor] Scheduler disabled (set ENABLE_ROOT_MONITOR=true)');
+    logger.info('[RootMonitor] Scheduler disabled (set ENABLE_ROOT_MONITOR=true)');
     return;
   }
 
   if (intervalId) {
-    console.log('[RootMonitor] Scheduler already running');
+    logger.info('[RootMonitor] Scheduler already running');
     return;
   }
 
   const intervalMs = config.intervalMinutes * 60 * 1000;
 
-  console.log(`[RootMonitor] Scheduler starting (every ${config.intervalMinutes} minutes)`);
+  logger.info(`[RootMonitor] Scheduler starting (every ${config.intervalMinutes} minutes)`);
 
   // First check after 5 minutes (give system time to stabilize)
   setTimeout(async () => {
     try {
       const report = await runMonitoringCheck(config);
-      console.log(`[RootMonitor] Initial check: ${report.status} (${report.issues.length} issues)`);
+      logger.info(`[RootMonitor] Initial check: ${report.status} (${report.issues.length} issues)`);
     } catch (err) {
-      console.error('[RootMonitor] Initial check error:', err);
+      logger.error('[RootMonitor] Initial check error:', err);
     }
   }, 5 * 60 * 1000);
 
@@ -375,23 +375,23 @@ export function startRootMonitorScheduler(config: RootMonitorConfig = DEFAULT_CO
       const report = await runMonitoringCheck(config);
 
       if (report.status === 'healthy') {
-        console.log(`[RootMonitor] Check #${report.checkId}: healthy`);
+        logger.info(`[RootMonitor] Check #${report.checkId}: healthy`);
       } else {
-        console.log(`[RootMonitor] Check #${report.checkId}: ${report.status} - ${report.issues.join('; ')}`);
+        logger.info(`[RootMonitor] Check #${report.checkId}: ${report.status} - ${report.issues.join('; ')}`);
       }
     } catch (err) {
-      console.error('[RootMonitor] Check error:', err);
+      logger.error('[RootMonitor] Check error:', err);
     }
   }, intervalMs);
 
-  console.log(`   👁️ Root Monitor: ENABLED (every ${config.intervalMinutes}min)`);
+  logger.info(`   👁️ Root Monitor: ENABLED (every ${config.intervalMinutes}min)`);
 }
 
 export function stopRootMonitorScheduler(): void {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
-    console.log('[RootMonitor] Scheduler stopped');
+    logger.info('[RootMonitor] Scheduler stopped');
   }
 }
 
@@ -422,6 +422,7 @@ export async function triggerManualCheck(): Promise<MonitoringReport> {
 // ─── Express Router ──────────────────────────────────────────────────────────
 
 import { Router } from 'express';
+import { logger } from '../core/logger';
 
 export function createRootMonitorRouter(): Router {
   const router = Router();
@@ -469,18 +470,18 @@ export function createRootMonitorRouter(): Router {
 // ─── Run standalone ──────────────────────────────────────────────────────────
 
 if (require.main === module) {
-  console.log('=== Root Monitor Module ===');
-  console.log(`Enabled: ${DEFAULT_CONFIG.enabled}`);
-  console.log(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
+  logger.info('=== Root Monitor Module ===');
+  logger.info(`Enabled: ${DEFAULT_CONFIG.enabled}`);
+  logger.info(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
 
   if (process.argv.includes('--check')) {
-    console.log('\nRunning manual check...');
+    logger.info('\nRunning manual check...');
     triggerManualCheck()
       .then(report => {
-        console.log('\nReport:', JSON.stringify(report, null, 2));
+        logger.info('\nReport:', JSON.stringify(report, null, 2));
       })
       .catch(err => {
-        console.error('Error:', err);
+        logger.error('Error:', err);
       });
   }
 }

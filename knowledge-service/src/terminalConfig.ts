@@ -8,6 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from './core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -176,14 +177,14 @@ export function loadTerminalConfig(): void {
     schedulingWindows = newSchedulingWindows;
     configLoaded = true;
 
-    console.log(`[Config] Loaded ${terminals.size} terminals from config`);
+    logger.info(`[Config] Loaded ${terminals.size} terminals from config`);
   } catch (err) {
     if (!configLoaded) {
       // First load failed, use defaults
-      console.warn('[Config] terminals.yaml not found, using defaults');
+      logger.warn('[Config] terminals.yaml not found, using defaults');
       loadDefaultTerminals();
     } else {
-      console.error('[Config] Failed to reload terminals.yaml:', err);
+      logger.error('[Config] Failed to reload terminals.yaml:', err);
     }
   }
 }

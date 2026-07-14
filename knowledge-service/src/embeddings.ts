@@ -1,3 +1,4 @@
+import { logger } from './core/logger';
 /**
  * Server-side embedding approach: let ChromaDB handle all embeddings.
  * No client-side embedding library needed → no sharp dependency → no CPU arch issues.
@@ -57,12 +58,12 @@ export async function embedDocuments(texts: string[]): Promise<number[][] | unde
     for (let i = 0; i < texts.length; i += VOYAGE_BATCH) {
       const batchNum = Math.floor(i / VOYAGE_BATCH) + 1;
       const batch = texts.slice(i, i + VOYAGE_BATCH);
-      console.log(`⏳ Embedding batch ${batchNum}/${totalBatches} (${batch.length} texts)...`);
+      logger.info(`⏳ Embedding batch ${batchNum}/${totalBatches} (${batch.length} texts)...`);
       results.push(...(await voyageEmbed(batch, 'document')));
 
       // Rate limiting: wait before next batch (except for last batch)
       if (i + VOYAGE_BATCH < texts.length) {
-        console.log(`   Waiting ${VOYAGE_DELAY_MS / 1000}s (rate limit)...`);
+        logger.info(`   Waiting ${VOYAGE_DELAY_MS / 1000}s (rate limit)...`);
         await new Promise(resolve => setTimeout(resolve, VOYAGE_DELAY_MS));
       }
     }

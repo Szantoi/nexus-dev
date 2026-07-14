@@ -15,6 +15,7 @@ import {
   recordPauseNotification,
   type CostConfigDto,
 } from '../../../application/services/costMonitoringService';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -69,7 +70,7 @@ router.get('/stream', (req: Request, res: Response) => {
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
 
-  console.log('[CostMonitoring] SSE client connected');
+  logger.info('[CostMonitoring] SSE client connected');
 
   let intervalId: NodeJS.Timeout | null = null;
   let keepAliveId: NodeJS.Timeout | null = null;
@@ -92,7 +93,7 @@ router.get('/stream', (req: Request, res: Response) => {
 
       iteration++;
     } catch (err) {
-      console.error('[CostMonitoring] SSE send error:', err);
+      logger.error('[CostMonitoring] SSE send error:', err);
       cleanup();
     }
   }, 2000);
@@ -102,7 +103,7 @@ router.get('/stream', (req: Request, res: Response) => {
     try {
       res.write(`: keep-alive\n\n`);
     } catch (err) {
-      console.error('[CostMonitoring] SSE keep-alive error:', err);
+      logger.error('[CostMonitoring] SSE keep-alive error:', err);
       cleanup();
     }
   }, 30000);
@@ -117,7 +118,7 @@ router.get('/stream', (req: Request, res: Response) => {
       clearInterval(keepAliveId);
       keepAliveId = null;
     }
-    console.log('[CostMonitoring] SSE client disconnected');
+    logger.info('[CostMonitoring] SSE client disconnected');
     res.end();
   }
 
@@ -137,7 +138,7 @@ router.get('/today', (req: Request, res: Response) => {
     const data = getCached('today', 30, getTodayCosts);
     res.json(data);
   } catch (err) {
-    console.error('[CostMonitoring] /today error:', err);
+    logger.error('[CostMonitoring] /today error:', err);
     res.status(500).json({ error: 'Failed to fetch today costs' });
   }
 });
@@ -171,7 +172,7 @@ router.get('/terminal/:terminal', (req: Request, res: Response) => {
 
     res.json(data);
   } catch (err) {
-    console.error('[CostMonitoring] /terminal/:terminal error:', err);
+    logger.error('[CostMonitoring] /terminal/:terminal error:', err);
     res.status(500).json({ error: 'Failed to fetch terminal costs' });
   }
 });
@@ -191,7 +192,7 @@ router.get('/history', (req: Request, res: Response) => {
     const data = getCached(cacheKey, 300, () => getCostHistory(days));
     res.json(data);
   } catch (err) {
-    console.error('[CostMonitoring] /history error:', err);
+    logger.error('[CostMonitoring] /history error:', err);
     res.status(500).json({ error: 'Failed to fetch cost history' });
   }
 });
@@ -205,7 +206,7 @@ router.get('/config', (req: Request, res: Response) => {
     const data = getCached('config', 600, getCostConfig);
     res.json(data);
   } catch (err) {
-    console.error('[CostMonitoring] /config GET error:', err);
+    logger.error('[CostMonitoring] /config GET error:', err);
     res.status(500).json({ error: 'Failed to fetch cost config' });
   }
 });
@@ -244,7 +245,7 @@ router.put('/config', (req: Request, res: Response) => {
       updatedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.error('[CostMonitoring] /config PUT error:', err);
+    logger.error('[CostMonitoring] /config PUT error:', err);
     res.status(500).json({ error: 'Failed to update cost config' });
   }
 });
@@ -266,7 +267,7 @@ router.post('/pause-notification', (req: Request, res: Response) => {
     const result = recordPauseNotification(data);
     res.json(result);
   } catch (err) {
-    console.error('[CostMonitoring] /pause-notification error:', err);
+    logger.error('[CostMonitoring] /pause-notification error:', err);
     res.status(500).json({ error: 'Failed to record pause notification' });
   }
 });

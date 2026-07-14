@@ -11,6 +11,7 @@
 import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as fs from 'fs';
+import { logger } from './core/logger';
 
 const DATA_DIR = '/opt/nexus/src/nexus-core/knowledge-service/data';
 const DB_PATH = path.join(DATA_DIR, 'workflow.db');
@@ -668,4 +669,4 @@ export function getDb(): Database.Database {
   return db;
 }
 
-console.log('[WorkflowDB] Initialized:', DB_PATH);
+logger.info('[WorkflowDB] Initialized:', DB_PATH);

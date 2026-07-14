@@ -24,6 +24,7 @@ import { createEpic, getEpicById, createProject, getProjectById } from '../../..
 import {
   upsertCheckpoint, completeCheckpoint, projectStatus, importEpicsYaml, listCheckpoints,
 } from '../../../projects/checkpointStore';
+import { logger } from '../../../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 
@@ -51,7 +52,7 @@ router.post('/epic', authenticateRest, (req: Request, res: Response): void => {
       status: b.status || 'pending', priority: b.priority ?? 2,
       depends_on: b.depends_on, target_date: b.target_date,
     });
-    console.log(`[Projects] epic upserted: ${epic.id} (by ${(req as Request & { mcpTerminal?: string }).mcpTerminal || '?'})`);
+    logger.info(`[Projects] epic upserted: ${epic.id} (by ${(req as Request & { mcpTerminal?: string }).mcpTerminal || '?'})`);
     res.json({ success: true, epic });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
@@ -92,7 +93,7 @@ router.post('/import-yaml', authenticateRest, (req: Request, res: Response): voi
   try {
     const data = yaml.load(fsSync.readFileSync(filePath, 'utf-8')) as Parameters<typeof importEpicsYaml>[0];
     const result = importEpicsYaml(data);
-    console.log(`[Projects] EPICS.yaml seeded from ${filePath}: ${result.epics} epic(s), ${result.checkpoints} checkpoint(s)`);
+    logger.info(`[Projects] EPICS.yaml seeded from ${filePath}: ${result.epics} epic(s), ${result.checkpoints} checkpoint(s)`);
     res.json({ success: true, ...result, note: 'DB is now the source of truth; the yaml file is historical.' });
   } catch (err) {
     res.status(422).json({ error: (err as Error).message });

@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,10 +44,10 @@ export function loadConfig(): TerminalsConfig {
   try {
     const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
     _config = JSON.parse(raw) as TerminalsConfig;
-    console.log(`[Config] Loaded ${Object.keys(_config.terminals).length} terminals from config`);
+    logger.info(`[Config] Loaded ${Object.keys(_config.terminals).length} terminals from config`);
     return _config;
   } catch (err) {
-    console.error(`[Config] Failed to load terminals.json: ${err}`);
+    logger.error(`[Config] Failed to load terminals.json: ${err}`);
     // Fallback to minimal config
     const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
     _config = {

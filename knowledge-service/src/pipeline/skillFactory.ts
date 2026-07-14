@@ -8,6 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ export async function createSkill(params: CreateSkillParams): Promise<SkillCreat
 
     await fs.writeFile(skillFile, skillContent, 'utf-8');
 
-    console.log(`[SkillFactory] ✓ Created skill: ${skillName}`);
+    logger.info(`[SkillFactory] ✓ Created skill: ${skillName}`);
 
     return {
       success: true,
@@ -155,7 +156,7 @@ export async function createSkill(params: CreateSkillParams): Promise<SkillCreat
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[SkillFactory] Error creating skill:`, error);
+    logger.error(`[SkillFactory] Error creating skill:`, error);
     return {
       success: false,
       error: `Failed to create skill: ${msg}`,
@@ -188,7 +189,7 @@ export async function listSkills(): Promise<string[]> {
 
     return skills.sort();
   } catch (error) {
-    console.error(`[SkillFactory] Error listing skills:`, error);
+    logger.error(`[SkillFactory] Error listing skills:`, error);
     return [];
   }
 }
@@ -212,7 +213,7 @@ export async function getSkillMetadata(skillName: string): Promise<SkillMetadata
     const metadata = yaml.load(frontmatterMatch[1]) as SkillMetadata;
     return metadata;
   } catch (error) {
-    console.error(`[SkillFactory] Error reading skill metadata:`, error);
+    logger.error(`[SkillFactory] Error reading skill metadata:`, error);
     return null;
   }
 }
@@ -238,12 +239,12 @@ export async function deleteSkill(skillName: string): Promise<{ success: boolean
     // Delete skill directory
     await fs.rm(skillDir, { recursive: true, force: true });
 
-    console.log(`[SkillFactory] ✓ Deleted skill: ${skillName}`);
+    logger.info(`[SkillFactory] ✓ Deleted skill: ${skillName}`);
 
     return { success: true };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[SkillFactory] Error deleting skill:`, error);
+    logger.error(`[SkillFactory] Error deleting skill:`, error);
     return {
       success: false,
       error: `Failed to delete skill: ${msg}`,

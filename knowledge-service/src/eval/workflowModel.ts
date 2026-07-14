@@ -13,9 +13,10 @@
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { WORKFLOWS_CONFIG_PATH } from '../config/paths';
+import { logger } from '../core/logger';
 
-const log = (msg: string) => console.log(`[WorkflowModel] ${msg}`);
-const warn = (msg: string) => console.warn(`[WorkflowModel] ⚠️ ${msg}`);
+const log = (msg: string) => logger.info(`[WorkflowModel] ${msg}`);
+const warn = (msg: string) => logger.warn(`[WorkflowModel] ⚠️ ${msg}`);
 
 export interface WorkflowDefinition {
   expected_trajectory: string[];

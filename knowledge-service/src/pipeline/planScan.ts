@@ -20,6 +20,7 @@ import {
   PlanConfig,
   ScanState
 } from './planConfig';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -121,7 +122,7 @@ function parseIdeasFromResponse(response: string, ideasDir: string, date: string
   // Pattern 1: Explicit filename with code block
   const fileBlockRegex = /(?:\*\*Fájlnév:\*\*|Fájl:|File:)\s*[`']?([^\n`']+\.md)[`']?\s*\n+```(?:yaml|markdown|md)?\n([\s\S]*?)```/gi;
 
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = fileBlockRegex.exec(response)) !== null) {
     const filename = match[1].trim();
     const content = match[2].trim();
@@ -313,7 +314,7 @@ export async function runPlanScan(): Promise<ScanResult> {
 
 if (require.main === module) {
   runPlanScan().then(result => {
-    console.log('Scan result:', JSON.stringify(result, null, 2));
+    logger.info('Scan result:', JSON.stringify(result, null, 2));
     process.exit(result.skipped && result.skipReason?.startsWith('error') ? 1 : 0);
   });
 }

@@ -19,6 +19,7 @@ import { recordGoldenPath, loadGoldenPath, listGoldenPaths, importGoldenPaths } 
 import { compareTrajectory } from '../../../eval/trajectoryComparator';
 import { expectedTrajectory } from '../../../eval/workflowModel';
 import { getMessage, getStatusHistory } from '../../../task-message-box/store';
+import { logger } from '../../../core/logger';
 
 export function createEvalApiRouter(): Router {
   const router = Router();
@@ -47,7 +48,7 @@ export function createEvalApiRouter(): Router {
     const items = (req.body || {}).golden_paths;
     if (!Array.isArray(items)) { res.status(400).json({ error: 'golden_paths array required' }); return; }
     const result = importGoldenPaths(items);
-    console.log(`[Eval] golden import: ${result.imported.length} accepted, ${result.rejected.length} rejected`);
+    logger.info(`[Eval] golden import: ${result.imported.length} accepted, ${result.rejected.length} rejected`);
     res.json({ success: true, ...result });
   });
 
@@ -68,7 +69,7 @@ export function createEvalApiRouter(): Router {
 
     const actual = getStatusHistory(message_id).map(h => h.to);
     const result = compareTrajectory(actual, gp.trajectory);
-    console.log(`[Eval] ${message_id} vs '${golden}': score ${result.score} (${result.deviations.length} deviation(s))`);
+    logger.info(`[Eval] ${message_id} vs '${golden}': score ${result.score} (${result.deviations.length} deviation(s))`);
     res.json({ success: true, message_id, golden_name: golden, ...result });
   });
 
@@ -85,7 +86,7 @@ export function createEvalApiRouter(): Router {
     const expected = expectedTrajectory(msg.type);
     const actual = getStatusHistory(message_id).map(h => h.to);
     const result = compareTrajectory(actual, expected);
-    console.log(`[Eval] conformance ${message_id} (type=${msg.type}): score ${result.score} vs declared workflow`);
+    logger.info(`[Eval] conformance ${message_id} (type=${msg.type}): score ${result.score} vs declared workflow`);
     res.json({ success: true, message_id, type: msg.type, workflow: expected, ...result });
   });
 

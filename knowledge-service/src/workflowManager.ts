@@ -26,6 +26,7 @@ import {
   getWorkflowStats,
   importEpicsFromYaml,
 } from './workflowDb';
+import { logger } from './core/logger';
 
 const WORKFLOW_DIR = '/opt/spaceos/config/workflows';
 const EPICS_FILE = '/opt/spaceos/docs/projects/EPICS.yaml';
@@ -91,7 +92,7 @@ function parseYamlFile<T>(filePath: string): T | null {
     const content = fs.readFileSync(filePath, 'utf-8');
     return yaml.load(content) as T;
   } catch (error) {
-    console.error(`Failed to parse YAML: ${filePath}`, error);
+    logger.error(`Failed to parse YAML: ${filePath}`, error);
     return null;
   }
 }
@@ -138,7 +139,7 @@ export function listWorkflows(): Array<{
       }
     }
   } catch (error) {
-    console.error('Failed to list workflows:', error);
+    logger.error('Failed to list workflows:', error);
   }
 
   return workflows;
@@ -160,7 +161,7 @@ export function getWorkflowDetails(workflowId: string): Workflow | null {
       }
     }
   } catch (error) {
-    console.error('Failed to get workflow:', error);
+    logger.error('Failed to get workflow:', error);
   }
 
   return null;
@@ -190,7 +191,7 @@ export function getWorkflowState(workflowId: string): WorkflowState | null {
       return JSON.parse(content) as WorkflowState;
     }
   } catch (error) {
-    console.error('Failed to get workflow state:', error);
+    logger.error('Failed to get workflow state:', error);
   }
 
   return null;
@@ -246,7 +247,7 @@ export function setWorkflowState(
 
     return true;
   } catch (error) {
-    console.error('Failed to set workflow state:', error);
+    logger.error('Failed to set workflow state:', error);
     return false;
   }
 }
@@ -376,7 +377,7 @@ export function listEpics(): Epic[] {
     const content = parseYamlFile<{ epics: Epic[] }>(EPICS_FILE);
     return content?.epics || [];
   } catch (error) {
-    console.error('Failed to list epics:', error);
+    logger.error('Failed to list epics:', error);
     return [];
   }
 }
@@ -410,7 +411,7 @@ export function updateEpicStatus(
 
     return true;
   } catch (error) {
-    console.error('Failed to update epic:', error);
+    logger.error('Failed to update epic:', error);
     return false;
   }
 }
@@ -461,7 +462,9 @@ export const WORKFLOW_TOOLS = [
     },
   },
   {
-    name: 'get_workflow',
+    // Named get_workflow_details to avoid colliding with the legacy
+    // get_workflow tool in mcp.ts (which returns WORKFLOW.md).
+    name: 'get_workflow_details',
     description: 'Get detailed information about a specific workflow',
     inputSchema: {
       type: 'object' as const,
@@ -606,7 +609,7 @@ export function handleWorkflowTool(
     case 'list_workflows':
       return mcpResponse(listWorkflows());
 
-    case 'get_workflow':
+    case 'get_workflow_details':
       return mcpResponse(getWorkflowDetails(args.workflow_id as string));
 
     case 'get_workflow_state':

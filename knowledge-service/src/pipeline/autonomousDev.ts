@@ -429,33 +429,33 @@ export async function runAutonomousCycle(
  */
 export function startAutonomousDevScheduler(config: AutonomousDevConfig = DEFAULT_CONFIG): void {
   if (!config.enabled) {
-    console.log('[AutonomousDev] Scheduler disabled (set ENABLE_AUTONOMOUS_DEV=true)');
+    logger.info('[AutonomousDev] Scheduler disabled (set ENABLE_AUTONOMOUS_DEV=true)');
     return;
   }
 
   if (intervalId) {
-    console.log('[AutonomousDev] Scheduler already running');
+    logger.info('[AutonomousDev] Scheduler already running');
     return;
   }
 
   const intervalMs = config.intervalMinutes * 60 * 1000;
 
-  console.log(`[AutonomousDev] Scheduler starting (every ${config.intervalMinutes} minutes)`);
-  console.log(`   📄 Focus file: ${config.focusFile}`);
-  console.log(`   🔄 Cold start: ${config.coldStart}`);
-  console.log(`   ⏸️ Skip if busy: ${config.skipIfBusy}`);
+  logger.info(`[AutonomousDev] Scheduler starting (every ${config.intervalMinutes} minutes)`);
+  logger.info(`   📄 Focus file: ${config.focusFile}`);
+  logger.info(`   🔄 Cold start: ${config.coldStart}`);
+  logger.info(`   ⏸️ Skip if busy: ${config.skipIfBusy}`);
 
   // Run first cycle after initial delay (give system time to stabilize)
   setTimeout(async () => {
     try {
       const result = await runAutonomousCycle(config);
-      console.log(`[AutonomousDev] Initial cycle: ${result.conductorStarted ? 'started' : 'skipped'}`);
+      logger.info(`[AutonomousDev] Initial cycle: ${result.conductorStarted ? 'started' : 'skipped'}`);
 
       if (result.conductorStarted) {
         await telegram(`🤖 Autonóm fejlesztés #${result.cycleId} indult`);
       }
     } catch (err) {
-      console.error('[AutonomousDev] Initial cycle error:', err);
+      logger.error('[AutonomousDev] Initial cycle error:', err);
     }
   }, 30000); // 30 sec initial delay
 
@@ -465,19 +465,19 @@ export function startAutonomousDevScheduler(config: AutonomousDevConfig = DEFAUL
       const result = await runAutonomousCycle(config);
 
       if (result.conductorStarted) {
-        console.log(`[AutonomousDev] Cycle ${result.cycleId}: Conductor started`);
+        logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Conductor started`);
       } else if (result.skipped) {
-        console.log(`[AutonomousDev] Cycle ${result.cycleId}: Skipped - ${result.skipped}`);
+        logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Skipped - ${result.skipped}`);
       } else if (result.error) {
-        console.log(`[AutonomousDev] Cycle ${result.cycleId}: Error - ${result.error}`);
+        logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Error - ${result.error}`);
       }
     } catch (err) {
-      console.error('[AutonomousDev] Cycle error:', err);
+      logger.error('[AutonomousDev] Cycle error:', err);
     }
   }, intervalMs);
 
   // Log config summary
-  console.log(`   🔁 Auto-Restart: ENABLED (every ${config.intervalMinutes}min)`);
+  logger.info(`   🔁 Auto-Restart: ENABLED (every ${config.intervalMinutes}min)`);
 }
 
 /**
@@ -487,7 +487,7 @@ export function stopAutonomousDevScheduler(): void {
   if (intervalId) {
     clearInterval(intervalId);
     intervalId = null;
-    console.log('[AutonomousDev] Scheduler stopped');
+    logger.info('[AutonomousDev] Scheduler stopped');
   }
 }
 
@@ -524,7 +524,7 @@ export function getControlMode(): ControlMode {
  */
 export function setControlMode(mode: ControlMode): void {
   currentControlMode = mode;
-  console.log(`[AutonomousDev] Control mode changed to: ${mode}`);
+  logger.info(`[AutonomousDev] Control mode changed to: ${mode}`);
 }
 
 /**
@@ -537,6 +537,7 @@ export async function triggerManualCycle(): Promise<DevCycleResult> {
 // ─── Express Router ──────────────────────────────────────────────────────────
 
 import { Router } from 'express';
+import { logger } from '../core/logger';
 
 export function createAutonomousDevRouter(): Router {
   const router = Router();
@@ -598,20 +599,20 @@ export function createAutonomousDevRouter(): Router {
 // ─── Run standalone ──────────────────────────────────────────────────────────
 
 if (require.main === module) {
-  console.log('=== Autonomous Development Module ===');
-  console.log(`Enabled: ${DEFAULT_CONFIG.enabled}`);
-  console.log(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
-  console.log(`Focus file: ${DEFAULT_CONFIG.focusFile}`);
-  console.log(`Cold start: ${DEFAULT_CONFIG.coldStart}`);
+  logger.info('=== Autonomous Development Module ===');
+  logger.info(`Enabled: ${DEFAULT_CONFIG.enabled}`);
+  logger.info(`Interval: ${DEFAULT_CONFIG.intervalMinutes} minutes`);
+  logger.info(`Focus file: ${DEFAULT_CONFIG.focusFile}`);
+  logger.info(`Cold start: ${DEFAULT_CONFIG.coldStart}`);
 
   if (process.argv.includes('--trigger')) {
-    console.log('\nTriggering manual cycle...');
+    logger.info('\nTriggering manual cycle...');
     triggerManualCycle()
       .then(result => {
-        console.log('\nResult:', JSON.stringify(result, null, 2));
+        logger.info('\nResult:', JSON.stringify(result, null, 2));
       })
       .catch(err => {
-        console.error('Error:', err);
+        logger.error('Error:', err);
       });
   }
 }

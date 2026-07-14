@@ -45,6 +45,7 @@ import {
   createIdeaScanRouter,
   createPhaseCoordinatorRouter,
 } from '../pipeline';
+import { logger } from '../core/logger';
 
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
 
@@ -229,7 +230,7 @@ export function createApp(config: AppConfig = {}): Express {
   // ─── Error Handler ─────────────────────────────────────────────────────────
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[ERROR]', err.message);
+    logger.error('[ERROR]', err.message);
     res.status(500).json({ error: err.message });
   });
 

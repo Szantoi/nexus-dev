@@ -10,6 +10,7 @@ import * as path from 'path';
 import { loadActiveEpic, loadActiveEpics, getEpicProgress, getNextCheckpoint } from './epicManager';
 import { saveGoalState } from './sessionState';
 import * as terminalsConfig from '../config/terminals';
+import { logger } from '../core/logger';
 
 const TMUX_SOCKET = terminalsConfig.getTmuxSocket();
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
@@ -46,7 +47,7 @@ export function incrementTurnCount(): number {
   try {
     fs.writeFileSync(TURN_COUNT_FILE, String(newCount), 'utf-8');
   } catch (error) {
-    console.error('[contextSaturation] Failed to save turn count:', error);
+    logger.error('[contextSaturation] Failed to save turn count:', error);
   }
 
   return newCount;
@@ -60,9 +61,9 @@ export function resetTurnCount(): void {
     if (fs.existsSync(TURN_COUNT_FILE)) {
       fs.unlinkSync(TURN_COUNT_FILE);
     }
-    console.log('[contextSaturation] Turn count reset');
+    logger.info('[contextSaturation] Turn count reset');
   } catch (error) {
-    console.error('[contextSaturation] Failed to reset turn count:', error);
+    logger.error('[contextSaturation] Failed to reset turn count:', error);
   }
 }
 
@@ -183,20 +184,20 @@ export function checkContextSaturation(): 'ok' | 'warning' | 'critical' | 'reanc
 
   if (turnCount >= AUTO_REANCHOR_THRESHOLD) {
     // Trigger auto re-anchoring
-    console.log(`[contextSaturation] Turn count ${turnCount} >= ${AUTO_REANCHOR_THRESHOLD}, triggering re-anchoring`);
+    logger.info(`[contextSaturation] Turn count ${turnCount} >= ${AUTO_REANCHOR_THRESHOLD}, triggering re-anchoring`);
 
     const reAnchorMessage = buildReAnchoringMessage(turnCount);
     const injected = injectToSession(reAnchorMessage);
 
     if (injected) {
-      console.log('[contextSaturation] ✓ Re-anchoring message injected');
+      logger.info('[contextSaturation] ✓ Re-anchoring message injected');
       // Reset turn count after re-anchoring
       resetTurnCount();
       // Save goal state
       saveGoalState(0, null);
       return 'reanchored';
     } else {
-      console.warn('[contextSaturation] Failed to inject re-anchoring (session not running?)');
+      logger.warn('[contextSaturation] Failed to inject re-anchoring (session not running?)');
       return 'critical';
     }
   }

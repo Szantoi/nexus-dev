@@ -13,6 +13,7 @@
  */
 
 import { log, telegram, getState, setState } from './common';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -307,17 +308,17 @@ let coordinatorRunning = false;
  */
 export function startChannelCoordinator(config: CoordinatorConfig = DEFAULT_CONFIG): void {
   if (!config.enabled) {
-    console.log('[ChannelCoordinator] Disabled');
+    logger.info('[ChannelCoordinator] Disabled');
     return;
   }
 
   if (!TELEGRAM_TOKEN) {
-    console.log('[ChannelCoordinator] No TELEGRAM_TOKEN configured, skipping');
+    logger.info('[ChannelCoordinator] No TELEGRAM_TOKEN configured, skipping');
     return;
   }
 
   if (coordinatorRunning) {
-    console.log('[ChannelCoordinator] Already running');
+    logger.info('[ChannelCoordinator] Already running');
     return;
   }
 
@@ -334,11 +335,11 @@ export function startChannelCoordinator(config: CoordinatorConfig = DEFAULT_CONF
 
   // Run in background
   runLoop(config).catch(err => {
-    console.error('[ChannelCoordinator] Fatal error:', err);
+    logger.error('[ChannelCoordinator] Fatal error:', err);
     coordinatorRunning = false;
   });
 
-  console.log('[ChannelCoordinator] Started (hybrid backfill mode)');
+  logger.info('[ChannelCoordinator] Started (hybrid backfill mode)');
 }
 
 /**
@@ -348,7 +349,7 @@ export function stopChannelCoordinator(): void {
   if (coordinatorRunning) {
     stopping = true;
     coordinatorRunning = false;
-    console.log('[ChannelCoordinator] Stopping...');
+    logger.info('[ChannelCoordinator] Stopping...');
   }
 }
 

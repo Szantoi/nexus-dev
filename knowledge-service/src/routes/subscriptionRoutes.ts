@@ -9,6 +9,7 @@
 
 import { Router, type Request, type Response } from 'express';
 import { emitOutboxEvent } from '../pipeline/eventBus';
+import { logger } from '../core/logger';
 
 const router = Router();
 
@@ -52,7 +53,7 @@ router.get('/events', (req: Request, res: Response) => {
   const clients = sseClients.get(terminal)!;
   clients.add(res);
 
-  console.log(`[SSE] ${terminal} connected (total: ${clients.size})`);
+  logger.info(`[SSE] ${terminal} connected (total: ${clients.size})`);
 
   // Send initial connection event
   res.write(`data: ${JSON.stringify({
@@ -74,7 +75,7 @@ router.get('/events', (req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       })}\n\n`);
     } catch (error) {
-      console.error('[SSE] Failed to load subscriptions:', error);
+      logger.error('[SSE] Failed to load subscriptions:', error);
     }
   }, 100);
 
@@ -87,7 +88,7 @@ router.get('/events', (req: Request, res: Response) => {
         sseClients.delete(terminal);
       }
     }
-    console.log(`[SSE] ${terminal} disconnected (remaining: ${clients?.size || 0})`);
+    logger.info(`[SSE] ${terminal} disconnected (remaining: ${clients?.size || 0})`);
   });
 
   // Keep connection alive with periodic ping
@@ -129,7 +130,7 @@ export function broadcastToTerminal(terminal: string, data: unknown): number {
     } catch (error) {
       // Remove failed client
       clients.delete(client);
-      console.error(`[SSE] Failed to send to ${terminal}:`, error);
+      logger.error(`[SSE] Failed to send to ${terminal}:`, error);
     }
   });
 
@@ -179,7 +180,7 @@ router.post('/test-trigger', (req: Request, res: Response) => {
     return res.status(400).json({ error: 'terminal and messageId required' });
   }
 
-  console.log(`[Test] Emitting ${eventType} for ${messageId} from ${terminal}`);
+  logger.info(`[Test] Emitting ${eventType} for ${messageId} from ${terminal}`);
 
   emitOutboxEvent(eventType, terminal, messageId, {
     source: 'test_trigger',

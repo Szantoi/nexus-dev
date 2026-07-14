@@ -24,6 +24,7 @@ import { filterDoneOutput } from '../conductor/outputFiltering';
 // Set REVIEW_MODE=api to use old Anthropic API based review
 const USE_TERMINAL_REVIEW = process.env.REVIEW_MODE !== 'api';
 import { queryMessages } from '../messageRegistry';
+import { logger } from '../core/logger';
 
 // ─── Dense Milestone Feedback (Goal Persistence Pattern 2026-07-04) ───────────
 /**
@@ -312,7 +313,7 @@ Use skill: \`ui-review-loop\``;
 // Run standalone
 if (require.main === module) {
   watchDone().then(result => {
-    console.log(`[watchDone] Found: ${result.found}, Triggered: ${result.triggered.length}`);
-    result.triggered.forEach(t => console.log(`  - ${t}`));
+    logger.info(`[watchDone] Found: ${result.found}, Triggered: ${result.triggered.length}`);
+    result.triggered.forEach(t => logger.info(`  - ${t}`));
   });
 }

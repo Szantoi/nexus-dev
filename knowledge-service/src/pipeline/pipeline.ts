@@ -7,6 +7,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { SPACEOS_ROOT, log, telegram } from './common';
 import { runPipelineDocs } from './pipelineDocs';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -165,12 +166,12 @@ export async function runPipeline(donePath: string): Promise<PipelineResult> {
 if (require.main === module) {
   const donePath = process.argv[2];
   if (!donePath) {
-    console.error('Usage: npx tsx pipeline.ts <done_file_path>');
+    logger.error('Usage: npx tsx pipeline.ts <done_file_path>');
     process.exit(1);
   }
 
   runPipeline(donePath).then(result => {
-    console.log('Pipeline result:', result);
+    logger.info('Pipeline result:', result);
     process.exit(0);
   });
 }

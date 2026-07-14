@@ -19,6 +19,7 @@ import {
   telegram,
 } from './common';
 import { detectPaneState, PaneState, stateDescription } from './paneState';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -339,13 +340,13 @@ let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
  */
 export function startHeartbeatScheduler(config: HeartbeatConfig = DEFAULT_CONFIG): void {
   if (!config.enabled) {
-    console.log('[Heartbeat] Scheduler disabled');
+    logger.info('[Heartbeat] Scheduler disabled');
     return;
   }
 
   // Run immediately
   runHeartbeat(config).catch((err) => {
-    console.error('[Heartbeat] Initial run error:', err);
+    logger.error('[Heartbeat] Initial run error:', err);
   });
 
   // Then run on interval
@@ -353,11 +354,11 @@ export function startHeartbeatScheduler(config: HeartbeatConfig = DEFAULT_CONFIG
     try {
       await runHeartbeat(config);
     } catch (error) {
-      console.error('[Heartbeat] Scheduler error:', error);
+      logger.error('[Heartbeat] Scheduler error:', error);
     }
   }, config.intervalMs);
 
-  console.log(`[Heartbeat] Scheduler started (every ${config.intervalMs / 60000}min)`);
+  logger.info(`[Heartbeat] Scheduler started (every ${config.intervalMs / 60000}min)`);
 }
 
 /**
@@ -367,7 +368,7 @@ export function stopHeartbeatScheduler(): void {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
     heartbeatInterval = null;
-    console.log('[Heartbeat] Scheduler stopped');
+    logger.info('[Heartbeat] Scheduler stopped');
   }
 }
 

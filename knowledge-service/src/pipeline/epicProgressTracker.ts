@@ -8,6 +8,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -61,13 +62,13 @@ export async function loadEpics(): Promise<Epic[]> {
     const data = yaml.load(content) as { epics: Epic[] };
 
     if (!data || !Array.isArray(data.epics)) {
-      console.error('[EpicProgress] Invalid EPICS.yaml structure');
+      logger.error('[EpicProgress] Invalid EPICS.yaml structure');
       return [];
     }
 
     return data.epics;
   } catch (error) {
-    console.error('[EpicProgress] Error loading EPICS.yaml:', error);
+    logger.error('[EpicProgress] Error loading EPICS.yaml:', error);
     return [];
   }
 }
@@ -157,7 +158,7 @@ async function scanTerminalTasks(epicId: string): Promise<TaskStatus[]> {
 
     return tasks;
   } catch (error) {
-    console.error('[EpicProgress] Error scanning terminal tasks:', error);
+    logger.error('[EpicProgress] Error scanning terminal tasks:', error);
     return [];
   }
 }
@@ -225,7 +226,7 @@ export async function getEpicProgress(epicId: string): Promise<EpicProgress | nu
     // Load epic
     const epic = await findEpic(epicId);
     if (!epic) {
-      console.warn(`[EpicProgress] Epic not found: ${epicId}`);
+      logger.warn(`[EpicProgress] Epic not found: ${epicId}`);
       return null;
     }
 
@@ -275,7 +276,7 @@ export async function getEpicProgress(epicId: string): Promise<EpicProgress | nu
       days_remaining: daysRemaining,
     };
   } catch (error) {
-    console.error('[EpicProgress] Error calculating epic progress:', error);
+    logger.error('[EpicProgress] Error calculating epic progress:', error);
     return null;
   }
 }

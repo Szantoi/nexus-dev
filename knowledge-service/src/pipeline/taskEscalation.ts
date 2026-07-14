@@ -23,6 +23,7 @@ import { capturePane, sendKeys, sendEnter, hasSession } from './common';
 import { getMessage, getUnreadMessages } from '../messageRegistry';
 import { startWorkSession } from '../sessionStarter';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -54,7 +55,7 @@ let currentConfig: EscalationConfig = { ...DEFAULT_CONFIG };
 
 export function setEscalationConfig(config: Partial<EscalationConfig>): void {
   currentConfig = { ...currentConfig, ...config };
-  console.log('[TaskEscalation] Configuration updated:', currentConfig);
+  logger.info('[TaskEscalation] Configuration updated:', currentConfig);
 }
 
 export function getEscalationConfig(): EscalationConfig {
@@ -148,7 +149,7 @@ export class TaskEscalationManager {
       success: false,
     };
 
-    console.log(`[TaskEscalation] Retry ${escalation.retry_count}/${escalation.max_retries} for ${escalation.task_id} (strategy: ${strategy})`);
+    logger.info(`[TaskEscalation] Retry ${escalation.retry_count}/${escalation.max_retries} for ${escalation.task_id} (strategy: ${strategy})`);
 
     try {
       if (strategy === 'nudge') {
@@ -171,10 +172,10 @@ export class TaskEscalationManager {
           );
 
           attempt.success = true;
-          console.log(`[TaskEscalation] Nudge sent to ${sessionName}`);
+          logger.info(`[TaskEscalation] Nudge sent to ${sessionName}`);
         } else {
           attempt.error = 'Session not found';
-          console.log(`[TaskEscalation] Session ${sessionName} not found, skipping nudge`);
+          logger.info(`[TaskEscalation] Session ${sessionName} not found, skipping nudge`);
         }
       } else if (strategy === 'restart') {
         // Strategy: Session restart + inbox re-inject
@@ -186,7 +187,7 @@ export class TaskEscalationManager {
           // Kill session
           try {
             await execAsync(`tmux kill-session -t ${sessionName}`);
-            console.log(`[TaskEscalation] Killed session ${sessionName}`);
+            logger.info(`[TaskEscalation] Killed session ${sessionName}`);
           } catch {
             // Session already dead
           }
@@ -209,12 +210,12 @@ export class TaskEscalationManager {
         if (!result.success) {
           attempt.error = result.message;
         }
-        console.log(`[TaskEscalation] Session restart: ${result.message}`);
+        logger.info(`[TaskEscalation] Session restart: ${result.message}`);
       }
     } catch (error: any) {
       attempt.success = false;
       attempt.error = error.message;
-      console.error(`[TaskEscalation] Retry failed:`, error);
+      logger.error(`[TaskEscalation] Retry failed:`, error);
     }
 
     escalation.retry_history.push(attempt);
@@ -231,7 +232,7 @@ export class TaskEscalationManager {
       expiresIn: retryIntervalSeconds,
     });
 
-    console.log(`[TaskEscalation] Extended subscription for ${escalation.task_id} (${currentConfig.retryIntervalNWT} NWT)`);
+    logger.info(`[TaskEscalation] Extended subscription for ${escalation.task_id} (${currentConfig.retryIntervalNWT} NWT)`);
   }
 
   /**
@@ -242,7 +243,7 @@ export class TaskEscalationManager {
     escalation.escalated_at = new Date().toISOString();
     escalation.escalated_to = currentConfig.escalateTo;
 
-    console.log(`[TaskEscalation] ESCALATING ${escalation.task_id} to ROOT`);
+    logger.info(`[TaskEscalation] ESCALATING ${escalation.task_id} to ROOT`);
 
     // Collect context
     const taskDetails = getMessage(escalation.task_id);
@@ -345,7 +346,7 @@ curl -X POST http://localhost:3456/api/escalation/${escalation.id}/cancel
       `File: ${inboxPath}`
     );
 
-    console.log(`[TaskEscalation] Escalation inbox created: ${inboxPath}`);
+    logger.info(`[TaskEscalation] Escalation inbox created: ${inboxPath}`);
 
     escalations.set(escalation.subscription_id, escalation);
 
@@ -361,7 +362,7 @@ curl -X POST http://localhost:3456/api/escalation/${escalation.id}/cancel
       if (esc.id === escalationId) {
         esc.status = 'resolved';
         escalations.set(subId, esc);
-        console.log(`[TaskEscalation] Escalation ${escalationId} resolved`);
+        logger.info(`[TaskEscalation] Escalation ${escalationId} resolved`);
         return true;
       }
     }
@@ -412,7 +413,7 @@ export async function watchTaskEscalations(): Promise<{
     if (taskDetails?.status === 'DONE' || taskDetails?.status === 'COMPLETED') {
       // Task completed - just unsubscribe
       subscriptionManager.unsubscribe(sub.id);
-      console.log(`[TaskEscalation] Task ${sub.target} completed, unsubscribed`);
+      logger.info(`[TaskEscalation] Task ${sub.target} completed, unsubscribed`);
       continue;
     }
 
@@ -435,7 +436,7 @@ export async function watchTaskEscalations(): Promise<{
   }
 
   if (checked > 0) {
-    console.log(`[TaskEscalation] Checked ${checked} expired subscriptions: ${retried} retried, ${escalated} escalated`);
+    logger.info(`[TaskEscalation] Checked ${checked} expired subscriptions: ${retried} retried, ${escalated} escalated`);
   }
 
   return { checked, retried, escalated };

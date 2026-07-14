@@ -20,6 +20,7 @@ import {
 } from './common';
 import { getUnreadMessages } from '../messageRegistry';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
+import { logger } from '../core/logger';
 
 // 2.5 NWT ≈ 5 minutes between nudges (using STUCK_NUDGE × 1.25 for cooldown)
 const STUCK_COOLDOWN = Math.floor(nwtToMs(NWT_TIMEOUTS.STUCK_NUDGE) * 1.25 / 1000); // ~5 min in seconds
@@ -139,7 +140,7 @@ export async function watchStuck(): Promise<{ processed: number; nudged: StuckRe
 // Run standalone
 if (require.main === module) {
   watchStuck().then(result => {
-    console.log(`[watchStuck] Processed: ${result.processed}, Nudged: ${result.nudged.length}`);
-    result.nudged.forEach(n => console.log(`  - ${n.session}: ${n.reason}`));
+    logger.info(`[watchStuck] Processed: ${result.processed}, Nudged: ${result.nudged.length}`);
+    result.nudged.forEach(n => logger.info(`  - ${n.session}: ${n.reason}`));
   });
 }

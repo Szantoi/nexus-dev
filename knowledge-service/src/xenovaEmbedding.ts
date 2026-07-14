@@ -7,12 +7,13 @@
  */
 
 import { pipeline } from '@xenova/transformers';
+import { logger } from './core/logger';
 
 let extractorPromise: Promise<any> | null = null;
 
 async function getExtractor(): Promise<any> {
   if (!extractorPromise) {
-    console.log('[XenovaEmbedding] Loading all-MiniLM-L6-v2 model...');
+    logger.info('[XenovaEmbedding] Loading all-MiniLM-L6-v2 model...');
     extractorPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
   }
   return extractorPromise;

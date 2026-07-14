@@ -13,6 +13,7 @@ import {
   getNextMessageNum,
   PipelineConfig
 } from './pipelineConfig';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -281,12 +282,12 @@ if (require.main === module) {
   const terminal = process.argv[3];
 
   if (!donePath || !terminal) {
-    console.error('Usage: npx tsx pipelineDocs.ts <done_file_path> <terminal>');
+    logger.error('Usage: npx tsx pipelineDocs.ts <done_file_path> <terminal>');
     process.exit(1);
   }
 
   runPipelineDocs(donePath, terminal).then(result => {
-    console.log(`PIPELINE_RESULT: DONE|NEXT:${result.nextFile || 'NONE'}|TESTS:${result.testCount}`);
+    logger.info(`PIPELINE_RESULT: DONE|NEXT:${result.nextFile || 'NONE'}|TESTS:${result.testCount}`);
     process.exit(result.done ? 0 : 1);
   });
 }

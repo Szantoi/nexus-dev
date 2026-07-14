@@ -10,6 +10,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'path';
 import { SPACEOS_ROOT, SESSIONS, log } from './common';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ export function initMessageDb(): void {
     )
   `);
 
-  console.log('[AgentMessages] Database initialized:', DB_PATH);
+  logger.info('[AgentMessages] Database initialized:', DB_PATH);
 }
 
 /**

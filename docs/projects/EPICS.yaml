@@ -1,0 +1,67 @@
+# EPICS.yaml — Nexus-dev program állapot (QUALITY.md 1. pont: goal-fókusz)
+#
+# A knowledge-service modernizációs program epicjei.
+# Séma: knowledge-service/src/graph/types.ts (EpicsYaml / EpicDependency)
+# Cél: a projekt állapota fájlban él, nem a beszélgetés-kontextusban.
+
+version: "1.0"
+updated: "2026-07-14"
+
+epics:
+  - id: EPIC-KS-CLEANUP
+    name: "1. fázis — Halott kód törlése + dependency-rendezés"
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      server.legacy.ts, embeddings-old.ts, coldStart.prototype.ts,
+      test-embedding.ts, phaseCoordinator.ts.broken.bak törölve;
+      sharp/@types/js-yaml/ts-node kivezetve, engines mező hozzáadva.
+
+  - id: EPIC-KS-TOOLING
+    name: "2. fázis — Tooling-alap (Biome, CI, zod-config, logger)"
+    project: nexus/knowledge-service
+    depends_on:
+      - EPIC-KS-CLEANUP
+    status: active
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      Biome lint + CI workflow + zod-validált env-config + szintszűrős
+      logger (944 console.* lecserélve) + vitest hermetikus/smoke
+      szétválasztás + cross-platform dev-script.
+
+  - id: EPIC-KS-MCP-SPLIT
+    name: "3. fázis — mcp.ts god-fájl dekompozíció"
+    project: nexus/knowledge-service
+    depends_on:
+      - EPIC-KS-TOOLING
+    status: pending
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      ~102 MCP tool kiszervezése a base-tool absztrakcióra,
+      tool-csoportonként, unit-tesztekkel.
+
+  - id: EPIC-KS-ARCH-DECISION
+    name: "4. fázis — Architektúra-döntés (DDD-scaffolding sorsa)"
+    project: nexus/knowledge-service
+    depends_on:
+      - EPIC-KS-MCP-SPLIT
+    status: pending
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      DDD-réteg bekötése VAGY törlése (Gábor dönt); routes/ maradék
+      átmozgatása; pipeline/ alfolderezés; memoryStore-duplikáció rendezése.
+
+  - id: EPIC-KS-TEST-HARDENING
+    name: "5. fázis — Teszt-megerősítés"
+    project: nexus/knowledge-service
+    depends_on:
+      - EPIC-KS-TOOLING
+    parallel_with:
+      - EPIC-KS-MCP-SPLIT
+    status: active
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      Környezetfüggő tesztek hermetizálása (EPICS fixture, /opt/spaceos
+      függések kivezetése), smoke-suite külön configban.

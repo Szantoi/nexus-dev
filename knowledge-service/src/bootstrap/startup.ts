@@ -76,6 +76,7 @@ import { startResponseWorker, stopResponseWorker } from '../telegram/telegramSer
 import { startAllBots, stopAllBots, getBotsStatus } from '../telegram/multiBotManager';
 import { subscribeToAllCheckpoints, getCheckpointSubscriptionStatus } from '../pipeline/subscriptionManager';
 import { attachEpicNotifications } from '../pipeline/epicNotifications';
+import { logger } from '../core/logger';
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -120,12 +121,12 @@ export function setupInboxWatcherBridge(): void {
   inboxEvents.on('inbox_change', async (event: InboxEvent) => {
     // Deduplicate: skip if same messageId was processed recently
     if (isDuplicateEvent(event.messageId)) {
-      console.log(`[InboxWatcher] Skipping duplicate event for ${event.messageId}`);
+      logger.info(`[InboxWatcher] Skipping duplicate event for ${event.messageId}`);
       return;
     }
     // Check if terminal should be woken up (not already working)
     if (!shouldWakeUp(event.terminal)) {
-      console.log(`[InboxWatcher] ${event.terminal} is WORKING — not sending wake-up for ${event.messageId}`);
+      logger.info(`[InboxWatcher] ${event.terminal} is WORKING — not sending wake-up for ${event.messageId}`);
       return;
     }
 
@@ -143,18 +144,18 @@ export function setupInboxWatcherBridge(): void {
       },
     });
 
-    console.log(`[SSE] Wake-up sent to ${event.terminal} for ${event.messageId}`);
+    logger.info(`[SSE] Wake-up sent to ${event.terminal} for ${event.messageId}`);
 
     // Start the terminal session or inject message into running session
     try {
       const result = await startTerminalSession(event.terminal, event.messageId);
       if (result.success) {
-        console.log(`[SessionStarter] ${result.message}`);
+        logger.info(`[SessionStarter] ${result.message}`);
       } else {
-        console.log(`[SessionStarter] Skip: ${result.message}`);
+        logger.info(`[SessionStarter] Skip: ${result.message}`);
       }
     } catch (err) {
-      console.error(`[SessionStarter] Error starting ${event.terminal}:`, err);
+      logger.error(`[SessionStarter] Error starting ${event.terminal}:`, err);
     }
   });
 }
@@ -170,10 +171,10 @@ export async function initialize(): Promise<void> {
 
   const count = await getDocumentCount();
   if (count === 0) {
-    console.log('📚 Store empty — running initial knowledge base indexing...');
+    logger.info('📚 Store empty — running initial knowledge base indexing...');
     await buildIndex();
   } else {
-    console.log(
+    logger.info(
       `📚 Store has ${count} documents. POST /api/knowledge/index to re-index.`
     );
   }
@@ -188,9 +189,9 @@ export async function initialize(): Promise<void> {
   // Log existing UNREAD messages on startup
   const existingUnread = await scanExistingUnread();
   if (existingUnread.length > 0) {
-    console.log(`\n📬 Found ${existingUnread.length} existing UNREAD messages:`);
+    logger.info(`\n📬 Found ${existingUnread.length} existing UNREAD messages:`);
     for (const msg of existingUnread) {
-      console.log(`   - ${msg.terminal}: ${msg.messageId} (${msg.priority || 'normal'})`);
+      logger.info(`   - ${msg.terminal}: ${msg.messageId} (${msg.priority || 'normal'})`);
     }
   }
 }
@@ -201,41 +202,41 @@ export function startServices(port: number): void {
   isReady = true;
   setHealthMetrics({ ready: true, shuttingDown: false });
 
-  console.log(`\n🚀 SpaceOS Knowledge Service on port ${port}`);
-  console.log(`   GET  /health`);
-  console.log(`   GET  /ready`);
-  console.log(`\n   Knowledge Service:`);
-  console.log(`   GET  /api/knowledge/search?q=...&topK=5`);
-  console.log(`   POST /api/knowledge/search   { q, topK? }`);
-  console.log(`   POST /api/knowledge/index    (re-index)`);
-  console.log(`\n   Mailbox Tools:`);
-  console.log(`   GET  /api/mailbox/:terminal/inbox?status=UNREAD|READ|all`);
-  console.log(`   POST /api/mailbox/:terminal/inbox   (send_message)`);
-  console.log(`   POST /api/mailbox/:terminal/outbox  (submit_done)`);
-  console.log(`\n   Tasks:`);
-  console.log(`   GET  /api/tasks/status?task_id=...`);
-  console.log(`\n   Live Notifications:`);
-  console.log(`   GET  /api/mailbox/:terminal/subscribe  (SSE wake-on-inbox)`);
-  console.log(`\n   MCP Protocol (Claude Code):`);
-  console.log(`   GET  /mcp              (server info)`);
-  console.log(`   POST /mcp              (JSON-RPC: initialize, tools/list, tools/call)\n`);
+  logger.info(`\n🚀 SpaceOS Knowledge Service on port ${port}`);
+  logger.info(`   GET  /health`);
+  logger.info(`   GET  /ready`);
+  logger.info(`\n   Knowledge Service:`);
+  logger.info(`   GET  /api/knowledge/search?q=...&topK=5`);
+  logger.info(`   POST /api/knowledge/search   { q, topK? }`);
+  logger.info(`   POST /api/knowledge/index    (re-index)`);
+  logger.info(`\n   Mailbox Tools:`);
+  logger.info(`   GET  /api/mailbox/:terminal/inbox?status=UNREAD|READ|all`);
+  logger.info(`   POST /api/mailbox/:terminal/inbox   (send_message)`);
+  logger.info(`   POST /api/mailbox/:terminal/outbox  (submit_done)`);
+  logger.info(`\n   Tasks:`);
+  logger.info(`   GET  /api/tasks/status?task_id=...`);
+  logger.info(`\n   Live Notifications:`);
+  logger.info(`   GET  /api/mailbox/:terminal/subscribe  (SSE wake-on-inbox)`);
+  logger.info(`\n   MCP Protocol (Claude Code):`);
+  logger.info(`   GET  /mcp              (server info)`);
+  logger.info(`   POST /mcp              (JSON-RPC: initialize, tools/list, tools/call)\n`);
 
   // Start Nightwatch scheduler if enabled
   if (process.env.ENABLE_NIGHTWATCH === 'true') {
     const intervalMs = parseInt(process.env.NIGHTWATCH_INTERVAL || '120000', 10);
     startNightwatchScheduler(intervalMs);
-    console.log(`   ⏰ Nightwatch Scheduler: ENABLED (every ${intervalMs / 1000}s)`);
+    logger.info(`   ⏰ Nightwatch Scheduler: ENABLED (every ${intervalMs / 1000}s)`);
   } else {
-    console.log(`   ⏰ Nightwatch Scheduler: DISABLED (set ENABLE_NIGHTWATCH=true to enable)`);
+    logger.info(`   ⏰ Nightwatch Scheduler: DISABLED (set ENABLE_NIGHTWATCH=true to enable)`);
   }
 
   // Start Heartbeat scheduler if enabled
   if (process.env.ENABLE_HEARTBEAT === 'true') {
     const heartbeatConfig = getHeartbeatConfig();
     startHeartbeatScheduler(heartbeatConfig);
-    console.log(`   💓 Heartbeat Scheduler: ENABLED (every ${heartbeatConfig.intervalMs / 60000}min)`);
+    logger.info(`   💓 Heartbeat Scheduler: ENABLED (every ${heartbeatConfig.intervalMs / 60000}min)`);
   } else {
-    console.log(`   💓 Heartbeat Scheduler: DISABLED (set ENABLE_HEARTBEAT=true to enable)`);
+    logger.info(`   💓 Heartbeat Scheduler: DISABLED (set ENABLE_HEARTBEAT=true to enable)`);
   }
 
   // Start Auto-Restart scheduler if enabled
@@ -245,73 +246,73 @@ export function startServices(port: number): void {
     const scheduleDesc = autoRestartConfig.schedule.type === 'daily'
       ? `daily at ${autoRestartConfig.schedule.hour}:${String((autoRestartConfig.schedule as any).minute ?? 0).padStart(2, '0')}`
       : `every ${(autoRestartConfig.schedule as any).hours}h`;
-    console.log(`   🔄 Auto-Restart: ENABLED (${scheduleDesc})`);
+    logger.info(`   🔄 Auto-Restart: ENABLED (${scheduleDesc})`);
   } else {
-    console.log(`   🔄 Auto-Restart: DISABLED (set ENABLE_AUTO_RESTART=true to enable)`);
+    logger.info(`   🔄 Auto-Restart: DISABLED (set ENABLE_AUTO_RESTART=true to enable)`);
   }
 
   // Initialize inter-agent messaging
   initMessageDb();
-  console.log(`   📨 Agent Messages: Database initialized`);
+  logger.info(`   📨 Agent Messages: Database initialized`);
 
   // Initialize dispatch control database
   const dispatchDb = initDispatchDb();
   setProposalDb(dispatchDb);
   setWindowsDb(dispatchDb);
   const dispatchMode = getDispatchMode();
-  console.log(`   🎛️ Dispatch Control: ${dispatchMode.toUpperCase()} mode`);
+  logger.info(`   🎛️ Dispatch Control: ${dispatchMode.toUpperCase()} mode`);
   const windowStats = getWindowStats();
-  console.log(`   🕐 Scheduled Windows: ${windowStats.totalWindows} configured, current: ${windowStats.currentWindow || 'none'}`);
+  logger.info(`   🕐 Scheduled Windows: ${windowStats.totalWindows} configured, current: ${windowStats.currentWindow || 'none'}`);
 
   // Start message router if enabled
   if (process.env.ENABLE_MESSAGE_ROUTER === 'true') {
     const routerIntervalMs = parseInt(process.env.MESSAGE_ROUTER_INTERVAL || '10000', 10);
     startMessageRouter(routerIntervalMs);
-    console.log(`   📬 Message Router: ENABLED (every ${routerIntervalMs / 1000}s)`);
+    logger.info(`   📬 Message Router: ENABLED (every ${routerIntervalMs / 1000}s)`);
   } else {
-    console.log(`   📬 Message Router: DISABLED (set ENABLE_MESSAGE_ROUTER=true to enable)`);
+    logger.info(`   📬 Message Router: DISABLED (set ENABLE_MESSAGE_ROUTER=true to enable)`);
   }
 
   // Start channel coordinator if enabled
   if (process.env.ENABLE_TELEGRAM_COORDINATOR === 'true') {
     startChannelCoordinator();
-    console.log(`   📡 Telegram Coordinator: ENABLED (hybrid backfill mode)`);
+    logger.info(`   📡 Telegram Coordinator: ENABLED (hybrid backfill mode)`);
   } else {
-    console.log(`   📡 Telegram Coordinator: DISABLED (set ENABLE_TELEGRAM_COORDINATOR=true to enable)`);
+    logger.info(`   📡 Telegram Coordinator: DISABLED (set ENABLE_TELEGRAM_COORDINATOR=true to enable)`);
   }
 
   // Start system metrics collection (always enabled)
   const metricsIntervalMs = parseInt(process.env.METRICS_INTERVAL || '60000', 10);
   startMetricsScheduler(metricsIntervalMs);
-  console.log(`   📊 System Metrics: ENABLED (every ${metricsIntervalMs / 1000}s)`);
+  logger.info(`   📊 System Metrics: ENABLED (every ${metricsIntervalMs / 1000}s)`);
 
   // Start Autonomous Development scheduler if enabled
   if (process.env.ENABLE_AUTONOMOUS_DEV === 'true') {
     startAutonomousDevScheduler();
     const status = getAutonomousDevStatus();
-    console.log(`   🤖 Autonomous Dev: ENABLED (every 30min)`);
-    console.log(`      📄 Focus file: ${status.config.focusFile}`);
-    console.log(`      🔄 Cold start: ${status.config.coldStart}`);
+    logger.info(`   🤖 Autonomous Dev: ENABLED (every 30min)`);
+    logger.info(`      📄 Focus file: ${status.config.focusFile}`);
+    logger.info(`      🔄 Cold start: ${status.config.coldStart}`);
   } else {
-    console.log(`   🤖 Autonomous Dev: DISABLED (set ENABLE_AUTONOMOUS_DEV=true to enable)`);
+    logger.info(`   🤖 Autonomous Dev: DISABLED (set ENABLE_AUTONOMOUS_DEV=true to enable)`);
   }
 
   // Start Root Monitor scheduler if enabled
   if (process.env.ENABLE_ROOT_MONITOR === 'true') {
     startRootMonitorScheduler();
-    console.log(`   👁️ Root Monitor: ENABLED (every 30min)`);
+    logger.info(`   👁️ Root Monitor: ENABLED (every 30min)`);
   } else {
-    console.log(`   👁️ Root Monitor: DISABLED (set ENABLE_ROOT_MONITOR=true to enable)`);
+    logger.info(`   👁️ Root Monitor: DISABLED (set ENABLE_ROOT_MONITOR=true to enable)`);
   }
 
   // Start Idea Scan scheduler if enabled
   if (process.env.ENABLE_IDEA_SCAN === 'true') {
     startIdeaScanScheduler();
     const status = getIdeaScanStatus();
-    console.log(`   💡 Idea Scan: ENABLED (every 30min)`);
-    console.log(`      📁 Project: ${status.config.projectPath}`);
+    logger.info(`   💡 Idea Scan: ENABLED (every 30min)`);
+    logger.info(`      📁 Project: ${status.config.projectPath}`);
   } else {
-    console.log(`   💡 Idea Scan: DISABLED (set ENABLE_IDEA_SCAN=true to enable)`);
+    logger.info(`   💡 Idea Scan: DISABLED (set ENABLE_IDEA_SCAN=true to enable)`);
   }
 
   // Start Hourly Digest scheduler if enabled
@@ -319,16 +320,16 @@ export function startServices(port: number): void {
     startHourlyDigestScheduler();
     const status = getHourlyDigestStatus();
     const nextRun = status.nextRun ? status.nextRun.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-    console.log(`   📊 Hourly Digest: ENABLED (next: ${nextRun})`);
+    logger.info(`   📊 Hourly Digest: ENABLED (next: ${nextRun})`);
   } else {
-    console.log(`   📊 Hourly Digest: DISABLED (set ENABLE_HOURLY_DIGEST=true to enable)`);
+    logger.info(`   📊 Hourly Digest: DISABLED (set ENABLE_HOURLY_DIGEST=true to enable)`);
   }
 
   // Start Phase Coordinator scheduler if enabled
   if (process.env.ENABLE_PHASE_COORDINATOR === 'true') {
     startPhaseCoordinator();
     const phaseStatus = getPhaseCoordinatorStatus();
-    console.log(`   📋 Phase Coordinator: ENABLED (every ${phaseStatus.config.intervalMinutes}min)`);
+    logger.info(`   📋 Phase Coordinator: ENABLED (every ${phaseStatus.config.intervalMinutes}min)`);
   }
 
   // Initialize multi-channel notifications
@@ -338,9 +339,9 @@ export function startServices(port: number): void {
     .filter(([_, s]) => s.enabled)
     .map(([c]) => c);
   if (enabledChannels.length > 0) {
-    console.log(`   📢 Multi-Channel: ${enabledChannels.join(', ')}`);
+    logger.info(`   📢 Multi-Channel: ${enabledChannels.join(', ')}`);
   } else {
-    console.log(`   📢 Multi-Channel: No channels configured`);
+    logger.info(`   📢 Multi-Channel: No channels configured`);
   }
 
   // Start Telegram Response Worker (always enabled)
@@ -351,56 +352,56 @@ export function startServices(port: number): void {
     startAllBots().then(() => {
       const botsStatus = getBotsStatus();
       const runningBots = Object.entries(botsStatus).filter(([_, s]) => s.running);
-      console.log(`   🤖 Multi-Bot Manager: ENABLED (${runningBots.length} bots)`);
+      logger.info(`   🤖 Multi-Bot Manager: ENABLED (${runningBots.length} bots)`);
       for (const [name, status] of Object.entries(botsStatus)) {
         const icon = status.running ? '✅' : '❌';
-        console.log(`      ${icon} @${status.username} → ${status.terminal}`);
+        logger.info(`      ${icon} @${status.username} → ${status.terminal}`);
       }
     }).catch(err => {
-      console.error('   🤖 Multi-Bot Manager: FAILED to start', err);
+      logger.error('   🤖 Multi-Bot Manager: FAILED to start', err);
     });
   } else {
-    console.log(`   🤖 Multi-Bot Manager: DISABLED (set ENABLE_MULTI_BOT=true to enable)`);
+    logger.info(`   🤖 Multi-Bot Manager: DISABLED (set ENABLE_MULTI_BOT=true to enable)`);
   }
-  console.log(`   📱 Telegram Response Worker: ENABLED`);
+  logger.info(`   📱 Telegram Response Worker: ENABLED`);
 
   // Auto-subscribe to all EPICS.yaml checkpoints
   const checkpointCount = subscribeToAllCheckpoints();
   if (checkpointCount > 0) {
     const status = getCheckpointSubscriptionStatus();
     const pendingCount = status.filter(s => s.status === 'pending').length;
-    console.log(`   🎯 Checkpoint Subscriptions: ${checkpointCount} created (${pendingCount} pending checkpoints)`);
+    logger.info(`   🎯 Checkpoint Subscriptions: ${checkpointCount} created (${pendingCount} pending checkpoints)`);
   } else {
-    console.log(`   🎯 Checkpoint Subscriptions: No pending checkpoints`);
+    logger.info(`   🎯 Checkpoint Subscriptions: No pending checkpoints`);
   }
 
   // Attach epic progress notifications (Telegram)
   attachEpicNotifications();
-  console.log(`   📢 Epic Notifications: ENABLED (Telegram progress tracking)`);
+  logger.info(`   📢 Epic Notifications: ENABLED (Telegram progress tracking)`);
 
   // Set up Telegram webhook if configured (async in background)
   const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
   (async () => {
     if (telegramWebhookUrl) {
       const webhookSuccess = await setTelegramWebhook(telegramWebhookUrl);
-      console.log(`   🤖 Telegram Bot: Webhook ${webhookSuccess ? 'configured' : 'FAILED'} → ${telegramWebhookUrl}`);
+      logger.info(`   🤖 Telegram Bot: Webhook ${webhookSuccess ? 'configured' : 'FAILED'} → ${telegramWebhookUrl}`);
     } else {
       const webhookInfo = await getWebhookInfo();
       if (webhookInfo?.url) {
-        console.log(`   🤖 Telegram Bot: Webhook active → ${webhookInfo.url}`);
+        logger.info(`   🤖 Telegram Bot: Webhook active → ${webhookInfo.url}`);
       } else {
-        console.log(`   🤖 Telegram Bot: No webhook (set TELEGRAM_WEBHOOK_URL to enable)`);
+        logger.info(`   🤖 Telegram Bot: No webhook (set TELEGRAM_WEBHOOK_URL to enable)`);
       }
     }
   })();
-  console.log('');
+  logger.info('');
 }
 
 // ─── Graceful Shutdown ──────────────────────────────────────────────────────
 
 export function createGracefulShutdown(server: Server): (signal: string) => void {
   return (signal: string) => {
-    console.log(`\n⏳ ${signal} received, shutting down gracefully...`);
+    logger.info(`\n⏳ ${signal} received, shutting down gracefully...`);
     isShuttingDown = true;
     setHealthMetrics({ ready: false, shuttingDown: true });
 
@@ -423,19 +424,19 @@ export function createGracefulShutdown(server: Server): (signal: string) => void
 
     // Stop accepting new connections
     server.close(() => {
-      console.log('✅ HTTP server closed');
+      logger.info('✅ HTTP server closed');
 
       // Close all SSE connections
       closeAllSSEConnections();
-      console.log('✅ SSE connections closed');
+      logger.info('✅ SSE connections closed');
 
-      console.log('👋 Goodbye!');
+      logger.info('👋 Goodbye!');
       process.exit(0);
     });
 
     // Force exit after 10 seconds
     setTimeout(() => {
-      console.error('⚠️ Forced exit after timeout');
+      logger.error('⚠️ Forced exit after timeout');
       process.exit(1);
     }, 10000);
   };

@@ -10,6 +10,8 @@ import { ChromaClient, Collection } from 'chromadb';
 import { embedDocuments, embedQuery, embeddingBackend } from './embeddings';
 import { XenovaEmbeddingFunction } from './xenovaEmbedding';
 import { ISLAND_ID, COLLECTION_NAME } from './config/paths';
+import { env } from './config/env';
+import { logger } from './core/logger';
 
 export interface SearchResult {
   text: string;
@@ -29,16 +31,21 @@ let memoryDocs: MemoryDoc[] = [];
 let isChromaConnected = false;
 let initialized = false;
 
-const CHROMA_URL = process.env.CHROMA_URL || 'http://localhost:8001';
+const CHROMA_URL = env.CHROMA_URL;
 
 export async function initVectorStore(): Promise<void> {
   if (initialized) return;
   initialized = true;
 
-  console.log(`🔮 Embedding backend: ${embeddingBackend()}`);
+  logger.info(`🔮 Embedding backend: ${embeddingBackend()}`);
 
   try {
-    const client = new ChromaClient({ host: 'localhost', port: 8001, ssl: false });
+    const chromaUrl = new URL(CHROMA_URL);
+    const client = new ChromaClient({
+      host: chromaUrl.hostname,
+      port: parseInt(chromaUrl.port || '8001', 10),
+      ssl: chromaUrl.protocol === 'https:',
+    });
     await client.heartbeat();
 
     // Use XenovaEmbeddingFunction (@xenova/transformers all-MiniLM-L6-v2, 384 dim)
@@ -52,12 +59,12 @@ export async function initVectorStore(): Promise<void> {
     });
 
     isChromaConnected = true;
-    console.log(`🟢 [VDB] ChromaDB connected: ${CHROMA_URL} (collection: ${COLLECTION_NAME})`);
+    logger.info(`🟢 [VDB] ChromaDB connected: ${CHROMA_URL} (collection: ${COLLECTION_NAME})`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`⚠️  [VDB] ChromaDB unavailable: ${msg}`);
-    console.warn('    Falling back to in-memory store (data lost on restart).');
-    console.warn('    Start ChromaDB: cd /opt/spaceos/spaceos-nexus && docker compose up -d');
+    logger.warn(`⚠️  [VDB] ChromaDB unavailable: ${msg}`);
+    logger.warn('    Falling back to in-memory store (data lost on restart).');
+    logger.warn('    Start ChromaDB: cd /opt/spaceos/spaceos-nexus && docker compose up -d');
     isChromaConnected = false;
   }
 }

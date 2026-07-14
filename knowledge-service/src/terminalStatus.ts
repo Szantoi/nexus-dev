@@ -13,6 +13,7 @@
 import { resolveTerminal, getTerminal, getTerminalPath, TERMINALS_DIR_PATH } from './terminalConfig';
 import * as terminalsConfig from './config/terminals';
 import { getUnreadMessages } from './messageRegistry';
+import { logger } from './core/logger';
 
 export type TerminalState = 'idle' | 'working';
 
@@ -54,7 +55,7 @@ export function registerWorking(terminal: string, taskId?: string): void {
     lastActivity: new Date(),
     currentTask: taskId,
   });
-  console.log(`[TerminalStatus] ${terminal} -> WORKING${taskId ? ` (${taskId})` : ''}`);
+  logger.info(`[TerminalStatus] ${terminal} -> WORKING${taskId ? ` (${taskId})` : ''}`);
 }
 
 /**
@@ -68,7 +69,7 @@ export function registerIdle(terminal: string): void {
     currentTask: undefined,
   });
   if (existing?.state === 'working') {
-    console.log(`[TerminalStatus] ${terminal} -> IDLE`);
+    logger.info(`[TerminalStatus] ${terminal} -> IDLE`);
   }
 }
 
@@ -99,7 +100,7 @@ export function isWorking(terminal: string): boolean {
     // Auto-transition to idle
     info.state = 'idle';
     info.currentTask = undefined;
-    console.log(`[TerminalStatus] ${terminal} -> IDLE (timeout)`);
+    logger.info(`[TerminalStatus] ${terminal} -> IDLE (timeout)`);
     return false;
   }
 
@@ -230,7 +231,7 @@ export function setFocusQueue(items: Omit<FocusItem, 'addedAt'>[]): void {
       firstQueued.startedAt = new Date();
     }
   }
-  console.log(`[FocusQueue] Set ${focusQueue.length} items, active: ${activeTaskId || 'none'}`);
+  logger.info(`[FocusQueue] Set ${focusQueue.length} items, active: ${activeTaskId || 'none'}`);
 }
 
 /**
@@ -241,14 +242,14 @@ export function addFocusItem(item: Omit<FocusItem, 'addedAt' | 'status'>): void 
   if (existing) {
     // Update existing
     Object.assign(existing, item);
-    console.log(`[FocusQueue] Updated: ${item.id}`);
+    logger.info(`[FocusQueue] Updated: ${item.id}`);
   } else {
     focusQueue.push({
       ...item,
       status: 'queued',
       addedAt: new Date(),
     });
-    console.log(`[FocusQueue] Added: ${item.id} (${item.priority})`);
+    logger.info(`[FocusQueue] Added: ${item.id} (${item.priority})`);
   }
   // Sort by priority
   sortFocusQueue();
@@ -270,10 +271,10 @@ export function setActiveTask(taskId: string): void {
     task.status = 'active';
     task.startedAt = new Date();
     activeTaskId = taskId;
-    console.log(`[FocusQueue] Active: ${taskId} - ${task.title}`);
+    logger.info(`[FocusQueue] Active: ${taskId} - ${task.title}`);
   } else {
     activeTaskId = taskId;
-    console.log(`[FocusQueue] Active: ${taskId} (not in queue)`);
+    logger.info(`[FocusQueue] Active: ${taskId} (not in queue)`);
   }
 }
 
@@ -285,7 +286,7 @@ export function setTaskBlocked(taskId: string, reason: string): void {
   if (task) {
     task.status = 'blocked';
     task.blockedReason = reason;
-    console.log(`[FocusQueue] Blocked: ${taskId} - ${reason}`);
+    logger.info(`[FocusQueue] Blocked: ${taskId} - ${reason}`);
   }
   if (activeTaskId === taskId) {
     // Move to next queued task
@@ -305,7 +306,7 @@ export function setTaskDone(taskId: string): void {
   const task = focusQueue.find(i => i.id === taskId);
   if (task) {
     task.status = 'done';
-    console.log(`[FocusQueue] Done: ${taskId}`);
+    logger.info(`[FocusQueue] Done: ${taskId}`);
   }
   if (activeTaskId === taskId) {
     // Move to next queued task
@@ -314,7 +315,7 @@ export function setTaskDone(taskId: string): void {
       setActiveTask(next.id);
     } else {
       activeTaskId = null;
-      console.log(`[FocusQueue] No more tasks in queue`);
+      logger.info(`[FocusQueue] No more tasks in queue`);
     }
   }
 }
@@ -326,7 +327,7 @@ export function removeFocusItem(taskId: string): void {
   const idx = focusQueue.findIndex(i => i.id === taskId);
   if (idx >= 0) {
     focusQueue.splice(idx, 1);
-    console.log(`[FocusQueue] Removed: ${taskId}`);
+    logger.info(`[FocusQueue] Removed: ${taskId}`);
   }
   if (activeTaskId === taskId) {
     const next = focusQueue.find(i => i.status === 'queued');
@@ -366,7 +367,7 @@ export function clearDoneTasks(): number {
   focusQueue = focusQueue.filter(i => i.status !== 'done');
   const removed = before - focusQueue.length;
   if (removed > 0) {
-    console.log(`[FocusQueue] Cleared ${removed} done tasks`);
+    logger.info(`[FocusQueue] Cleared ${removed} done tasks`);
   }
   return removed;
 }

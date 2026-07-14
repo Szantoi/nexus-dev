@@ -13,6 +13,7 @@
 
 import { getAllStatus, getFocusQueue, getStatus } from '../terminalStatus';
 import { getContextSaturation } from '../contextPersistence';
+import { logger } from '../core/logger';
 
 export interface TerminalAggregate {
   name: string;
@@ -53,7 +54,7 @@ export async function getTerminalStatusAggregate(
       focusQueue = queue.queue;
     }
   } catch (err) {
-    console.warn('[TerminalStatusAggregator] Could not get focus queue:', err);
+    logger.warn('[TerminalStatusAggregator] Could not get focus queue:', err);
   }
 
   const aggregates: TerminalAggregate[] = [];
@@ -69,7 +70,7 @@ export async function getTerminalStatusAggregate(
         turnCount = (satResult as any).turnCount ?? 0;
       }
     } catch (err) {
-      console.warn(`[TerminalStatusAggregator] Could not get saturation for ${terminal}:`, err);
+      logger.warn(`[TerminalStatusAggregator] Could not get saturation for ${terminal}:`, err);
     }
 
     // Get queue depth for this terminal

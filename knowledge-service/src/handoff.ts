@@ -9,6 +9,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'path';
 import { queryByTier, type TieredMemory } from './pipeline/memoryStore';
 import { log as pipelineLog } from './pipeline/common';
+import { TERMINALS_PATH } from './config/paths';
 
 const log = (prefix: string, message: string) => pipelineLog(`[${prefix}] ${message}`);
 
@@ -93,7 +94,7 @@ export async function generateHandoff(
   let filePath: string | undefined;
 
   if (output === 'file') {
-    const handoffDir = `/opt/spaceos/terminals/${terminal}/handoff`;
+    const handoffDir = path.join(TERMINALS_PATH, terminal, 'handoff');
     await fs.mkdir(handoffDir, { recursive: true });
 
     const timestamp = new Date().toISOString().split('T')[0];

@@ -205,6 +205,7 @@ const MCP_VERSION = '2024-11-05';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+import { logger } from './core/logger';
 
 interface AgentsConfig {
   version?: string;
@@ -280,13 +281,13 @@ function loadAgentTokens(): void {
       lastAgentsConfigMtime = mtime;
 
       const tokenCount = Object.keys(agentTokens).length;
-      console.log(`[MCP] 🔑 Agent tokens loaded (${tokenCount} agents, master: ${masterToken ? 'set' : 'not set'})`);
+      logger.info(`[MCP] 🔑 Agent tokens loaded (${tokenCount} agents, master: ${masterToken ? 'set' : 'not set'})`);
     }
   } catch (err) {
     // If YAML fails, use env vars only
     if (Object.keys(agentTokens).length === 0) {
       agentTokens = envTokens;
-      console.warn(`[MCP] ⚠️ Could not load agents.yaml, using env vars only (${Object.keys(envTokens).length} agents)`);
+      logger.warn(`[MCP] ⚠️ Could not load agents.yaml, using env vars only (${Object.keys(envTokens).length} agents)`);
     }
   }
 }
@@ -340,12 +341,12 @@ function loadToolPermissions(): void {
       toolPermissions = config.permissions;
       defaultPermission = config.default || 'all';
       lastConfigMtime = mtime;
-      console.log(`[MCP] 🔄 Tool permissions loaded (${Object.keys(toolPermissions).length} rules, default: ${defaultPermission})`);
+      logger.info(`[MCP] 🔄 Tool permissions loaded (${Object.keys(toolPermissions).length} rules, default: ${defaultPermission})`);
     }
   } catch (err) {
     if (Object.keys(toolPermissions).length === 0) {
       // First load failed - use fallback defaults
-      console.warn(`[MCP] ⚠️ Could not load tool-permissions.yaml, using defaults:`, err);
+      logger.warn(`[MCP] ⚠️ Could not load tool-permissions.yaml, using defaults:`, err);
       toolPermissions = {
         'set_focus_queue': ['root', 'conductor'],
         'add_focus_item': ['root', 'conductor'],
@@ -443,7 +444,8 @@ function authenticate(req: Request, res: Response, next: () => void) {
   // If no tokens configured, allow all (dev mode)
   if (!masterToken && Object.keys(agentTokens).length === 0) {
     req.mcpTerminal = 'root'; // Default to root access in dev mode
-    return next();
+    next();
+    return;
   }
 
   const authHeader = req.headers.authorization;
@@ -452,7 +454,8 @@ function authenticate(req: Request, res: Response, next: () => void) {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     if (defaultAgent) {
       req.mcpTerminal = defaultAgent;
-      return next();
+      next();
+      return;
     }
     res.status(401).json({
       jsonrpc: '2.0',
@@ -488,7 +491,8 @@ export function authenticateRest(req: Request, res: Response, next: () => void):
   // If no tokens configured, allow all (dev mode)
   if (!masterToken && Object.keys(agentTokens).length === 0) {
     req.mcpTerminal = 'root'; // Default to root access in dev mode
-    return next();
+    next();
+    return;
   }
 
   const authHeader = req.headers.authorization;
@@ -534,51 +538,56 @@ export function authorizeMailboxRest(req: Request, res: Response, next: () => vo
 
   // root and conductor: full access
   if (terminal === 'root' || terminal === 'conductor') {
-    return next();
+    next();
+    return;
   }
 
   // monitor: GET only
   if (terminal === 'monitor') {
     if (method === 'GET') {
-      return next();
+      next();
+      return;
     }
-    console.warn(`[MailboxAuth] DENY: monitor attempted ${method} ${path}`);
+    logger.warn(`[MailboxAuth] DENY: monitor attempted ${method} ${path}`);
     res.status(403).json({ error: 'Forbidden: monitor can only perform GET operations' });
     return;
   }
 
   // Broadcast endpoint: root/conductor only
   if (path === '/broadcast') {
-    console.warn(`[MailboxAuth] DENY: ${terminal} attempted broadcast`);
+    logger.warn(`[MailboxAuth] DENY: ${terminal} attempted broadcast`);
     res.status(403).json({ error: 'Forbidden: Only root/conductor can broadcast' });
     return;
   }
 
   // Counter and unread outbox: allow all (read-only)
   if (path === '/counter' || path === '/outbox/unread' || path === '/tasks/status') {
-    return next();
+    next();
+    return;
   }
 
   // Terminal-specific operations: check if accessing own mailbox
   if (targetTerminal) {
     // Own mailbox: allow all operations
     if (targetTerminal === terminal) {
-      return next();
+      next();
+      return;
     }
 
     // POST to other terminal's inbox: check create_task permission
     if (method === 'POST' && path.includes('/inbox')) {
       const canCreateTask = canUseTool(terminal, 'create_task');
       if (!canCreateTask) {
-        console.warn(`[MailboxAuth] DENY: ${terminal} attempted POST to ${targetTerminal}/inbox (no create_task permission)`);
+        logger.warn(`[MailboxAuth] DENY: ${terminal} attempted POST to ${targetTerminal}/inbox (no create_task permission)`);
         res.status(403).json({ error: `Forbidden: ${terminal} cannot send tasks to other terminals` });
         return;
       }
-      return next();
+      next();
+      return;
     }
 
     // All other operations on other terminal's mailbox: deny
-    console.warn(`[MailboxAuth] DENY: ${terminal} attempted ${method} ${path}`);
+    logger.warn(`[MailboxAuth] DENY: ${terminal} attempted ${method} ${path}`);
     res.status(403).json({ error: `Forbidden: ${terminal} can only access their own mailbox` });
     return;
   }
@@ -3789,7 +3798,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             success: true,
           });
 
-          console.log(`[MCP] Work session request created: ${logEntry.request_id} (inbox: ${messageId})`);
+          logger.info(`[MCP] Work session request created: ${logEntry.request_id} (inbox: ${messageId})`);
 
           // Also inject directly to Conductor chat session if running
           try {
@@ -3898,7 +3907,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
           error: result.success ? undefined : result.message,
         });
 
-        console.log(`[MCP] Work session spawn logged: ${logEntry.spawn_id} for ${terminal}`);
+        logger.info(`[MCP] Work session spawn logged: ${logEntry.spawn_id} for ${terminal}`);
 
         return {
           content: [{
@@ -4326,7 +4335,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
 
       // Workflow Management tools (2026-07-14)
       case 'list_workflows':
-      case 'get_workflow':
+      case 'get_workflow_details':
       case 'get_workflow_state':
       case 'advance_workflow':
       case 'generate_workflow_task':
@@ -4368,7 +4377,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
               conversationId = newConv.id;
             }
           } catch (err) {
-            console.warn('[MCP] telegram_reply: Failed to get/create conversation:', err);
+            logger.warn('[MCP] telegram_reply: Failed to get/create conversation:', err);
           }
         }
 
@@ -4394,9 +4403,9 @@ Requested by ${callerTerminal || 'unknown'} chat session.
               fromTerminal,
               replyToMessageId: replyToMessageId || lastMsgId || undefined,
             });
-            console.log(`[MCP] telegram_reply: Saved outgoing message to conversation ${conversationId}`);
+            logger.info(`[MCP] telegram_reply: Saved outgoing message to conversation ${conversationId}`);
           } catch (err) {
-            console.warn('[MCP] telegram_reply: Failed to save message to conversation:', err);
+            logger.warn('[MCP] telegram_reply: Failed to save message to conversation:', err);
           }
         }
 
@@ -4476,7 +4485,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
         }
 
         // Find conversation
-        let conversation;
+        let conversation: ReturnType<typeof getConversation> | ReturnType<typeof findActiveConversation>;
         if (conversationId) {
           conversation = getConversation(conversationId);
         } else {
@@ -4825,7 +4834,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] generate_api_client error:', error);
+          logger.error('[MCP] generate_api_client error:', error);
           return {
             content: [
               {
@@ -4870,7 +4879,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] generate_component error:', error);
+          logger.error('[MCP] generate_component error:', error);
           return {
             content: [
               {
@@ -4912,7 +4921,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] generate_module error:', error);
+          logger.error('[MCP] generate_module error:', error);
           return {
             content: [
               {
@@ -4957,7 +4966,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] generate_hook error:', error);
+          logger.error('[MCP] generate_hook error:', error);
           return {
             content: [
               {
@@ -5018,7 +5027,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] check_api_client_status error:', error);
+          logger.error('[MCP] check_api_client_status error:', error);
           return {
             content: [
               {
@@ -5047,7 +5056,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] verify_frontend_build error:', error);
+          logger.error('[MCP] verify_frontend_build error:', error);
           return {
             content: [
               {
@@ -5083,7 +5092,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] scaffold_from_pattern error:', error);
+          logger.error('[MCP] scaffold_from_pattern error:', error);
           return {
             content: [
               {
@@ -5116,7 +5125,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
             ],
           };
         } catch (error) {
-          console.error('[MCP] analyze_bundle_size error:', error);
+          logger.error('[MCP] analyze_bundle_size error:', error);
           return {
             content: [
               {
@@ -5723,7 +5732,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         // Check tool permission
         const callerTerminal = req.mcpTerminal || 'root';
         if (!canUseTool(callerTerminal, name)) {
-          console.log(`[MCP] 🚫 ${name} DENIED for terminal: ${callerTerminal}`);
+          logger.info(`[MCP] 🚫 ${name} DENIED for terminal: ${callerTerminal}`);
           res.status(403).json({
             jsonrpc: '2.0',
             error: {
@@ -5738,12 +5747,12 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
         // MCP Tool Call Logging - központi monitoring
         const startTime = Date.now();
         const targetTerminal = (args as Record<string, unknown>)?.terminal as string || 'unknown';
-        console.log(`[MCP] 📥 ${name} (caller: ${callerTerminal}, target: ${targetTerminal})`);
+        logger.info(`[MCP] 📥 ${name} (caller: ${callerTerminal}, target: ${targetTerminal})`);
 
         try {
           const result = await handleToolCall(name, args || {}, callerTerminal);
           const duration = Date.now() - startTime;
-          console.log(`[MCP] ✅ ${name} (${duration}ms)`);
+          logger.info(`[MCP] ✅ ${name} (${duration}ms)`);
 
           res.json({
             jsonrpc: '2.0',
@@ -5752,7 +5761,7 @@ router.post('/', authenticate, async (req: Request, res: Response) => {
           });
         } catch (toolErr) {
           const duration = Date.now() - startTime;
-          console.error(`[MCP] ❌ ${name} FAILED (${duration}ms):`, toolErr);
+          logger.error(`[MCP] ❌ ${name} FAILED (${duration}ms):`, toolErr);
           throw toolErr;
         }
         break;

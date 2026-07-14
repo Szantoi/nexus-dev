@@ -3,6 +3,7 @@
 
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
+import { logger } from '../core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
@@ -46,7 +47,7 @@ export function loadActiveEpic(): Epic | null {
 export function loadActiveEpics(): Epic[] {
   try {
     if (!fs.existsSync(EPICS_PATH)) {
-      console.warn('[epicManager] EPICS.yaml not found');
+      logger.warn('[epicManager] EPICS.yaml not found');
       return [];
     }
 
@@ -54,13 +55,13 @@ export function loadActiveEpics(): Epic[] {
     const data = yaml.load(content) as EpicsYaml;
 
     if (!data || !data.epics || !Array.isArray(data.epics)) {
-      console.warn('[epicManager] Invalid EPICS.yaml structure');
+      logger.warn('[epicManager] Invalid EPICS.yaml structure');
       return [];
     }
 
     return data.epics.filter(epic => epic.status === 'active');
   } catch (error) {
-    console.error('[epicManager] Failed to load active epics:', error);
+    logger.error('[epicManager] Failed to load active epics:', error);
     return [];
   }
 }
@@ -99,7 +100,7 @@ export function getNextCheckpoint(epic: Epic): Checkpoint | null {
 export function completeEpic(epicId: string): boolean {
   try {
     if (!fs.existsSync(EPICS_PATH)) {
-      console.error('[epicManager] EPICS.yaml not found');
+      logger.error('[epicManager] EPICS.yaml not found');
       return false;
     }
 
@@ -107,13 +108,13 @@ export function completeEpic(epicId: string): boolean {
     const data = yaml.load(content) as EpicsYaml;
 
     if (!data || !data.epics) {
-      console.error('[epicManager] Invalid EPICS.yaml structure');
+      logger.error('[epicManager] Invalid EPICS.yaml structure');
       return false;
     }
 
     const epic = data.epics.find(e => e.id === epicId);
     if (!epic) {
-      console.error(`[epicManager] Epic ${epicId} not found`);
+      logger.error(`[epicManager] Epic ${epicId} not found`);
       return false;
     }
 
@@ -124,10 +125,10 @@ export function completeEpic(epicId: string): boolean {
     const yamlContent = yaml.dump(data, { lineWidth: -1 });
     fs.writeFileSync(EPICS_PATH, yamlContent, 'utf-8');
 
-    console.log(`[epicManager] Epic ${epicId} marked as DONE`);
+    logger.info(`[epicManager] Epic ${epicId} marked as DONE`);
     return true;
   } catch (error) {
-    console.error('[epicManager] Failed to complete epic:', error);
+    logger.error('[epicManager] Failed to complete epic:', error);
     return false;
   }
 }
@@ -146,7 +147,7 @@ export function loadAllEpics(): Epic[] {
 
     return data?.epics || [];
   } catch (error) {
-    console.error('[epicManager] Failed to load epics:', error);
+    logger.error('[epicManager] Failed to load epics:', error);
     return [];
   }
 }

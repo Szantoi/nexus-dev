@@ -13,6 +13,7 @@ import {
   getModelCostPerMinute,
 } from '../../pipeline/costLimiter';
 import { getActiveWorkers, getAllWorkers, type WorkerState } from '../../pipeline/workerRegistry';
+import { logger } from '../../core/logger';
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
@@ -287,7 +288,7 @@ export function recordPauseNotification(data: {
   thresholdStatus: string;
   terminals: Array<{ name: string; cost: number }>;
 }): { status: string; message: string; coordinatorNotified: boolean } {
-  console.warn(`[CostMonitoring] Auto-pause triggered! Current: $${data.currentCost}, Budget: $${data.dailyBudget}`);
+  logger.warn(`[CostMonitoring] Auto-pause triggered! Current: $${data.currentCost}, Budget: $${data.dailyBudget}`);
 
   // TODO: Send notification to Conductor via MCP
   // TODO: Trigger worker spawn prevention
@@ -488,5 +489,5 @@ export function recordWorkerCost(workerId: string, terminal: string, cost: numbe
   const currentCost = dayData.get(terminal) || 0;
   dayData.set(terminal, currentCost + cost);
 
-  console.log(`[CostMonitoring] Recorded worker cost: ${workerId} (${terminal}) = $${cost.toFixed(2)}`);
+  logger.info(`[CostMonitoring] Recorded worker cost: ${workerId} (${terminal}) = $${cost.toFixed(2)}`);
 }

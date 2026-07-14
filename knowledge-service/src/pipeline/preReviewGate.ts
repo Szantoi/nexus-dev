@@ -15,6 +15,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
@@ -51,7 +52,7 @@ export async function runPreReviewGate(
   const startTime = Date.now();
   const checks: PreReviewCheck[] = [];
 
-  console.log(`[PreReviewGate] Starting gate for: ${project}`);
+  logger.info(`[PreReviewGate] Starting gate for: ${project}`);
 
   try {
     if (project === 'datahaven-web') {
@@ -74,7 +75,7 @@ export async function runPreReviewGate(
       ? `✅ All ${checks.length} checks passed (${duration}ms)`
       : `❌ ${checks.filter(c => !c.passed).length}/${checks.length} checks failed`;
 
-    console.log(`[PreReviewGate] ${summary}`);
+    logger.info(`[PreReviewGate] ${summary}`);
 
     return {
       passed: allPassed,
@@ -113,7 +114,7 @@ async function checkESLint(): Promise<PreReviewCheck> {
     try {
       await fs.access(path.join(cwd, 'node_modules'));
     } catch {
-      console.warn('[PreReviewGate] node_modules not found, skipping ESLint');
+      logger.warn('[PreReviewGate] node_modules not found, skipping ESLint');
       return {
         name,
         passed: true,
@@ -162,7 +163,7 @@ async function checkTypeScript(): Promise<PreReviewCheck> {
     try {
       await fs.access(path.join(cwd, 'node_modules'));
     } catch {
-      console.warn('[PreReviewGate] node_modules not found, skipping TypeScript');
+      logger.warn('[PreReviewGate] node_modules not found, skipping TypeScript');
       return {
         name,
         passed: true,
@@ -260,7 +261,7 @@ async function checkSecurityAudit(): Promise<PreReviewCheck> {
     try {
       await fs.access(path.join(cwd, 'node_modules'));
     } catch {
-      console.warn('[PreReviewGate] node_modules not found, skipping Security Audit');
+      logger.warn('[PreReviewGate] node_modules not found, skipping Security Audit');
       return {
         name,
         passed: true,

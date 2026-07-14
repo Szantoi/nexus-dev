@@ -21,6 +21,7 @@ import {
 } from './common';
 import { getInjectedMessages, buildEscalatedPrompt } from '../sessionStarter';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
+import { logger } from '../core/logger';
 
 // NWT-based timeouts (1 NWT = 2 minutes = 120 seconds)
 // IDLE_SHUTDOWN = 8 NWT ≈ 16 minutes, but we use 7.5 NWT for smoother 15 min
@@ -179,6 +180,6 @@ export async function watchIdle(): Promise<{ processed: number; shutdown: number
 // Run standalone
 if (require.main === module) {
   watchIdle().then(result => {
-    console.log(`[watchIdle] Processed: ${result.processed}, Shutdown: ${result.shutdown}, Escalated: ${result.escalated}, Alerted: ${result.alerted}`);
+    logger.info(`[watchIdle] Processed: ${result.processed}, Shutdown: ${result.shutdown}, Escalated: ${result.escalated}, Alerted: ${result.alerted}`);
   });
 }

@@ -15,6 +15,7 @@ import * as yaml from 'js-yaml';
 import { EpicsYaml, EpicDependency, WorkflowGraph, GraphNode } from './types';
 import { validateEpicsYaml } from '../pipeline/epicsValidator';
 import { computeGraphProperties } from './operations';
+import { logger } from '../core/logger';
 
 /**
  * Load and parse EPICS.yaml from file
@@ -40,9 +41,9 @@ export async function loadEpicsYaml(path: string): Promise<EpicsYaml> {
 
     // Warn on validation warnings
     if (validation.warnings.length > 0) {
-      console.warn(`EPICS.yaml validation warnings:`);
+      logger.warn(`EPICS.yaml validation warnings:`);
       for (const warning of validation.warnings) {
-        console.warn(`  [${warning.code}] ${warning.message}`);
+        logger.warn(`  [${warning.code}] ${warning.message}`);
       }
     }
 

@@ -45,6 +45,7 @@ export const MEMORY_DB = process.env.MEMORY_DB || join(DATA_DIR, 'memory.db');
 
 // Ensure DATA_DIR exists on import
 import { mkdirSync } from 'fs';
+import { logger } from '../core/logger';
 try {
   mkdirSync(DATA_DIR, { recursive: true });
 } catch (err) {
@@ -56,8 +57,8 @@ let logged = false;
 export function logPathConfig(): void {
   if (logged) return;
   logged = true;
-  console.log(`📁 [Config] Island: ${ISLAND_ID}`);
-  console.log(`   DATA_DIR: ${DATA_DIR}`);
-  console.log(`   TERMINALS_PATH: ${TERMINALS_PATH}`);
-  console.log(`   KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH}`);
+  logger.info(`📁 [Config] Island: ${ISLAND_ID}`);
+  logger.info(`   DATA_DIR: ${DATA_DIR}`);
+  logger.info(`   TERMINALS_PATH: ${TERMINALS_PATH}`);
+  logger.info(`   KNOWLEDGE_BASE_PATH: ${KNOWLEDGE_BASE_PATH}`);
 }

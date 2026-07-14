@@ -236,7 +236,7 @@ Az automatikus pipeline szünetel.
 
     return context;
   } catch (error) {
-    console.error('[SessionStarter] Failed to build mode awareness context:', error);
+    logger.error('[SessionStarter] Failed to build mode awareness context:', error);
     return `## ⚠️ MODE DETECTION ERROR
 
 Nem sikerült az operációs mód meghatározása. Alapértelmezett (manual) módra visszaállás.
@@ -343,14 +343,14 @@ export async function terminateColdSession(
 
   // Only terminate if cold mode
   if (sessionMode !== 'cold') {
-    console.log(`[SessionStarter] ${terminal} is in continuous mode, not terminating`);
+    logger.info(`[SessionStarter] ${terminal} is in continuous mode, not terminating`);
     return {
       success: true,
       message: `${terminal} in continuous mode, session kept alive`,
     };
   }
 
-  console.log(`[SessionStarter] Terminating cold session: ${sessionName}`);
+  logger.info(`[SessionStarter] Terminating cold session: ${sessionName}`);
 
   try {
     // 1. Handle session end (saves to DB + creates hot memory)
@@ -362,7 +362,7 @@ export async function terminateColdSession(
       hadCorrections: false,
     });
 
-    console.log(`[SessionStarter] Session end handled for ${terminal}`);
+    logger.info(`[SessionStarter] Session end handled for ${terminal}`);
 
     // 2. Save summary to MEMORY.md
     const memoryPath = path.join(TERMINALS_DIR, terminal, 'MEMORY.md');
@@ -378,9 +378,9 @@ ${summary}
     try {
       // Append to MEMORY.md
       await fs.appendFile(memoryPath, memoryEntry, 'utf-8');
-      console.log(`[SessionStarter] MEMORY.md updated for ${terminal}`);
+      logger.info(`[SessionStarter] MEMORY.md updated for ${terminal}`);
     } catch (err) {
-      console.warn(`[SessionStarter] Failed to update MEMORY.md for ${terminal}:`, err);
+      logger.warn(`[SessionStarter] Failed to update MEMORY.md for ${terminal}:`, err);
     }
 
     // 3. Wait a bit for any pending output
@@ -389,14 +389,14 @@ ${summary}
     // 4. Kill tmux session
     try {
       execSync(`tmux -S ${TMUX_SOCKET} kill-session -t ${sessionName}`, { timeout: 5000 });
-      console.log(`[SessionStarter] ✓ Killed cold session ${sessionName}`);
+      logger.info(`[SessionStarter] ✓ Killed cold session ${sessionName}`);
     } catch {
       // Try default socket
       try {
         execSync(`tmux kill-session -t ${sessionName}`, { timeout: 5000 });
-        console.log(`[SessionStarter] ✓ Killed cold session ${sessionName} (default socket)`);
+        logger.info(`[SessionStarter] ✓ Killed cold session ${sessionName} (default socket)`);
       } catch {
-        console.log(`[SessionStarter] Session ${sessionName} already terminated`);
+        logger.info(`[SessionStarter] Session ${sessionName} already terminated`);
       }
     }
 
@@ -416,7 +416,7 @@ ${summary}
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[SessionStarter] Failed to terminate cold session ${sessionName}:`, msg);
+    logger.error(`[SessionStarter] Failed to terminate cold session ${sessionName}:`, msg);
     return {
       success: false,
       message: `Failed to terminate ${sessionName}: ${msg}`,
@@ -645,7 +645,7 @@ function clearInputBuffer(sessionName: string): void {
     execSync('sleep 0.1');
   } catch (error) {
     // Non-fatal - continue with injection anyway
-    console.warn(`[SessionStarter] Buffer clear warning for ${sessionName}:`, error);
+    logger.warn(`[SessionStarter] Buffer clear warning for ${sessionName}:`, error);
   }
 }
 
@@ -666,7 +666,7 @@ function discardPlaceholderBuffer(sessionName: string): boolean {
       tmuxSendKeys(sessionName, 'C-c');
       execSync('sleep 0.45'); // Settle window
     } catch (err) {
-      console.warn(`[SessionStarter] discardPlaceholderBuffer: Ctrl+C send failed`, err);
+      logger.warn(`[SessionStarter] discardPlaceholderBuffer: Ctrl+C send failed`, err);
       return false;
     }
   }
@@ -744,16 +744,16 @@ function injectMessageToSession(sessionName: string, message: string): boolean {
 
       // If we can't capture, give up
       if (pane === null) {
-        console.warn(`[SessionStarter] Cannot capture pane for ${sessionName}, assuming OK`);
+        logger.warn(`[SessionStarter] Cannot capture pane for ${sessionName}, assuming OK`);
         break;
       }
 
       // Check for placeholder - needs clear-and-resend, not just Enter
       if (detectsPastePlaceholder(pane)) {
-        console.log(`[SessionStarter] Paste placeholder detected for ${sessionName}, clearing and resending (attempt ${attempt + 1})`);
+        logger.info(`[SessionStarter] Paste placeholder detected for ${sessionName}, clearing and resending (attempt ${attempt + 1})`);
 
         if (!discardPlaceholderBuffer(sessionName)) {
-          console.warn(`[SessionStarter] Failed to clear placeholder for ${sessionName}`);
+          logger.warn(`[SessionStarter] Failed to clear placeholder for ${sessionName}`);
         }
 
         // Resend the message
@@ -768,7 +768,7 @@ function injectMessageToSession(sessionName: string, message: string): boolean {
 
       if (lastLines.includes(msgStart) && lastLines.includes('bypass permissions')) {
         // Text is parked with idle footer - send extra Enter
-        console.log(`[SessionStarter] Prompt parked for ${sessionName}, sending retry Enter (attempt ${attempt + 1})`);
+        logger.info(`[SessionStarter] Prompt parked for ${sessionName}, sending retry Enter (attempt ${attempt + 1})`);
         tmuxSendKeys(sessionName, 'Enter');
         continue;
       }
@@ -779,7 +779,7 @@ function injectMessageToSession(sessionName: string, message: string): boolean {
 
     return true;
   } catch (error) {
-    console.error(`[SessionStarter] Failed to inject message to ${sessionName}:`, error);
+    logger.error(`[SessionStarter] Failed to inject message to ${sessionName}:`, error);
     return false;
   }
 }
@@ -793,7 +793,7 @@ export async function startTerminalSession(
 ): Promise<{ success: boolean; message: string }> {
   // SECURITY: Validate terminal name against whitelist
   if (!isValidTerminal(terminal)) {
-    console.error(`[SessionStarter] SECURITY: Invalid terminal name rejected: ${terminal}`);
+    logger.error(`[SessionStarter] SECURITY: Invalid terminal name rejected: ${terminal}`);
     return {
       success: false,
       message: `Invalid terminal name: ${terminal}`,
@@ -836,7 +836,7 @@ export async function startTerminalSession(
             }
           }
         } catch (err) {
-          console.error('[SessionStarter] Failed to load conversation history:', err);
+          logger.error('[SessionStarter] Failed to load conversation history:', err);
         }
       }
 
@@ -903,7 +903,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
     const inboxContent = await extractInboxContent(terminal, messageId);
     const nudgeMsg = buildTaskAssignmentPromptFromContent(terminal, messageId, inboxContent);
 
-    console.log(`[SessionStarter] ${sessionName} (priority) running, injecting task assignment...`);
+    logger.info(`[SessionStarter] ${sessionName} (priority) running, injecting task assignment...`);
 
     const injected = injectMessageToSession(sessionName, nudgeMsg);
     if (injected) {
@@ -915,7 +915,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
         messageId,
         'working'
       );
-      console.log(`[SessionStarter] ✓ Injected task assignment to priority ${sessionName} (context updated)`);
+      logger.info(`[SessionStarter] ✓ Injected task assignment to priority ${sessionName} (context updated)`);
       return {
         success: true,
         message: `Injected task assignment to priority ${sessionName}`,
@@ -934,12 +934,12 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
   if (await isSessionRunning(sessionName)) {
     // Check if Claude is actually running in the session
     if (!isClaudeRunning(sessionName)) {
-      console.log(`[SessionStarter] ${sessionName} exists but Claude not running (bash only), will restart Claude...`);
+      logger.info(`[SessionStarter] ${sessionName} exists but Claude not running (bash only), will restart Claude...`);
       // Session exists but Claude not running - need to start Claude
       // Kill the existing bash-only session and start fresh
       try {
         execSync(`tmux -S ${TMUX_SOCKET} kill-session -t ${sessionName}`, { timeout: 5000 });
-        console.log(`[SessionStarter] Killed bash-only session ${sessionName}`);
+        logger.info(`[SessionStarter] Killed bash-only session ${sessionName}`);
       } catch {
         // Ignore errors, continue to start fresh
       }
@@ -949,7 +949,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
       const inboxContent = await extractInboxContent(terminal, messageId);
       const nudgeMsg = buildTaskAssignmentPromptFromContent(terminal, messageId, inboxContent);
 
-      console.log(`[SessionStarter] ${sessionName} running with Claude, injecting task assignment...`);
+      logger.info(`[SessionStarter] ${sessionName} running with Claude, injecting task assignment...`);
 
       const injected = injectMessageToSession(sessionName, nudgeMsg);
       if (injected) {
@@ -961,13 +961,13 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
           messageId,
           'working'
         );
-        console.log(`[SessionStarter] ✓ Injected task assignment to ${sessionName} (context updated)`);
+        logger.info(`[SessionStarter] ✓ Injected task assignment to ${sessionName} (context updated)`);
         return {
           success: true,
           message: `Injected task assignment to running ${sessionName}`,
         };
       } else {
-        console.error(`[SessionStarter] Failed to inject to ${sessionName}`);
+        logger.error(`[SessionStarter] Failed to inject to ${sessionName}`);
         return {
           success: false,
           message: `Failed to inject to running ${sessionName}`,
@@ -981,7 +981,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
   const model = modelOverride || await getInboxModel(terminal);
   const workdir = getWorkdir(terminal);
 
-  console.log(`[SessionStarter] Starting ${sessionName}: model=${model}, inbox=${messageId}`);
+  logger.info(`[SessionStarter] Starting ${sessionName}: model=${model}, inbox=${messageId}`);
 
   try {
     // Create tmux session
@@ -1002,7 +1002,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
       taskContent, // Pass task content for domain memory detection
     });
 
-    console.log(`[SessionStarter] Cold start context: ${startContext.memoriesLoaded} memories (~${startContext.contextTokens} tokens)${startContext.domainKnowledge?.domains.length ? `, domains: [${startContext.domainKnowledge.domains.join(', ')}]` : ''}`);
+    logger.info(`[SessionStarter] Cold start context: ${startContext.memoriesLoaded} memories (~${startContext.contextTokens} tokens)${startContext.domainKnowledge?.domains.length ? `, domains: [${startContext.domainKnowledge.domains.join(', ')}]` : ''}`);
 
     // Send claude command (text first, then Enter)
     await execAsync(`tmux -S ${TMUX_SOCKET} send-keys -t ${sessionName} "claude --model ${model}" Enter`);
@@ -1014,9 +1014,9 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
     if (startContext.memoriesLoaded > 0) {
       const contextInjected = injectMessageToSession(sessionName, startContext.contextMarkdown);
       if (contextInjected) {
-        console.log(`[SessionStarter] ✓ Injected ${startContext.memoriesLoaded} memories into ${sessionName}`);
+        logger.info(`[SessionStarter] ✓ Injected ${startContext.memoriesLoaded} memories into ${sessionName}`);
       } else {
-        console.warn(`[SessionStarter] Failed to inject context into ${sessionName}`);
+        logger.warn(`[SessionStarter] Failed to inject context into ${sessionName}`);
       }
     }
 
@@ -1032,7 +1032,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
       if (recoveryContext) {
         const recoveryInjected = injectMessageToSession(sessionName, recoveryContext);
         if (recoveryInjected) {
-          console.log(`[SessionStarter] ✓ Injected cross-session recovery context to ${sessionName}`);
+          logger.info(`[SessionStarter] ✓ Injected cross-session recovery context to ${sessionName}`);
         }
         await new Promise(resolve => setTimeout(resolve, 500));
       }
@@ -1040,9 +1040,9 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
       const modeContext = buildModeAwarenessContext();
       const modeInjected = injectMessageToSession(sessionName, modeContext);
       if (modeInjected) {
-        console.log(`[SessionStarter] ✓ Injected Mode #4 awareness context to ${sessionName}`);
+        logger.info(`[SessionStarter] ✓ Injected Mode #4 awareness context to ${sessionName}`);
       } else {
-        console.warn(`[SessionStarter] Failed to inject mode awareness context to ${sessionName}`);
+        logger.warn(`[SessionStarter] Failed to inject mode awareness context to ${sessionName}`);
       }
 
       // Wait for mode context to be processed
@@ -1051,9 +1051,9 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
       // Generate and deliver intelligent briefing (MSG-CONDUCTOR-066)
       try {
         const { messageId: briefingId } = await generateAndDeliverBriefing();
-        console.log(`[SessionStarter] ✓ Generated briefing ${briefingId} for ${sessionName}`);
+        logger.info(`[SessionStarter] ✓ Generated briefing ${briefingId} for ${sessionName}`);
       } catch (error) {
-        console.error(`[SessionStarter] Failed to generate briefing for ${sessionName}:`, error);
+        logger.error(`[SessionStarter] Failed to generate briefing for ${sessionName}:`, error);
       }
 
       // Save initial goal state for recovery on next restart
@@ -1072,12 +1072,12 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
         messageId,
         'working'
       );
-      console.log(`[SessionStarter] ✓ Injected task assignment ${messageId} to ${sessionName} (context updated)`);
+      logger.info(`[SessionStarter] ✓ Injected task assignment ${messageId} to ${sessionName} (context updated)`);
     } else {
-      console.warn(`[SessionStarter] Failed to inject task assignment to ${sessionName}`);
+      logger.warn(`[SessionStarter] Failed to inject task assignment to ${sessionName}`);
     }
 
-    console.log(`[SessionStarter] ✓ ${sessionName} started`);
+    logger.info(`[SessionStarter] ✓ ${sessionName} started`);
 
     // Send Telegram notification
     const telegramToken = process.env.TELEGRAM_TOKEN;
@@ -1094,7 +1094,7 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[SessionStarter] Failed to start ${sessionName}:`, msg);
+    logger.error(`[SessionStarter] Failed to start ${sessionName}:`, msg);
     return {
       success: false,
       message: `Failed to start ${sessionName}: ${msg}`,
@@ -1119,7 +1119,7 @@ export async function startWorkSession(
 ): Promise<{ success: boolean; message: string; sessionName?: string }> {
   // SECURITY: Validate terminal name
   if (!isValidTerminal(terminal)) {
-    console.error(`[SessionStarter] SECURITY: Invalid terminal name rejected: ${terminal}`);
+    logger.error(`[SessionStarter] SECURITY: Invalid terminal name rejected: ${terminal}`);
     return {
       success: false,
       message: `Invalid terminal name: ${terminal}`,
@@ -1133,7 +1133,7 @@ export async function startWorkSession(
   if (await isSessionRunning(sessionName)) {
     // Check if Claude is actually running (not just bash)
     if (!isClaudeRunning(sessionName)) {
-      console.log(`[SessionStarter] Work session ${sessionName} exists but Claude not running, killing and restarting...`);
+      logger.info(`[SessionStarter] Work session ${sessionName} exists but Claude not running, killing and restarting...`);
       try {
         execSync(`tmux -S ${TMUX_SOCKET} kill-session -t ${sessionName}`, { timeout: 5000 });
       } catch {
@@ -1142,7 +1142,7 @@ export async function startWorkSession(
       // Fall through to start fresh session below
     } else {
       // Claude IS running - inject task
-      console.log(`[SessionStarter] Work session ${sessionName} running with Claude, injecting task...`);
+      logger.info(`[SessionStarter] Work session ${sessionName} running with Claude, injecting task...`);
 
       const taskPrompt = `[WORK SESSION TASK - delegált a chat session-től]
 
@@ -1170,7 +1170,7 @@ Dolgozd fel a feladatot, majd ha kész vagy, jelezd vissza.`;
   }
 
   // Start new work session
-  console.log(`[SessionStarter] Starting work session: ${sessionName} (model=${model})`);
+  logger.info(`[SessionStarter] Starting work session: ${sessionName} (model=${model})`);
 
   try {
     // Create tmux session
@@ -1203,10 +1203,10 @@ Dolgozd fel a feladatot. Ha kész vagy, írd: "DONE: [összefoglaló]"`;
     // Inject task
     const taskInjected = injectMessageToSession(sessionName, taskPrompt);
     if (!taskInjected) {
-      console.warn(`[SessionStarter] Failed to inject task to work session ${sessionName}`);
+      logger.warn(`[SessionStarter] Failed to inject task to work session ${sessionName}`);
     }
 
-    console.log(`[SessionStarter] ✓ Work session ${sessionName} started`);
+    logger.info(`[SessionStarter] ✓ Work session ${sessionName} started`);
 
     // Telegram notification
     const telegramToken = process.env.TELEGRAM_TOKEN;
@@ -1224,7 +1224,7 @@ Dolgozd fel a feladatot. Ha kész vagy, írd: "DONE: [összefoglaló]"`;
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error(`[SessionStarter] Failed to start work session ${sessionName}:`, msg);
+    logger.error(`[SessionStarter] Failed to start work session ${sessionName}:`, msg);
     return {
       success: false,
       message: `Failed to start work session: ${msg}`,
@@ -1242,6 +1242,7 @@ import {
 } from './pipeline/workerRegistry';
 import { calculateMaxParallel, canSpawnWorker } from './pipeline/costLimiter';
 import { checkDependencies } from './pipeline/workerRegistry';
+import { logger } from './core/logger';
 
 /**
  * Generate unique worker ID for parallel sessions
@@ -1301,7 +1302,7 @@ export async function startParallelWorkSession(
     // Register worker
     registerWorker(workerId, config, sessionName);
 
-    console.log(`[SessionStarter] ✓ Parallel worker ${workerId} started (${config.model})`);
+    logger.info(`[SessionStarter] ✓ Parallel worker ${workerId} started (${config.model})`);
 
     return {
       success: true,
@@ -1310,7 +1311,7 @@ export async function startParallelWorkSession(
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[SessionStarter] Failed to start parallel worker:', msg);
+    logger.error('[SessionStarter] Failed to start parallel worker:', msg);
     return {
       success: false,
       message: `Failed to start parallel worker: ${msg}`,
@@ -1343,7 +1344,7 @@ export async function spawnRawWorkers(config: {
       );
 
       workerIds.push(workerId);
-      console.log(`[SessionStarter] ✓ Raw worker ${workerId} spawned (${config.model})`);
+      logger.info(`[SessionStarter] ✓ Raw worker ${workerId} spawned (${config.model})`);
     }
 
     return {
@@ -1353,7 +1354,7 @@ export async function spawnRawWorkers(config: {
     };
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error('[SessionStarter] Failed to spawn raw workers:', msg);
+    logger.error('[SessionStarter] Failed to spawn raw workers:', msg);
     return {
       success: false,
       message: `Failed to spawn raw workers: ${msg}`,
@@ -1398,13 +1399,13 @@ export async function collectRawResults(
           execSync(`tmux -S ${TMUX_SOCKET} kill-session -t ${sessionName}`, {
             timeout: 3000,
           });
-          console.log(`[SessionStarter] ✓ Killed completed raw worker ${sessionName}`);
+          logger.info(`[SessionStarter] ✓ Killed completed raw worker ${sessionName}`);
         } catch (err) {
           // Try default socket
           try {
             execSync(`tmux kill-session -t ${sessionName}`, { timeout: 3000 });
           } catch {
-            console.warn(`[SessionStarter] Failed to kill session ${sessionName}`);
+            logger.warn(`[SessionStarter] Failed to kill session ${sessionName}`);
           }
         }
       } else {
@@ -1416,7 +1417,7 @@ export async function collectRawResults(
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[SessionStarter] Failed to collect result from ${workerId}:`, msg);
+      logger.error(`[SessionStarter] Failed to collect result from ${workerId}:`, msg);
       results.push({
         workerId,
         output: '',

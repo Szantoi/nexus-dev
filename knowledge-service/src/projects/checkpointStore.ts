@@ -12,8 +12,9 @@
  * deliberately NOT a parallel store; one project/epic database.
  */
 import { getEpicRouterDb, createEpic, createProject, getProjectById } from '../pipeline/epicRouter';
+import { logger } from '../core/logger';
 
-const log = (msg: string) => console.log(`[Checkpoints] ${msg}`);
+const log = (msg: string) => logger.info(`[Checkpoints] ${msg}`);
 
 export interface Checkpoint {
   id: string;

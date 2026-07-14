@@ -18,6 +18,7 @@ import {
   PlanConfig,
   ScanState
 } from './planConfig';
+import { logger } from '../core/logger';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -276,7 +277,7 @@ export async function runPlanSelect(): Promise<SelectResult> {
 
 if (require.main === module) {
   runPlanSelect().then(result => {
-    console.log('Select result:', JSON.stringify(result, null, 2));
+    logger.info('Select result:', JSON.stringify(result, null, 2));
     process.exit(result.success ? 0 : 1);
   });
 }

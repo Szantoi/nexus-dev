@@ -30,6 +30,7 @@ import {
   markFailed,
   logDeliveryAttempt,
 } from './agentMessages';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -292,11 +293,11 @@ export function startMessageRouter(intervalMs = 10000): void {
         log(`[Router] Delivered ${delivered}/${results.length} messages`);
       }
     } catch (err) {
-      console.error('[Router] Error processing messages:', err);
+      logger.error('[Router] Error processing messages:', err);
     }
   }, intervalMs);
 
-  console.log(`[MessageRouter] Started (every ${intervalMs / 1000}s)`);
+  logger.info(`[MessageRouter] Started (every ${intervalMs / 1000}s)`);
 }
 
 /**
@@ -306,7 +307,7 @@ export function stopMessageRouter(): void {
   if (routerInterval) {
     clearInterval(routerInterval);
     routerInterval = null;
-    console.log('[MessageRouter] Stopped');
+    logger.info('[MessageRouter] Stopped');
   }
 }
 

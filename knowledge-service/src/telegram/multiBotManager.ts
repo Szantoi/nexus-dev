@@ -20,6 +20,7 @@ import {
   addMessage,
 } from './conversationManager';
 import type { IncomingTelegramMessage } from './contextBuilder';
+import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -81,16 +82,16 @@ let configData: BotsConfigFile | null = null;
 export function loadBotsConfig(): BotsConfigFile | null {
   try {
     if (!fs.existsSync(CONFIG_PATH)) {
-      console.log('[MultiBotManager] Config file not found:', CONFIG_PATH);
+      logger.info('[MultiBotManager] Config file not found:', CONFIG_PATH);
       return null;
     }
 
     const content = fs.readFileSync(CONFIG_PATH, 'utf-8');
     configData = yaml.load(content) as BotsConfigFile;
-    console.log(`[MultiBotManager] Loaded config with ${Object.keys(configData.bots).length} bots`);
+    logger.info(`[MultiBotManager] Loaded config with ${Object.keys(configData.bots).length} bots`);
     return configData;
   } catch (err) {
-    console.error('[MultiBotManager] Failed to load config:', err);
+    logger.error('[MultiBotManager] Failed to load config:', err);
     return null;
   }
 }
@@ -109,7 +110,7 @@ async function getUpdates(token: string, offset: number): Promise<TelegramUpdate
     }
     return [];
   } catch (err) {
-    console.error('[MultiBotManager] getUpdates error:', err);
+    logger.error('[MultiBotManager] getUpdates error:', err);
     return [];
   }
 }
@@ -140,7 +141,7 @@ async function sendMessage(
     const data = await response.json() as { ok: boolean };
     return data.ok;
   } catch (err) {
-    console.error('[MultiBotManager] sendMessage error:', err);
+    logger.error('[MultiBotManager] sendMessage error:', err);
     return false;
   }
 }
@@ -167,7 +168,7 @@ function injectToTmuxSession(sessionName: string, text: string): boolean {
     execSync(cmd, { timeout: 15000 });
     return true;
   } catch (err) {
-    console.error(`[MultiBotManager] Failed to inject into ${sessionName}:`, err);
+    logger.error(`[MultiBotManager] Failed to inject into ${sessionName}:`, err);
     return false;
   }
 }
@@ -186,12 +187,12 @@ async function handleMessage(bot: BotInstance, update: TelegramUpdate): Promise<
 
   // Check if user is allowed
   if (configData && !configData.allowed_users.includes(userId)) {
-    console.log(`[MultiBotManager] Unauthorized user ${userId} (${username}) on ${bot.config.terminal}`);
+    logger.info(`[MultiBotManager] Unauthorized user ${userId} (${username}) on ${bot.config.terminal}`);
     await sendMessage(bot.config.token, chatId, '❌ Nincs jogosultságod ehhez a bothoz.');
     return;
   }
 
-  console.log(`[MultiBotManager] ${bot.config.terminal} received from @${username}: ${text.substring(0, 50)}...`);
+  logger.info(`[MultiBotManager] ${bot.config.terminal} received from @${username}: ${text.substring(0, 50)}...`);
 
   const terminal = bot.config.terminal;
   const chatSessionName = `spaceos-${terminal}-chat`;
@@ -215,16 +216,16 @@ async function handleMessage(bot: BotInstance, update: TelegramUpdate): Promise<
       content: text,
     });
 
-    console.log(`[MultiBotManager] Saved message to conversation ${conversationId}`);
+    logger.info(`[MultiBotManager] Saved message to conversation ${conversationId}`);
   } catch (err) {
-    console.error(`[MultiBotManager] Failed to save message to DB:`, err);
+    logger.error(`[MultiBotManager] Failed to save message to DB:`, err);
     // Continue anyway - injection can still work
     conversationId = 0;
   }
 
   // Start chat session if not running
   if (!sessionExists(chatSessionName)) {
-    console.log(`[MultiBotManager] Starting chat session for ${terminal}...`);
+    logger.info(`[MultiBotManager] Starting chat session for ${terminal}...`);
 
     await sendMessage(bot.config.token, chatId, `⏳ Chat session indítása...`);
 
@@ -272,7 +273,7 @@ async function pollBot(botName: string): Promise<void> {
       await handleMessage(bot, update);
     }
   } catch (err) {
-    console.error(`[MultiBotManager] Poll error for ${botName}:`, err);
+    logger.error(`[MultiBotManager] Poll error for ${botName}:`, err);
   }
 }
 
@@ -311,7 +312,7 @@ export async function startBot(terminalName: string): Promise<{ success: boolean
   bot.pollInterval = setInterval(() => pollBot(terminalName), POLL_INTERVAL);
   activeBots.set(terminalName, bot);
 
-  console.log(`[MultiBotManager] ✓ Started bot @${config.username} for ${terminalName}`);
+  logger.info(`[MultiBotManager] ✓ Started bot @${config.username} for ${terminalName}`);
   return { success: true, message: `Bot @${config.username} started` };
 }
 
@@ -326,7 +327,7 @@ export function stopBot(terminalName: string): void {
       clearInterval(bot.pollInterval);
     }
     activeBots.delete(terminalName);
-    console.log(`[MultiBotManager] Stopped bot for ${terminalName}`);
+    logger.info(`[MultiBotManager] Stopped bot for ${terminalName}`);
   }
 }
 
@@ -336,21 +337,21 @@ export function stopBot(terminalName: string): void {
 export async function startAllBots(): Promise<void> {
   const config = loadBotsConfig();
   if (!config) {
-    console.error('[MultiBotManager] No config loaded, cannot start bots');
+    logger.error('[MultiBotManager] No config loaded, cannot start bots');
     return;
   }
 
-  console.log(`[MultiBotManager] Starting ${Object.keys(config.bots).length} bots...`);
+  logger.info(`[MultiBotManager] Starting ${Object.keys(config.bots).length} bots...`);
 
   for (const terminalName of Object.keys(config.bots)) {
     const result = await startBot(terminalName);
-    console.log(`[MultiBotManager] ${terminalName}: ${result.message}`);
+    logger.info(`[MultiBotManager] ${terminalName}: ${result.message}`);
 
     // Small delay between bot starts to avoid rate limits
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
-  console.log('[MultiBotManager] All bots started');
+  logger.info('[MultiBotManager] All bots started');
 }
 
 /**
@@ -360,7 +361,7 @@ export function stopAllBots(): void {
   for (const terminalName of activeBots.keys()) {
     stopBot(terminalName);
   }
-  console.log('[MultiBotManager] All bots stopped');
+  logger.info('[MultiBotManager] All bots stopped');
 }
 
 /**
@@ -393,7 +394,7 @@ export async function sendFromTerminal(
 ): Promise<boolean> {
   const bot = activeBots.get(terminal);
   if (!bot) {
-    console.error(`[MultiBotManager] No active bot for ${terminal}`);
+    logger.error(`[MultiBotManager] No active bot for ${terminal}`);
     return false;
   }
 

@@ -18,6 +18,7 @@ import {
   type ModelType,
 } from './messageRegistry';
 import { emitOutboxEvent } from './pipeline/eventBus';
+import { logger } from './core/logger';
 
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 // New terminal structure (2026-06-21)
@@ -133,7 +134,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
         createdAt: frontmatter.created || new Date().toISOString().split('T')[0],
       });
     } catch (err) {
-      console.error(`[InboxWatcher] Failed to register message ${messageId}:`, err);
+      logger.error(`[InboxWatcher] Failed to register message ${messageId}:`, err);
     }
   } else if (eventType === 'change') {
     // Update status if it changed
@@ -145,7 +146,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
         'File changed'
       );
     } catch (err) {
-      console.error(`[InboxWatcher] Failed to update message ${messageId}:`, err);
+      logger.error(`[InboxWatcher] Failed to update message ${messageId}:`, err);
     }
   }
 
@@ -155,7 +156,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
       frontmatter.status === 'COMPLETED' ||
       frontmatter.status === 'INJECTED' ||
       frontmatter.injected) {
-    console.log(`[InboxWatcher] Skipping ${messageId} - already processed (status=${frontmatter.status}, injected=${frontmatter.injected})`);
+    logger.info(`[InboxWatcher] Skipping ${messageId} - already processed (status=${frontmatter.status}, injected=${frontmatter.injected})`);
     return;
   }
 
@@ -169,7 +170,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
 
   if (messageAge > MAX_AGE_DAYS * 24 * 60 * 60 * 1000) {
     const ageDays = Math.round(messageAge / (24 * 60 * 60 * 1000));
-    console.log(`[InboxWatcher] Skipping old message ${messageId} (${ageDays}d old, threshold=${MAX_AGE_DAYS}d)`);
+    logger.info(`[InboxWatcher] Skipping old message ${messageId} (${ageDays}d old, threshold=${MAX_AGE_DAYS}d)`);
     return;
   }
 
@@ -177,7 +178,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
   // If DONE outbox exists, message is already completed - don't trigger
   const isDone = await hasDoneOutbox(terminal, messageId);
   if (isDone) {
-    console.log(`[InboxWatcher] Skipping ${messageId} - DONE outbox exists`);
+    logger.info(`[InboxWatcher] Skipping ${messageId} - DONE outbox exists`);
     return;
   }
 
@@ -192,7 +193,7 @@ async function handleInboxChange(filePath: string, eventType: 'add' | 'change'):
     timestamp: new Date().toISOString(),
   };
 
-  console.log(`[InboxWatcher] ${event.type}: ${terminal} <- ${event.messageId} (${event.priority || 'normal'})`);
+  logger.info(`[InboxWatcher] ${event.type}: ${terminal} <- ${event.messageId} (${event.priority || 'normal'})`);
   inboxEvents.emit('inbox_change', event);
 }
 
@@ -251,7 +252,7 @@ async function handleOutboxChange(filePath: string, eventType: 'add' | 'change')
         createdAt: frontmatter.created || new Date().toISOString().split('T')[0],
       });
 
-      console.log(`[InboxWatcher] Outbox registered: ${terminal} -> ${messageId}`);
+      logger.info(`[InboxWatcher] Outbox registered: ${terminal} -> ${messageId}`);
 
       // ADR-053: Emit event to trigger subscriptions
       // Use 'ref' field as the original task ID for subscription matching
@@ -275,7 +276,7 @@ async function handleOutboxChange(filePath: string, eventType: 'add' | 'change')
               if (inboxFm?.id === frontmatter.ref) {
                 epicId = inboxFm.epic_id;
                 checkpointId = inboxFm.checkpoint_id;
-                console.log(`[InboxWatcher] Found epic context from inbox: epic=${epicId}, cp=${checkpointId}`);
+                logger.info(`[InboxWatcher] Found epic context from inbox: epic=${epicId}, cp=${checkpointId}`);
                 break;
               }
             }
@@ -294,7 +295,7 @@ async function handleOutboxChange(filePath: string, eventType: 'add' | 'change')
           epicId,
           checkpointId,
         });
-        console.log(`[InboxWatcher] Emitted outbox:done event for ${refTaskId} (outbox: ${messageId})${epicId ? ` [epic: ${epicId}, cp: ${checkpointId}]` : ''}`);
+        logger.info(`[InboxWatcher] Emitted outbox:done event for ${refTaskId} (outbox: ${messageId})${epicId ? ` [epic: ${epicId}, cp: ${checkpointId}]` : ''}`);
       } else if (messageType === 'blocked') {
         emitOutboxEvent('outbox:blocked', terminal, refTaskId, {
           filePath,
@@ -304,16 +305,16 @@ async function handleOutboxChange(filePath: string, eventType: 'add' | 'change')
           epicId,
           checkpointId,
         });
-        console.log(`[InboxWatcher] Emitted outbox:blocked event for ${refTaskId} (outbox: ${messageId})${epicId ? ` [epic: ${epicId}, cp: ${checkpointId}]` : ''}`);
+        logger.info(`[InboxWatcher] Emitted outbox:blocked event for ${refTaskId} (outbox: ${messageId})${epicId ? ` [epic: ${epicId}, cp: ${checkpointId}]` : ''}`);
       }
     } catch (err) {
-      console.error(`[InboxWatcher] Failed to register outbox ${messageId}:`, err);
+      logger.error(`[InboxWatcher] Failed to register outbox ${messageId}:`, err);
     }
   } else if (eventType === 'change') {
     try {
       await updateStatus(messageId, frontmatter.status as MessageStatus, 'filesystem', 'File changed');
     } catch (err) {
-      console.error(`[InboxWatcher] Failed to update outbox ${messageId}:`, err);
+      logger.error(`[InboxWatcher] Failed to update outbox ${messageId}:`, err);
     }
   }
 }
@@ -325,8 +326,8 @@ export function startInboxWatcher(): FSWatcher {
   // Use native fs events (inotify) on Linux - much more efficient than polling
   const useNativeEvents = process.platform === 'linux';
 
-  console.log(`[InboxWatcher] Starting recursive watch on: ${TERMINALS_PATH}`);
-  console.log(`[InboxWatcher] Using ${useNativeEvents ? 'native inotify' : 'polling'} mode`);
+  logger.info(`[InboxWatcher] Starting recursive watch on: ${TERMINALS_PATH}`);
+  logger.info(`[InboxWatcher] Using ${useNativeEvents ? 'native inotify' : 'polling'} mode`);
 
   const watcher = watch(TERMINALS_PATH, {
     persistent: true,
@@ -361,10 +362,10 @@ export function startInboxWatcher(): FSWatcher {
 
   watcher.on('add', (filePath: string) => {
     if (filePath.includes('/inbox/') && filePath.endsWith('.md')) {
-      console.log(`[InboxWatcher] Inbox file detected: ${filePath}`);
+      logger.info(`[InboxWatcher] Inbox file detected: ${filePath}`);
       handleInboxChange(filePath, 'add');
     } else if (filePath.includes('/outbox/') && filePath.endsWith('.md')) {
-      console.log(`[InboxWatcher] Outbox file detected: ${filePath}`);
+      logger.info(`[InboxWatcher] Outbox file detected: ${filePath}`);
       handleOutboxChange(filePath, 'add');
     }
   });
@@ -378,11 +379,11 @@ export function startInboxWatcher(): FSWatcher {
   });
 
   watcher.on('error', (error: unknown) => {
-    console.error('[InboxWatcher] Error:', error);
+    logger.error('[InboxWatcher] Error:', error);
   });
 
   watcher.on('ready', () => {
-    console.log('[InboxWatcher] Ready and watching for inbox/outbox changes');
+    logger.info('[InboxWatcher] Ready and watching for inbox/outbox changes');
   });
 
   return watcher;
@@ -390,9 +391,9 @@ export function startInboxWatcher(): FSWatcher {
 
 // Sync registry with filesystem on startup
 export async function initializeRegistry(): Promise<void> {
-  console.log('[InboxWatcher] Initializing message registry...');
+  logger.info('[InboxWatcher] Initializing message registry...');
   const result = await syncWithFilesystem();
-  console.log(`[InboxWatcher] Registry sync complete: ${result.registered} registered, ${result.updated} updated`);
+  logger.info(`[InboxWatcher] Registry sync complete: ${result.registered} registered, ${result.updated} updated`);
 }
 
 // Scan for existing UNREAD messages (call on startup if needed)
@@ -435,7 +436,7 @@ export async function scanExistingUnread(): Promise<InboxEvent[]> {
       }
     }
   } catch (error) {
-    console.error('[InboxWatcher] Error scanning existing:', error);
+    logger.error('[InboxWatcher] Error scanning existing:', error);
   }
 
   return events;

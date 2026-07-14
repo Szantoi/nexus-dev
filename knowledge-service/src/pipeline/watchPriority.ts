@@ -11,6 +11,7 @@ import {
   log,
 } from './common';
 import { startTerminalSession } from '../sessionStarter';
+import { logger } from '../core/logger';
 
 export async function watchPriority(): Promise<{ checked: number; started: string[] }> {
   const started: string[] = [];
@@ -52,7 +53,7 @@ export async function watchPriority(): Promise<{ checked: number; started: strin
 // Run standalone
 if (require.main === module) {
   watchPriority().then(result => {
-    console.log(`[watchPriority] Checked: ${result.checked}, Started: ${result.started.length}`);
-    result.started.forEach(s => console.log(`  - ${s}`));
+    logger.info(`[watchPriority] Checked: ${result.checked}, Started: ${result.started.length}`);
+    result.started.forEach(s => logger.info(`  - ${s}`));
   });
 }
