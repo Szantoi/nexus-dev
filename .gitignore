@@ -12,3 +12,6 @@ logs/
 **/terminals/*/inbox/
 **/terminals/*/outbox/
 **/terminals/*/archive/
+
+# Local tool/test output logs at repo root
+/*.log
