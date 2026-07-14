@@ -1,0 +1,59 @@
+# setup-lessons.yaml — Rendszer-beüzemelési tapasztalatok (Nexus szigetek, Windows lokál)
+# Írta: Claude (root terminál), 2026-07-14. Élő dokumentum: minden beüzemelés után bővítendő.
+# Formátum: gépi feldolgozásra tervezve (QUALITY.md 2. pont), kategóriánként lesson-lista.
+
+version: "1.0"
+updated: "2026-07-14"
+scope: "nexus-core dist alapú knowledge-service szigetek lokális (Windows) beüzemelése"
+
+lessons:
+
+  port_kiosztas:
+    - id: PORT-1
+      lesson: "A 3456/3457 (és a 345x környék) lokálisan NEM megbízható: a VS Code Remote-SSH auto-forwardja a VPS-re árnyékolja a lokális listenert — a localhost:3456 a VPS-t éri el, nem a helyi szervert."
+      diagnozis: "netstat -ano | grep :PORT — ha 127.0.0.1-en Code.exe a listener, az a VPS forwardja."
+      megoldas: "Lokális szigetek az 1345x tartományban futnak: CAD=13457, Doorstar=13458. Nexus-dev: 3466."
+    - id: PORT-2
+      lesson: "A /health válasz JSON-ja megmondja, KI válaszolt (knowledgePath, collectionName, port) — port-zavarnál ez a leggyorsabb azonosítás (pl. linuxos /opt/... út = VPS válaszolt)."
+
+  tobbpeldanyos_minta:
+    - id: INST-1
+      lesson: "Kód = közös (nexus-core dist), példány = .env profil (ISLAND_ID, PORT, COLLECTION_NAME, DATA_DIR, KNOWLEDGE_BASE_PATH, TERMINALS_PATH). Egy dist akárhány szigetet kiszolgál."
+    - id: INST-2
+      lesson: "Két processz SOSEM osztozhat DATA_DIR-en (SQLite WAL write-lock ütközés). Minden példánynak saját data/ jár."
+    - id: INST-3
+      lesson: "Mindig a kanonikus indítóból indíts (start-<sziget>.ps1 / fleet.sh up) — régi repó-másolatból (pl. knowledge-service-0.0.01) indítva rossz példány jön létre rossz adatokkal."
+    - id: INST-4
+      lesson: "A TERMINALS_PATH alapértéke RELATÍV — ha a .env nem állítja be, a szerver rossz helyre (pl. src/terminals/) generál mailboxokat. Explicit abszolút út kötelező."
+
+  inditas_es_ellenorzes:
+    - id: BOOT-1
+      lesson: "Az indulás 15-30 mp (Xenova all-MiniLM-L6-v2 embedding-modell betöltés) — a health-check várjon retry-jal, ne ítélj az első sikertelen curl-ből."
+    - id: BOOT-2
+      lesson: "Előfeltételek: nexus-core dist megléte (npm run build a knowledge-service-ben) + ChromaDB a 8001-en (docker compose; a 8000 helyett 8001, postgres/pgadmin ütközés-kerülés)."
+    - id: BOOT-3
+      lesson: "Beüzemelés 'kész' = földelt bizonyíték: /health OK + auth-os API hívás (Bearer token) sikeres. Nem elég, hogy a processz elindult."
+
+  migracio:
+    - id: MIG-1
+      lesson: "Sziget átköltöztetése saját repóba (recept, Doorstar 2026-07-14): 1) .env profil az új helyen (.env.example commitolva, .env gitignore-olva), 2) data/ könyvtár ÁTMÁSOLÁSA (a tokenek/üzenetek/task-állapot a DB-kben él!), 3) régi processz stop, 4) indítás új cwd-ből, 5) health + auth ellenőrzés, 6) régi indítók átkötése delegáló stubbal, hogy semmi ne törjön."
+    - id: MIG-2
+      lesson: "ISLAND_ID-t NE nevezz át migrációkor — a meglévő DB-állapot kötődhet hozzá. Kozmetika < stabilitás."
+    - id: MIG-3
+      lesson: "COLLECTION_NAME megtartásával a Chroma RAG-tartalom (indexelt dokumentumok) migráció után is él; a KNOWLEDGE_BASE_PATH átállítása után reindex kellhet, ha az új forrás eltér."
+
+  git_higienia:
+    - id: GIT-1
+      lesson: "Mailbox-forgalom (inbox/outbox/archive) gitignore-mintája MINDIG **/terminals/*/... legyen (bármely mélység) — a gyökérre horgonyzott minta nem fogja meg a félrekonfigurált futások szemetjét (src/terminals/ incidens)."
+    - id: GIT-2
+      lesson: "Runtime fájlok (data/*.db, *.db-shm/-wal, logok, .env, tokenek) sosem mennek gitre. A .env.example a commitolható minta."
+    - id: GIT-3
+      lesson: "Repó-szerepek szétválasztása: nexus-dev = fejlesztő műhely (dev port, integrációk KI), nexus-core = tiszta release repó (csak struktúra/helyfoglaló). Prod (3456) csak deploy-nál változik."
+
+  flotta_struktura:
+    - id: FLEET-1
+      lesson: "Minden Nexus-kezelt repóban kötelező a 3 fő terminál: root (stratégia), monitor (health/eszkaláció), conductor (diszpécser). Terminál = terminals/<név>/ + CLAUDE.md + inbox/outbox/archive."
+    - id: FLEET-2
+      lesson: "A minőségi elvárások (QUALITY.md a repó-gyökérben) három rétegben érik el az agenteket: QUALITY.md (teljes szöveg) + CLAUDE.md link (session-indításkor betölt) + wake-prompt mondat (szerver-ébresztésnél)."
+    - id: FLEET-3
+      lesson: "A wake-prompt externalizált (prompts/wake.txt) és minden ébresztéskor frissen olvasódik — módosítása azonnal él, szerver-újraindítás nélkül."
