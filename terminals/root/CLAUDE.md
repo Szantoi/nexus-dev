@@ -16,6 +16,12 @@
 - DEV: port **3466**, Telegram/Nightwatch/Inbox-watcher **KI**
 - PROD: port 3456 — CSAK deploy-nál változik, innen sosem piszkáljuk közvetlenül
 
+## MUNKAFÁJLOK (kötelező használni!)
+
+- **`state.md`** — aktuális munkaállapot. Session elején elolvasni, minden nagyobb lépés után frissíteni.
+- **`todo.md`** — teendők nyilvántartása. Új feladat ide kerül, kész feladat pipát + dátumot kap.
+- **`MEMORY.md`** — hosszú távú tanulságok, audit-eredmények, döntések.
+
 ## MAILBOX FLOW
 
 - Bejövő feladatok: `inbox/` — feldolgozás után `archive/`-ba
