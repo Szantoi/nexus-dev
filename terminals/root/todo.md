@@ -21,6 +21,13 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [ ] Két `memoryStore.ts` (root vs pipeline) egyeztetése/átnevezése
 - [ ] `DomainError`-hierarchia kiterjesztése (72 nyers `throw new Error` cseréje)
 
+### VPS-deploy + lokális ébresztés (terv 2026-07-15, Gábor igénye: lokális wake + erős biztonság)
+- [ ] Tailscale a VPS és a lokális gépek közé; knowledge-service csak tailnet-interfészen figyeljen (publikus port zárva)
+- [ ] Auth: eszközönkénti bearer-token az MCP/HTTP rétegben — terminál-identitás a tokenből, NE önbevallásból (ToolContext.terminal); token-visszavonás + dispatch audit-log
+- [ ] Lokális runner (inbox-watcher lokális párja): kifelé irányuló poll a VPS dispatch-sorára, helyi Claude Code session-indítás, ZÁRT parancskészlet (csak whitelistelt terminál + hivatkozott MSG-feladat, soha nyers shell)
+- [ ] Runner Windows-támogatás: session-indítás tmux nélkül (közvetlen processz / Windows Terminal)
+- [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
+
 ### Kisebb tételek
 - [ ] 159 `any` fokozatos csökkentése (Biome noExplicitAny warn → error ratchet)
 - [ ] Biome warn-ra vett szabályok ratchetelése (noAssignInExpressions, noControlCharactersInRegex, useIterableCallbackReturn)
