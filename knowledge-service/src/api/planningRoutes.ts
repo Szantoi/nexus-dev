@@ -130,8 +130,8 @@ function sanitizeCriteria(criteria: string): string {
 // ─── File Operations ─────────────────────────────────────────────────────────
 
 function getDomainFocusPath(): string {
-  // Navigate from knowledge-service/ to docs/planning/
-  return path.join(process.cwd(), '../../docs/planning/domain-focus.md');
+  // Navigate from knowledge-service/ to docs/planning/ (override via env for tests/deployments)
+  return process.env.PLANNING_FOCUS_PATH || path.join(process.cwd(), '../../docs/planning/domain-focus.md');
 }
 
 interface FocusData {

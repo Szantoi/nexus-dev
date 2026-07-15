@@ -5,7 +5,7 @@
  * Target coverage: >90%
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import {
   resolveDependencies,
   isTaskBlocked,
@@ -13,6 +13,18 @@ import {
   validateDependencyGraph,
   getReadyTasks,
 } from '../../pipeline/dependencyResolver';
+import { setupEpicsFixture, teardownEpicsFixture } from '../helpers/epicsFixture';
+
+let fixturePath: string;
+
+beforeAll(() => {
+  // dependencyResolver reads EPICS_PATH lazily → hermetic temp fixture
+  fixturePath = setupEpicsFixture('dependency-resolver-test');
+});
+
+afterAll(() => {
+  teardownEpicsFixture(fixturePath);
+});
 
 describe('Dependency Resolver', () => {
   beforeEach(() => {

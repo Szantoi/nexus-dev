@@ -4,61 +4,60 @@
  * Tests the PUT /api/graph/epics/:id endpoint with real EPICS.yaml file operations
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
+import * as yaml from 'js-yaml';
+
+// graphRoutes reads EPICS_PATH at module scope → set env BEFORE the import runs
+const TEST_EPICS_PATH = vi.hoisted(() => {
+  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
+  const p = `${base.replace(/[\\/]+$/, '')}/graph-routes-test-${process.pid}-EPICS.yaml`;
+  process.env.EPICS_PATH = p;
+  return p;
+});
+
 import graphRoutes from '../../api/graphRoutes';
 import type { EpicsYaml } from '../../graph/types';
-
-// Test EPICS.yaml path
-const TEST_EPICS_PATH = path.join(process.cwd(), 'test-EPICS.yaml');
-
-// Backup for restoration
-let originalEpicsContent: string | null = null;
 
 // Express app for testing
 let app: express.Express;
 
 beforeAll(async () => {
-  // Backup production EPICS.yaml if it exists
-  const prodPath = '/opt/spaceos/docs/projects/EPICS.yaml';
-  try {
-    originalEpicsContent = await fs.readFile(prodPath, 'utf-8');
-  } catch {
-    originalEpicsContent = null;
-  }
-
   // Create test EPICS.yaml
   const testEpics: EpicsYaml = {
+    version: '1.0',
+    updated: '2026-07-14',
     epics: [
       {
         id: 'EPIC-TEST-A',
         name: 'Test Epic A',
+        project: 'test/project',
+        tasks_yaml: 'tasks/test-a.yaml',
         status: 'done',
         depends_on: [],
       },
       {
         id: 'EPIC-TEST-B',
         name: 'Test Epic B',
+        project: 'test/project',
+        tasks_yaml: 'tasks/test-b.yaml',
         status: 'active',
         depends_on: ['EPIC-TEST-A'],
       },
       {
         id: 'EPIC-TEST-C',
         name: 'Test Epic C',
+        project: 'test/project',
+        tasks_yaml: 'tasks/test-c.yaml',
         status: 'pending',
         depends_on: ['EPIC-TEST-B'],
       },
     ],
   };
 
-  const yaml = require('js-yaml');
   await fs.writeFile(TEST_EPICS_PATH, yaml.dump(testEpics), 'utf-8');
-
-  // Override SPACEOS_ROOT for tests
-  process.env.SPACEOS_ROOT = process.cwd();
 
   // Create Express app
   app = express();
@@ -71,12 +70,7 @@ afterAll(async () => {
   try {
     await fs.unlink(TEST_EPICS_PATH);
   } catch {}
-
-  // Restore production EPICS.yaml if it existed
-  if (originalEpicsContent !== null) {
-    const prodPath = '/opt/spaceos/docs/projects/EPICS.yaml';
-    await fs.writeFile(prodPath, originalEpicsContent, 'utf-8');
-  }
+  delete process.env.EPICS_PATH;
 });
 
 describe('PUT /api/graph/epics/:id', () => {
@@ -228,7 +222,6 @@ describe('PUT /api/graph/epics/:id', () => {
 
   describe('atomic writes', () => {
     it('should write changes to disk atomically', async () => {
-      const yaml = require('js-yaml');
 
       // Make a change
       await request(app)
@@ -283,7 +276,6 @@ describe('PUT /api/graph/epics/:id', () => {
       expect(res3.status).toBe(200);
 
       // Verify all updates persisted
-      const yaml = require('js-yaml');
       const content = await fs.readFile(TEST_EPICS_PATH, 'utf-8');
       const parsed = yaml.load(content) as EpicsYaml;
       const epic = parsed.epics.find(e => e.id === 'EPIC-TEST-C');

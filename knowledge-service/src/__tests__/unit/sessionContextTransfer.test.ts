@@ -5,13 +5,29 @@
  * Target coverage: >90%
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import {
   transferSessionContext,
   validateContextTransfer,
   getContextTemplates,
 } from '../../pipeline/sessionContextTransfer';
 import type { ContextTransferParams } from '../../pipeline/sessionContextTransfer';
+
+// Inbox messages are written under SPACEOS_ROOT (read at call time) → temp dir
+let testRoot: string;
+
+beforeAll(() => {
+  testRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'session-context-transfer-test-'));
+  process.env.SPACEOS_ROOT = testRoot;
+});
+
+afterAll(() => {
+  delete process.env.SPACEOS_ROOT;
+  fs.rmSync(testRoot, { recursive: true, force: true });
+});
 
 describe('Session Context Transfer', () => {
   beforeEach(() => {
@@ -32,7 +48,8 @@ describe('Session Context Transfer', () => {
       expect(result.success).toBe(true);
       expect(result.messageId).toBeDefined();
       expect(result.fileCount).toBe(0);
-      expect(result.transferredBytes).toBe(0);
+      // transferredBytes reflects the generated message content size
+      expect(result.transferredBytes).toBeGreaterThan(0);
     });
 
     it('should transfer code_audit context', async () => {

@@ -7,10 +7,21 @@
  * - Error handling and recovery
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
+
+// epicRouter opens its SQLite DB under DATA_DIR at import time → redirect to
+// a temp dir BEFORE the module graph loads (vi.hoisted runs first).
+const TEST_BASE_DIR = vi.hoisted(() => {
+  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
+  const root = `${base.replace(/[\\/]+$/, '')}/project-automation-test-${process.pid}`;
+  process.env.DATA_DIR = `${root}/data`;
+  return root;
+});
+
 import {
   handleCreateProject,
   CreateProjectArgs,
@@ -24,10 +35,27 @@ import {
   Task,
 } from '../pipeline/projectDispatcher';
 import { validateTaskChain } from '../pipeline/projectMatcher';
+import { createProject as registerRouterProject, createEpic as registerRouterEpic, setTerminalContext } from '../pipeline/epicRouter';
 
 // Test fixtures
-const TEST_PROJECTS_DIR = '/tmp/test-projects-integration';
-const TEST_TERMINALS_DIR = '/tmp/test-terminals-integration';
+const TEST_PROJECTS_DIR = `${TEST_BASE_DIR}/test-projects-integration`;
+const TEST_TERMINALS_DIR = `${TEST_BASE_DIR}/test-terminals-integration`;
+
+/**
+ * Register project + implicit "project-<slug>" epic in the epic-router DB so
+ * dispatchTask's terminal-context upsert satisfies its FK constraints
+ * (production populates these via syncFromEpicsYaml).
+ */
+function registerProjectInRouter(slug: string): void {
+  registerRouterProject({ id: slug, name: slug, status: 'active' });
+  registerRouterEpic({
+    id: `project-${slug}`,
+    project_id: slug,
+    name: `Project ${slug}`,
+    status: 'active',
+    priority: 2,
+  });
+}
 
 describe('Project Automation Integration', () => {
   let dispatcher: ProjectDispatcher;
@@ -63,6 +91,15 @@ describe('Project Automation Integration', () => {
     await fs.rm(TEST_TERMINALS_DIR, { recursive: true, force: true });
   });
 
+  afterAll(async () => {
+    // Best-effort: the epic-router SQLite DB under TEST_BASE_DIR/data may still be open
+    try {
+      await fs.rm(TEST_BASE_DIR, { recursive: true, force: true });
+    } catch {
+      // ignore — temp dir, OS cleans up
+    }
+  });
+
   describe('End-to-End Project Flow', () => {
     it('should create project and dispatch initial task', async () => {
       // Override env for project creation
@@ -82,6 +119,7 @@ describe('Project Automation Integration', () => {
 
       const createResult = await handleCreateProject(createArgs);
       expect(createResult.success).toBe(true);
+      registerProjectInRouter('e2e-test');
 
       // Step 2: Add tasks to TASKS.yaml
       const tasksPath = path.join(TEST_PROJECTS_DIR, 'e2e-test', 'TASKS.yaml');
@@ -189,6 +227,7 @@ Backend setup completed.
       };
 
       await handleCreateProject(createArgs);
+      registerProjectInRouter('milestone-test');
 
       const tasksPath = path.join(TEST_PROJECTS_DIR, 'milestone-test', 'TASKS.yaml');
       const tasks = yaml.load(await fs.readFile(tasksPath, 'utf-8')) as TaskChain;
@@ -330,6 +369,13 @@ Backend setup completed.
         };
 
         await handleCreateProject(createArgs);
+        registerProjectInRouter('concurrent-test');
+
+        // Earlier tests leave terminals 'working' in the shared epic-router DB,
+        // which would queue instead of dispatch — reset them to idle.
+        for (const t of ['backend', 'frontend', 'conductor']) {
+          setTerminalContext(t, null, null, null, 'idle', 0);
+        }
 
         const tasksPath = path.join(TEST_PROJECTS_DIR, 'concurrent-test', 'TASKS.yaml');
         const tasks = yaml.load(await fs.readFile(tasksPath, 'utf-8')) as TaskChain;

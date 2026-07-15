@@ -43,7 +43,7 @@ function loadEpics(): Record<string, EpicYaml> {
   }
 
   try {
-    const epicsPath = path.join(__dirname, '../../..', 'docs', 'projects', 'EPICS.yaml');
+    const epicsPath = process.env.EPICS_PATH || path.join(__dirname, '../../..', 'docs', 'projects', 'EPICS.yaml');
     const content = fs.readFileSync(epicsPath, 'utf-8');
     const doc = yaml.load(content) as { epics: EpicYaml[] };
     epicsCache = {};

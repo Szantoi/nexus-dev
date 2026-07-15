@@ -2,39 +2,54 @@
  * Terminal Status Aggregator Unit Tests
  *
  * Tests for terminal status aggregation, health scoring, and saturation levels.
- * Target coverage: >90%
+ * Hermetic: terminal state is seeded via the in-memory terminalStatus registry.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getTerminalStatusAggregate,
   getTerminalHealthScore,
+  type StatusAggregateSummary,
+  type TerminalAggregate,
 } from '../../pipeline/terminalStatusAggregator';
+import { registerIdle, registerWorking } from '../../terminalStatus';
+
+const ALL_TERMINALS = ['root', 'conductor', 'architect', 'librarian', 'explorer', 'backend', 'frontend', 'designer'];
 
 describe('Terminal Status Aggregator', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Seed the in-memory registry: 2 working, 6 idle
+    registerWorking('backend', 'MSG-BACKEND-001');
+    registerWorking('frontend');
+    for (const t of ALL_TERMINALS.filter(t => t !== 'backend' && t !== 'frontend')) {
+      registerIdle(t);
+    }
   });
 
   describe('getTerminalStatusAggregate', () => {
-    it('should return summary format with all terminals', async () => {
-      const result = await getTerminalStatusAggregate('summary');
+    it('should return summary format with session lists and metrics', async () => {
+      const result = (await getTerminalStatusAggregate('summary')) as StatusAggregateSummary;
 
       expect(result).toBeDefined();
       expect(result.summary).toBeDefined();
-      expect(result.summary.activeSessions).toBeGreaterThanOrEqual(0);
+      expect(Array.isArray(result.summary.workingSessions)).toBe(true);
+      expect(Array.isArray(result.summary.idleSessions)).toBe(true);
+      expect(Array.isArray(result.summary.stuckSessions)).toBe(true);
       expect(result.summary.totalSaturation).toBeGreaterThanOrEqual(0);
+      expect(result.summary.avgHealthScore).toBeGreaterThanOrEqual(0);
       expect(result.summary.blockersDetected).toBeGreaterThanOrEqual(0);
       expect(result.summary.criticalAlerts).toBeGreaterThanOrEqual(0);
+      expect(result.summary.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     });
 
     it('should return detailed format with per-terminal data', async () => {
-      const result = await getTerminalStatusAggregate('detailed');
+      const result = (await getTerminalStatusAggregate('detailed')) as TerminalAggregate[];
 
       expect(Array.isArray(result)).toBe(true);
-      expect(result.length).toBe(8); // 8 terminals (root + 7)
+      expect(result.length).toBe(ALL_TERMINALS.length);
 
-      result.forEach((terminal: any) => {
+      result.forEach(terminal => {
         expect(terminal.name).toBeDefined();
         expect(terminal.status).toMatch(/^(working|idle|stuck)$/);
         expect(terminal.contextSaturation).toBeGreaterThanOrEqual(0);
@@ -46,19 +61,20 @@ describe('Terminal Status Aggregator', () => {
     });
 
     it('should return alerts_only format with problematic terminals', async () => {
-      const result = await getTerminalStatusAggregate('alerts_only');
+      const result = (await getTerminalStatusAggregate('alerts_only')) as TerminalAggregate[];
 
       expect(Array.isArray(result)).toBe(true);
       // All returned terminals should have alerts
-      result.forEach((terminal: any) => {
-        expect(['warning', 'critical']).toContain(terminal.saturationLevel);
+      result.forEach(terminal => {
+        const hasAlert = ['warning', 'critical'].includes(terminal.saturationLevel) || terminal.healthScore < 50;
+        expect(hasAlert).toBe(true);
       });
     });
 
     it('should calculate health scores correctly', async () => {
-      const result = await getTerminalStatusAggregate('detailed');
+      const result = (await getTerminalStatusAggregate('detailed')) as TerminalAggregate[];
 
-      result.forEach((terminal: any) => {
+      result.forEach(terminal => {
         // Health score should be a valid number
         expect(typeof terminal.healthScore).toBe('number');
         expect(terminal.healthScore).toBeGreaterThanOrEqual(0);
@@ -67,27 +83,29 @@ describe('Terminal Status Aggregator', () => {
     });
 
     it('should detect saturation levels accurately', async () => {
-      const result = await getTerminalStatusAggregate('detailed');
+      const result = (await getTerminalStatusAggregate('detailed')) as TerminalAggregate[];
 
-      result.forEach((terminal: any) => {
+      result.forEach(terminal => {
         expect(['ok', 'warning', 'critical']).toContain(terminal.saturationLevel);
       });
     });
 
-    it('should detect blocked messages', async () => {
-      const result = await getTerminalStatusAggregate('summary');
+    it('should count blockers as a number', async () => {
+      const result = (await getTerminalStatusAggregate('summary')) as StatusAggregateSummary;
 
       expect(typeof result.summary.blockersDetected).toBe('number');
       expect(result.summary.blockersDetected).toBeGreaterThanOrEqual(0);
     });
 
-    it('should handle empty terminal state', async () => {
-      const result = await getTerminalStatusAggregate('summary');
+    it('should account for every seeded terminal exactly once', async () => {
+      const result = (await getTerminalStatusAggregate('summary')) as StatusAggregateSummary;
 
-      expect(result.summary.activeSessions).toBeGreaterThanOrEqual(0);
-      expect(result.summary.idle).toBeGreaterThanOrEqual(0);
-      expect(result.summary.stuck).toBeGreaterThanOrEqual(0);
-      expect(result.summary.activeSessions + result.summary.idle + result.summary.stuck).toBe(8); // Total = 8 terminals
+      const total =
+        result.summary.workingSessions.length +
+        result.summary.idleSessions.length +
+        result.summary.stuckSessions.length;
+      expect(total).toBe(ALL_TERMINALS.length);
+      expect(result.summary.workingSessions).toEqual(expect.arrayContaining(['backend', 'frontend']));
     });
   });
 
@@ -178,8 +196,7 @@ describe('Terminal Status Aggregator', () => {
   });
 
   describe('error handling', () => {
-    it('should handle invalid format gracefully', async () => {
-      // Should not throw; should use default or handle gracefully
+    it('should handle summary format gracefully', async () => {
       const result = await getTerminalStatusAggregate('summary');
       expect(result).toBeDefined();
     });

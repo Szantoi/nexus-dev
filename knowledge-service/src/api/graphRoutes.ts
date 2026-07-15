@@ -24,7 +24,7 @@ import {
 
 // SPACEOS root path for file access
 const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const EPICS_YAML_PATH = path.join(SPACEOS_ROOT, 'docs/projects/EPICS.yaml');
+const EPICS_YAML_PATH = process.env.EPICS_PATH || path.join(SPACEOS_ROOT, 'docs/projects/EPICS.yaml');
 import {
   generateMermaid,
   findCriticalPath,

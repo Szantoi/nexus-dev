@@ -1,28 +1,44 @@
 /**
  * Integration Test: Mode #4 Program-Awareness (ADR-053)
  * Tests end-to-end workflow for Conductor operating in structured program mode
+ *
+ * Hermetic: modules read EPICS_PATH / SPACEOS_ROOT / TERMINALS_PATH at module
+ * scope, so we point them at a temp directory BEFORE importing (vi.hoisted).
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
-import {
-  detectOperationMode,
-  getModeDescription,
-} from '../../conductor/modeDetection';
-import {
-  loadActiveEpic,
-  getNextPendingCheckpoint,
-  getEpicProgress,
-  allCheckpointsComplete,
-} from '../../conductor/epicManager';
+const TEST_ROOT = vi.hoisted(() => {
+  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
+  const root = `${base.replace(/[\\/]+$/, '')}/mode4-test-${process.pid}`;
+  process.env.SPACEOS_ROOT = root;
+  process.env.TERMINALS_PATH = `${root}/terminals`;
+  process.env.EPICS_PATH = `${root}/EPICS.yaml`;
+  delete process.env.SPACEOS_MODE;
+  return root;
+});
+
+import { detectOperationMode, getModeDescription } from '../../conductor/modeDetection';
+import { loadActiveEpic, getNextCheckpoint, getEpicProgress } from '../../conductor/epicManager';
 import { checkCheckpointCompletion } from '../../conductor/checkpointTracker';
+
+const EPICS_PATH = path.join(TEST_ROOT, 'EPICS.yaml');
+
+function writeEpicsYaml(data: unknown): void {
+  fs.mkdirSync(TEST_ROOT, { recursive: true });
+  fs.writeFileSync(EPICS_PATH, yaml.dump(data), 'utf-8');
+}
+
+afterAll(() => {
+  fs.rmSync(TEST_ROOT, { recursive: true, force: true });
+});
 
 describe('Mode #4: Structured Program Execution (Integration)', () => {
   /**
-   * Mock EPICS.yaml structure for testing
+   * EPICS.yaml fixture for testing
    * Simulates a real production epic with multiple checkpoints
    */
   const mockEpicsYaml = {
@@ -59,7 +75,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
             id: 'CP-JOINERY-TESTING',
             name: 'CRM E2E Testing Complete',
             status: 'pending',
-            condition: 'FILE:docs/projects/test-results.md contains:CRM E2E PASSED',
+            condition: 'MSG-BACKEND-110 status=DONE',
             trigger_to: ['conductor'],
           },
           {
@@ -76,22 +92,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
   };
 
   beforeEach(() => {
-    // Mock EPICS.yaml existence and content
-    vi.spyOn(fs, 'existsSync').mockImplementation((filePath: string) => {
-      if (filePath.includes('EPICS.yaml')) {
-        return true;
-      }
-      return false;
-    });
-
-    vi.spyOn(fs, 'readFileSync').mockImplementation(
-      (filePath: string) => {
-        if (filePath.includes('EPICS.yaml')) {
-          return yaml.dump(mockEpicsYaml);
-        }
-        throw new Error(`File not mocked: ${filePath}`);
-      }
-    );
+    writeEpicsYaml(mockEpicsYaml);
   });
 
   describe('Conductor Session Initialization', () => {
@@ -103,7 +104,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
     it('should provide appropriate mode description', () => {
       const mode = detectOperationMode();
       const description = getModeDescription(mode);
-      expect(description).toContain('Structured program');
+      expect(description).toContain('Structured Program');
       expect(description).toContain('EPICS.yaml');
     });
 
@@ -133,7 +134,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
   describe('Checkpoint Progress Tracking', () => {
     it('should identify next pending checkpoint for Conductor', () => {
       const epic = loadActiveEpic();
-      const nextCheckpoint = getNextPendingCheckpoint(epic!);
+      const nextCheckpoint = getNextCheckpoint(epic!);
 
       expect(nextCheckpoint).toBeDefined();
       expect(nextCheckpoint?.id).toBe('CP-JOINERY-BACKEND-API');
@@ -152,16 +153,13 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
     it('should identify completed vs pending checkpoints', () => {
       const epic = loadActiveEpic();
 
-      const allComplete = allCheckpointsComplete(epic!);
-      expect(allComplete).toBe(false);
-
       const doneCount = epic?.checkpoints?.filter(cp => cp.status === 'done').length;
-      const pendingCount = epic?.checkpoints?.filter(
-        cp => cp.status === 'pending'
-      ).length;
+      const pendingCount = epic?.checkpoints?.filter(cp => cp.status === 'pending').length;
 
       expect(doneCount).toBe(1);
       expect(pendingCount).toBe(4);
+      // Not all checkpoints complete → there is a next pending checkpoint
+      expect(getNextCheckpoint(epic!)).not.toBeNull();
     });
   });
 
@@ -172,11 +170,29 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
 
       expect(checkpointToCheck?.condition).toBe('MSG-BACKEND-105 status=DONE');
 
-      // Mock that the message doesn't exist yet
-      vi.spyOn(fs, 'readdirSync').mockReturnValue([]);
+      // No outbox message exists in the temp tree → not complete
+      const completed = checkCheckpointCompletion(checkpointToCheck!);
+      expect(completed).toBe(false);
+    });
 
-      const status = checkCheckpointCompletion(checkpointToCheck!);
-      expect(status.completed).toBe(false); // Message not found
+    it('should evaluate MSG-based conditions with a matching outbox message', () => {
+      const epic = loadActiveEpic();
+      const checkpointToCheck = epic?.checkpoints?.[1]; // CP-JOINERY-BACKEND-API
+
+      const outboxDir = path.join(TEST_ROOT, 'terminals', 'backend', 'outbox');
+      fs.mkdirSync(outboxDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(outboxDir, '2026-07-02_105_done.md'),
+        '---\nref: MSG-BACKEND-105\nstatus: DONE\n---\n\nDone.',
+        'utf-8'
+      );
+
+      try {
+        const completed = checkCheckpointCompletion(checkpointToCheck!);
+        expect(completed).toBe(true);
+      } finally {
+        fs.rmSync(path.join(TEST_ROOT, 'terminals'), { recursive: true, force: true });
+      }
     });
 
     it('should evaluate EPIC-based conditions', () => {
@@ -185,8 +201,8 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
 
       expect(deploymentCheckpoint?.condition).toBe('EPIC-DEPLOYMENT status=done');
 
-      // Mock EPICS.yaml with non-done deployment epic
-      const updatedEpics = {
+      // EPICS.yaml with non-done deployment epic
+      writeEpicsYaml({
         epics: [
           ...mockEpicsYaml.epics,
           {
@@ -195,41 +211,36 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
             status: 'pending',
           },
         ],
-      };
+      });
 
-      vi.spyOn(fs, 'readFileSync').mockImplementation(
-        (filePath: string) => {
-          if (filePath.includes('EPICS.yaml')) {
-            return yaml.dump(updatedEpics);
-          }
-          throw new Error(`File not mocked: ${filePath}`);
-        }
-      );
-
-      const status = checkCheckpointCompletion(deploymentCheckpoint!);
-      expect(status.completed).toBe(false); // Deployment epic not done
+      const completed = checkCheckpointCompletion(deploymentCheckpoint!);
+      expect(completed).toBe(false); // Deployment epic not done
     });
 
-    it('should evaluate FILE-based conditions', () => {
+    it('should evaluate EPIC-based conditions as complete when epic is done', () => {
       const epic = loadActiveEpic();
-      const testingCheckpoint = epic?.checkpoints?.[3]; // CP-JOINERY-TESTING
+      const deploymentCheckpoint = epic?.checkpoints?.[4]; // CP-JOINERY-DEPLOYMENT
 
-      expect(testingCheckpoint?.condition).toContain(
-        'FILE:docs/projects/test-results.md'
-      );
+      writeEpicsYaml({
+        epics: [
+          ...mockEpicsYaml.epics,
+          {
+            id: 'EPIC-DEPLOYMENT',
+            name: 'Deployment',
+            status: 'done',
+          },
+        ],
+      });
 
-      // Mock file not existing
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
-      const status = checkCheckpointCompletion(testingCheckpoint!);
-      expect(status.completed).toBe(false); // File not found
+      const completed = checkCheckpointCompletion(deploymentCheckpoint!);
+      expect(completed).toBe(true);
     });
   });
 
   describe('Conductor Task Assignment', () => {
     it('should provide Conductor with next action', () => {
       const epic = loadActiveEpic();
-      const nextCheckpoint = getNextPendingCheckpoint(epic!);
+      const nextCheckpoint = getNextCheckpoint(epic!);
 
       expect(nextCheckpoint).toBeDefined();
 
@@ -249,7 +260,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
 
     it('should include trigger targets for notification', () => {
       const epic = loadActiveEpic();
-      const nextCheckpoint = getNextPendingCheckpoint(epic!);
+      const nextCheckpoint = getNextCheckpoint(epic!);
 
       expect(nextCheckpoint?.trigger_to).toBeDefined();
       expect(nextCheckpoint?.trigger_to).toContain('frontend');
@@ -276,7 +287,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
       const progress1 = getEpicProgress(epic!);
 
       // Simulate checkpoint completion
-      const updatedEpics = {
+      writeEpicsYaml({
         epics: [
           {
             ...epic!,
@@ -286,16 +297,7 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
             })),
           },
         ],
-      };
-
-      vi.spyOn(fs, 'readFileSync').mockImplementation(
-        (filePath: string) => {
-          if (filePath.includes('EPICS.yaml')) {
-            return yaml.dump(updatedEpics);
-          }
-          throw new Error(`File not mocked: ${filePath}`);
-        }
-      );
+      });
 
       const updatedEpic = loadActiveEpic();
       const progress2 = getEpicProgress(updatedEpic!);
@@ -306,23 +308,21 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
 
   describe('Error Handling', () => {
     it('should handle missing EPICS.yaml gracefully', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+      fs.rmSync(EPICS_PATH, { force: true });
 
       const epic = loadActiveEpic();
       expect(epic).toBeNull();
     });
 
     it('should handle malformed EPICS.yaml gracefully', () => {
-      vi.spyOn(fs, 'readFileSync').mockImplementation(() => {
-        throw new Error('YAML parse error');
-      });
+      fs.writeFileSync(EPICS_PATH, '{{{ not valid yaml: [', 'utf-8');
 
       const epic = loadActiveEpic();
       expect(epic).toBeNull();
     });
 
     it('should handle missing checkpoints', () => {
-      const incompleteEpics = {
+      writeEpicsYaml({
         epics: [
           {
             id: 'EPIC-NO-CHECKPOINTS',
@@ -330,21 +330,12 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
             status: 'active',
           },
         ],
-      };
-
-      vi.spyOn(fs, 'readFileSync').mockImplementation(
-        (filePath: string) => {
-          if (filePath.includes('EPICS.yaml')) {
-            return yaml.dump(incompleteEpics);
-          }
-          throw new Error(`File not mocked: ${filePath}`);
-        }
-      );
+      });
 
       const epic = loadActiveEpic();
       expect(epic?.checkpoints || []).toHaveLength(0);
 
-      const nextCheckpoint = getNextPendingCheckpoint(epic!);
+      const nextCheckpoint = getNextCheckpoint(epic!);
       expect(nextCheckpoint).toBeNull();
     });
   });
@@ -369,25 +360,14 @@ describe('Mode #4: Structured Program Execution (Integration)', () => {
       expect(epic?.id).toBe('EPIC-JOINERY-PHASE3');
 
       // Step 3: Next checkpoint
-      const nextCheckpoint = getNextPendingCheckpoint(epic!);
+      const nextCheckpoint = getNextCheckpoint(epic!);
       expect(nextCheckpoint?.id).toBe('CP-JOINERY-BACKEND-API');
 
-      // Step 4: Evaluate condition
-      const conditionStatus = checkCheckpointCompletion(nextCheckpoint!);
-      expect(conditionStatus.checkpoint.id).toBe('CP-JOINERY-BACKEND-API');
+      // Step 4: Evaluate condition (no outbox message → pending)
+      const completed = checkCheckpointCompletion(nextCheckpoint!);
 
-      // Step 5: Conductor's action
-      if (conditionStatus.completed) {
-        // Checkpoint complete → mark as done, move to next
-        expect(true).toBe(false); // Won't happen in this test
-      } else {
-        // Checkpoint pending → wait/monitor
-        console.log(
-          `[Conductor] Waiting for: ${nextCheckpoint?.condition}`
-        );
-      }
-
-      expect(conditionStatus.completed).toBe(false);
+      // Step 5: Conductor's action: checkpoint pending → wait/monitor
+      expect(completed).toBe(false);
     });
   });
 });

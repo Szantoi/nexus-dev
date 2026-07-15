@@ -7,7 +7,8 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 // Mock dependencies before importing module
-vi.mock('../../pipeline/common', () => ({
+vi.mock('../../pipeline/common', async () => ({
+  SPACEOS_ROOT: (await import('node:os')).tmpdir(),
   SESSIONS: {},
   SESSION_WORKDIR: {},
   hasSession: vi.fn(() => Promise.resolve(false)),
@@ -30,6 +31,27 @@ import {
   estimateTokens,
   type AutonomousDevConfig
 } from '../../pipeline/autonomousDev';
+
+/**
+ * runAutonomousCycle sleeps ~6s with real setTimeout while cold-starting the
+ * Conductor. Drive it with fake timers so tests stay fast; the async advance
+ * yields to the real event loop so template fs.readFile I/O still resolves.
+ */
+async function runCycleFast(config: AutonomousDevConfig) {
+  vi.useFakeTimers();
+  try {
+    let settled = false;
+    const promise = runAutonomousCycle(config).finally(() => {
+      settled = true;
+    });
+    while (!settled) {
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+    return await promise;
+  } finally {
+    vi.useRealTimers();
+  }
+}
 
 describe('Autonomous Dev Token Optimization', () => {
   // Prompts are in knowledge-service/prompts/ (project root)
@@ -116,7 +138,7 @@ describe('Autonomous Dev Token Optimization', () => {
         promptTemplate: 'base',
       };
 
-      const result = await runAutonomousCycle(config);
+      const result = await runCycleFast(config);
 
       expect(result).toHaveProperty('promptTokenCount');
       expect(result).toHaveProperty('tokenBudget');
@@ -143,7 +165,7 @@ describe('Autonomous Dev Token Optimization', () => {
         promptTemplate: 'base',
       };
 
-      const result = await runAutonomousCycle(config);
+      const result = await runCycleFast(config);
 
       expect(result.templatesUsed).toEqual(['autonomous-dev-base.txt']);
     });
@@ -164,7 +186,7 @@ describe('Autonomous Dev Token Optimization', () => {
         promptTemplate: 'base',
       };
 
-      const result = await runAutonomousCycle(config);
+      const result = await runCycleFast(config);
 
       expect(result.templatesUsed).toContain('autonomous-dev-base.txt');
       expect(result.templatesUsed).toContain('autonomous-dev-architect.txt');
@@ -218,7 +240,7 @@ describe('Autonomous Dev Token Optimization', () => {
         promptTemplate: 'base',
       };
 
-      const result = await runAutonomousCycle(config);
+      const result = await runCycleFast(config);
 
       // Should still generate prompt (base template)
       expect(result.promptTokenCount).toBeDefined();

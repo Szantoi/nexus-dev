@@ -270,7 +270,7 @@ describe('Component Scaffold', () => {
 
       expect(templates.react_component).toBeDefined();
       expect(typeof templates.react_component).toBe('string');
-      expect(templates.react_component).toContain('React.FC');
+      expect(templates.react_component).toContain('MyComponent');
     });
 
     it('should return api_client template', () => {

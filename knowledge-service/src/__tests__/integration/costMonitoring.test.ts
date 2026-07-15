@@ -4,6 +4,7 @@
  * Part of MSG-BACKEND-126
  */
 
+import { beforeEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import costMonitoringRoutes from '../../interfaces/http/routes/costMonitoringRoutes';
@@ -168,13 +169,22 @@ describe('Cost Monitoring API Endpoints', () => {
 
   describe('GET /api/monitoring/cost/stream (SSE)', () => {
     it('should return SSE stream headers', async () => {
-      const res = await request(app)
-        .get('/api/monitoring/cost/stream')
-        .timeout(1000); // Short timeout to avoid waiting full 5 minutes
+      // SSE never ends, so use fetch (resolves on headers) + abort instead of supertest
+      const server = app.listen(0);
+      try {
+        const address = server.address() as { port: number };
+        const controller = new AbortController();
+        const res = await fetch(`http://127.0.0.1:${address.port}/api/monitoring/cost/stream`, {
+          signal: controller.signal,
+        });
 
-      // SSE should set correct headers
-      expect(res.headers['content-type']).toContain('text/event-stream');
-      expect(res.headers['cache-control']).toBe('no-cache');
+        // SSE should set correct headers
+        expect(res.headers.get('content-type')).toContain('text/event-stream');
+        expect(res.headers.get('cache-control')).toBe('no-cache');
+        controller.abort();
+      } finally {
+        await new Promise<void>(resolve => server.close(() => resolve()));
+      }
     });
   });
 

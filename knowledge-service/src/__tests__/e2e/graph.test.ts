@@ -14,7 +14,8 @@ import { generateMermaid } from '../../graph/mermaidGenerator';
 import { findCriticalPath } from '../../graph/operations';
 import * as path from 'path';
 
-const EPICS_PATH = path.resolve(__dirname, '../../../../../docs/projects/EPICS.yaml');
+// Repo-root fixture: nexus-dev/docs/projects/EPICS.yaml (4 levels up from src/__tests__/e2e)
+const EPICS_PATH = process.env.EPICS_PATH || path.resolve(__dirname, '../../../../docs/projects/EPICS.yaml');
 
 describe('Graph Workflow E2E', () => {
   it('should load EPICS.yaml and build complete graph', async () => {

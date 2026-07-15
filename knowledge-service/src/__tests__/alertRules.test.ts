@@ -41,6 +41,9 @@ vi.mock('fs', async (importOriginal) => {
 const mockedFetch = vi.mocked(global.fetch, true);
 const mockedFs = vi.mocked(fs, true);
 
+// Normalize Windows backslashes so path checks work on all platforms
+const norm = (p: unknown): string => (typeof p === 'string' ? p.replace(/\\/g, '/') : '');
+
 describe('Alert Rules', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -200,7 +203,7 @@ describe('Alert Rules', () => {
       const blockedDate = new Date(now.getTime() - 3 * 60 * 60 * 1000); // 3 hours ago
 
       mockedFs.readdir.mockImplementation((dirPath: any) => {
-        if (typeof dirPath === 'string' && dirPath.endsWith('/terminals')) {
+        if (norm(dirPath).endsWith('/terminals')) {
           return Promise.resolve(['backend']);
         }
         if (typeof dirPath === 'string' && dirPath.includes('outbox')) {
@@ -328,7 +331,7 @@ Task completed.`
 
     it('should detect WARNING for memory >threshold but <2×threshold', async () => {
       mockedFs.stat.mockImplementation((filePath: any) => {
-        if (typeof filePath === 'string' && filePath.includes('monitor/MEMORY.md')) {
+        if (norm(filePath).includes('monitor/MEMORY.md')) {
           // 40KB - above 35KB threshold but below 70KB (2×threshold)
           return Promise.resolve({ size: 40 * 1024 } as any);
         }
@@ -347,11 +350,11 @@ Task completed.`
 
     it('should detect CRITICAL for memory >2×threshold', async () => {
       mockedFs.stat.mockImplementation((filePath: any) => {
-        if (typeof filePath === 'string' && filePath.includes('monitor/MEMORY.md')) {
+        if (norm(filePath).includes('monitor/MEMORY.md')) {
           // 150KB - above 2× threshold (70KB)
           return Promise.resolve({ size: 150 * 1024 } as any);
         }
-        if (typeof filePath === 'string' && filePath.includes('conductor/MEMORY.md')) {
+        if (norm(filePath).includes('conductor/MEMORY.md')) {
           // 120KB - above 2× threshold (100KB)
           return Promise.resolve({ size: 120 * 1024 } as any);
         }
@@ -387,7 +390,7 @@ Task completed.`
     it('should handle missing MEMORY.md files gracefully', async () => {
       // Mock some terminals with no MEMORY.md
       mockedFs.stat.mockImplementation((filePath: any) => {
-        if (typeof filePath === 'string' && filePath.includes('designer/MEMORY.md')) {
+        if (norm(filePath).includes('designer/MEMORY.md')) {
           return Promise.reject(new Error('File not found'));
         }
         return Promise.resolve({ size: 20 * 1024 } as any);
@@ -399,7 +402,7 @@ Task completed.`
 
     it('should use correct thresholds for different terminal types', async () => {
       mockedFs.stat.mockImplementation((filePath: any) => {
-        const fileName = typeof filePath === 'string' ? filePath : '';
+        const fileName = norm(filePath);
 
         // conductor/root/backend: threshold 50KB
         if (fileName.includes('conductor') || fileName.includes('root/MEMORY.md') || fileName.includes('backend')) {

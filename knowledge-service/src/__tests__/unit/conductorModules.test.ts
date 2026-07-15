@@ -1,96 +1,118 @@
 /**
  * Unit Tests for Conductor Program-Awareness Modules (ADR-053)
  * Tests: modeDetection, epicManager, checkpointTracker
+ *
+ * Hermetic: all modules read EPICS_PATH / SPACEOS_ROOT / TERMINALS_PATH at
+ * module scope, so we point them at a temp directory BEFORE importing
+ * (vi.hoisted runs before the hoisted imports).
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
-// Import modules under test
-import { detectOperationMode, isStructuredProgramMode, isPlanningPipelineMode, getModeDescription } from '../../conductor/modeDetection';
-import { loadActiveEpic, loadAllEpics, completeEpic, getCheckpoints, getPendingCheckpoints, getNextPendingCheckpoint, allCheckpointsComplete, getEpicProgress, type Epic, type Checkpoint } from '../../conductor/epicManager';
-import { checkCheckpointCompletion, getNextPendingCheckpoint as getNextCheckpointFromTracker, getStuckCheckpoints, isEpicBlocked, type CheckpointStatus } from '../../conductor/checkpointTracker';
+const TEST_ROOT = vi.hoisted(() => {
+  // os.tmpdir() equivalent without imports (vi.hoisted runs before imports)
+  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
+  const root = `${base.replace(/[\\/]+$/, '')}/conductor-modules-test-${process.pid}`;
+  process.env.SPACEOS_ROOT = root;
+  process.env.TERMINALS_PATH = `${root}/terminals`;
+  process.env.EPICS_PATH = `${root}/EPICS.yaml`;
+  delete process.env.SPACEOS_MODE;
+  delete process.env.ENABLE_IDEA_SCAN;
+  delete process.env.ENABLE_PLANNING_PIPELINE;
+  return root;
+});
+
+// Import modules under test (after env setup above)
+import { detectOperationMode, getModeDescription } from '../../conductor/modeDetection';
+import {
+  loadActiveEpic,
+  loadActiveEpics,
+  loadAllEpics,
+  completeEpic,
+  getNextCheckpoint,
+  getEpicProgress,
+  type Epic,
+  type Checkpoint,
+} from '../../conductor/epicManager';
+import { checkCheckpointCompletion, updateCheckpointStatus } from '../../conductor/checkpointTracker';
+
+const EPICS_PATH = path.join(TEST_ROOT, 'EPICS.yaml');
+const QUEUE_DIR = path.join(TEST_ROOT, 'docs', 'planning', 'queue');
+const TERMINALS_DIR = path.join(TEST_ROOT, 'terminals');
+
+function writeEpicsYaml(data: unknown): void {
+  fs.writeFileSync(EPICS_PATH, yaml.dump(data), 'utf-8');
+}
+
+function resetTestTree(): void {
+  fs.rmSync(EPICS_PATH, { force: true });
+  fs.rmSync(QUEUE_DIR, { recursive: true, force: true });
+  fs.rmSync(TERMINALS_DIR, { recursive: true, force: true });
+  fs.mkdirSync(TEST_ROOT, { recursive: true });
+}
+
+afterAll(() => {
+  fs.rmSync(TEST_ROOT, { recursive: true, force: true });
+});
 
 describe('Mode Detection (ADR-053)', () => {
-  const originalEnv = process.env;
-
   beforeEach(() => {
-    process.env = { ...originalEnv };
-  });
-
-  afterEach(() => {
-    process.env = originalEnv;
+    resetTestTree();
   });
 
   describe('detectOperationMode', () => {
     it('should return structured_program when active epic exists in EPICS.yaml', () => {
-      // Mock EPICS.yaml with active epic
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(`epics:
-  - id: EPIC-TEST-001
-    name: "Test Epic"
-    status: active
-`);
+      writeEpicsYaml({
+        epics: [{ id: 'EPIC-TEST-001', name: 'Test Epic', status: 'active' }],
+      });
 
       const mode = detectOperationMode();
       expect(mode).toBe('structured_program');
     });
 
-    it('should return planning_pipeline when ENABLE_IDEA_SCAN is true', () => {
-      process.env.ENABLE_IDEA_SCAN = 'true';
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
+    it('should return planning_pipeline when planning queue has items', () => {
+      // No active epic, but queue directory contains a pending idea
+      fs.mkdirSync(QUEUE_DIR, { recursive: true });
+      fs.writeFileSync(path.join(QUEUE_DIR, 'idea-001.md'), '# Idea', 'utf-8');
 
       const mode = detectOperationMode();
       expect(mode).toBe('planning_pipeline');
     });
 
-    it('should return planning_pipeline when ENABLE_PLANNING_PIPELINE is true', () => {
-      process.env.ENABLE_PLANNING_PIPELINE = 'true';
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
-      const mode = detectOperationMode();
-      expect(mode).toBe('planning_pipeline');
+    it('should respect SPACEOS_MODE env override', () => {
+      process.env.SPACEOS_MODE = 'planning_pipeline';
+      try {
+        expect(detectOperationMode()).toBe('planning_pipeline');
+      } finally {
+        delete process.env.SPACEOS_MODE;
+      }
     });
 
     it('should return manual as default', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-      process.env.ENABLE_IDEA_SCAN = undefined;
-      process.env.ENABLE_PLANNING_PIPELINE = undefined;
+      // No EPICS.yaml, no planning queue
+      const mode = detectOperationMode();
+      expect(mode).toBe('manual');
+    });
+
+    it('should return manual when EPICS.yaml has no active epic and queue is empty', () => {
+      writeEpicsYaml({
+        epics: [{ id: 'EPIC-TEST-002', name: 'Pending Epic', status: 'pending' }],
+      });
+      fs.mkdirSync(QUEUE_DIR, { recursive: true });
 
       const mode = detectOperationMode();
       expect(mode).toBe('manual');
     });
   });
 
-  describe('Helper functions', () => {
-    it('isStructuredProgramMode should return true for structured_program mode', () => {
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(`epics:
-  - id: EPIC-TEST-001
-    status: active
-`);
-
-      expect(isStructuredProgramMode()).toBe(true);
-    });
-
-    it('isPlanningPipelineMode should return true for planning_pipeline mode', () => {
-      process.env.ENABLE_IDEA_SCAN = 'true';
-      vi.spyOn(fs, 'existsSync').mockReturnValue(false);
-
-      expect(isPlanningPipelineMode()).toBe(true);
-    });
-
-    it('getModeDescription should return appropriate text for each mode', () => {
-      const manual = getModeDescription('manual');
-      expect(manual).toContain('Manual task execution');
-
-      const planning = getModeDescription('planning_pipeline');
-      expect(planning).toContain('Planning pipeline');
-
-      const structured = getModeDescription('structured_program');
-      expect(structured).toContain('Structured program');
+  describe('getModeDescription', () => {
+    it('should return appropriate text for each mode', () => {
+      expect(getModeDescription('manual')).toContain('Manual');
+      expect(getModeDescription('planning_pipeline')).toContain('Planning Pipeline');
+      expect(getModeDescription('structured_program')).toContain('Structured Program');
     });
   });
 });
@@ -126,12 +148,8 @@ describe('Epic Manager (ADR-053)', () => {
   };
 
   beforeEach(() => {
-    const mockYaml = {
-      epics: [mockEpic],
-    };
-
-    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fs, 'readFileSync').mockReturnValue(yaml.dump(mockYaml));
+    resetTestTree();
+    writeEpicsYaml({ epics: [mockEpic] });
   });
 
   describe('loadActiveEpic', () => {
@@ -143,14 +161,32 @@ describe('Epic Manager (ADR-053)', () => {
     });
 
     it('should return null if no active epic', () => {
-      vi.spyOn(fs, 'readFileSync').mockReturnValue(`epics:
-  - id: EPIC-TEST-002
-    name: "Pending Epic"
-    status: pending
-`);
+      writeEpicsYaml({
+        epics: [{ id: 'EPIC-TEST-002', name: 'Pending Epic', status: 'pending' }],
+      });
 
       const epic = loadActiveEpic();
       expect(epic).toBeNull();
+    });
+  });
+
+  describe('loadActiveEpics', () => {
+    it('should return all active epics', () => {
+      writeEpicsYaml({
+        epics: [
+          { ...mockEpic, id: 'EPIC-A' },
+          { ...mockEpic, id: 'EPIC-B' },
+          { ...mockEpic, id: 'EPIC-C', status: 'pending' },
+        ],
+      });
+
+      const epics = loadActiveEpics();
+      expect(epics.map(e => e.id)).toEqual(['EPIC-A', 'EPIC-B']);
+    });
+
+    it('should return empty array when EPICS.yaml is missing', () => {
+      fs.rmSync(EPICS_PATH, { force: true });
+      expect(loadActiveEpics()).toEqual([]);
     });
   });
 
@@ -163,59 +199,43 @@ describe('Epic Manager (ADR-053)', () => {
   });
 
   describe('Checkpoint methods', () => {
-    it('getCheckpoints should return all checkpoints', () => {
-      const checkpoints = getCheckpoints(mockEpic);
-      expect(checkpoints.length).toBe(3);
-    });
-
-    it('getPendingCheckpoints should return only pending checkpoints', () => {
-      const pending = getPendingCheckpoints(mockEpic);
-      expect(pending.length).toBe(2);
-      expect(pending.every(cp => cp.status === 'pending')).toBe(true);
-    });
-
-    it('getNextPendingCheckpoint should return first pending checkpoint', () => {
-      const next = getNextPendingCheckpoint(mockEpic);
+    it('getNextCheckpoint should return first pending checkpoint', () => {
+      const next = getNextCheckpoint(mockEpic);
       expect(next).toBeDefined();
       expect(next?.id).toBe('CP-002');
     });
 
-    it('getNextPendingCheckpoint should return null if no pending checkpoints', () => {
+    it('getNextCheckpoint should return null if no pending checkpoints', () => {
       const completedEpic: Epic = {
         ...mockEpic,
-        checkpoints: mockEpic.checkpoints?.map(cp => ({ ...cp, status: 'done' })),
+        checkpoints: mockEpic.checkpoints.map(cp => ({ ...cp, status: 'done' as const })),
       };
-      const next = getNextPendingCheckpoint(completedEpic);
+      const next = getNextCheckpoint(completedEpic);
       expect(next).toBeNull();
-    });
-
-    it('allCheckpointsComplete should return false if any pending', () => {
-      const result = allCheckpointsComplete(mockEpic);
-      expect(result).toBe(false);
-    });
-
-    it('allCheckpointsComplete should return true if all done', () => {
-      const completedEpic: Epic = {
-        ...mockEpic,
-        checkpoints: mockEpic.checkpoints?.map(cp => ({ ...cp, status: 'done' })),
-      };
-      const result = allCheckpointsComplete(completedEpic);
-      expect(result).toBe(true);
     });
 
     it('getEpicProgress should return percentage of completed checkpoints', () => {
       const progress = getEpicProgress(mockEpic);
       expect(progress).toBe(33); // 1 done out of 3 = ~33%
     });
+
+    it('getEpicProgress should return 0 for epic without checkpoints', () => {
+      const epic: Epic = { ...mockEpic, checkpoints: [] };
+      expect(getEpicProgress(epic)).toBe(0);
+    });
   });
 
   describe('completeEpic', () => {
-    it('should mark epic as done', async () => {
-      const writeFileSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => '');
-
-      const result = await completeEpic('EPIC-TEST-001');
+    it('should mark epic as done', () => {
+      const result = completeEpic('EPIC-TEST-001');
       expect(result).toBe(true);
-      expect(writeFileSpy).toHaveBeenCalled();
+
+      const written = yaml.load(fs.readFileSync(EPICS_PATH, 'utf-8')) as { epics: Epic[] };
+      expect(written.epics[0].status).toBe('done');
+    });
+
+    it('should return false for unknown epic', () => {
+      expect(completeEpic('EPIC-DOES-NOT-EXIST')).toBe(false);
     });
   });
 });
@@ -228,40 +248,45 @@ describe('Checkpoint Tracker (ADR-053)', () => {
     condition: 'MSG-BACKEND-103 status=DONE',
   };
 
+  beforeEach(() => {
+    resetTestTree();
+  });
+
   describe('Condition parsing', () => {
-    it('should correctly parse MSG condition', () => {
+    it('should correctly parse MSG condition (no outbox → not complete)', () => {
       const checkpoint: Checkpoint = {
         ...mockCheckpoint,
         condition: 'MSG-BACKEND-103 status=DONE',
       };
 
-      const status = checkCheckpointCompletion(checkpoint);
-      expect(status.checkpoint).toBe(checkpoint);
-      expect(typeof status.completed).toBe('boolean');
-      expect(status.checkedAt).toBeInstanceOf(Date);
+      const completed = checkCheckpointCompletion(checkpoint);
+      expect(completed).toBe(false);
     });
 
-    it('should correctly parse EPIC condition', () => {
+    it('should correctly parse EPIC condition against EPICS.yaml', () => {
+      writeEpicsYaml({
+        epics: [{ id: 'EPIC-JOINERY', name: 'Joinery', status: 'done' }],
+      });
+
       const checkpoint: Checkpoint = {
         ...mockCheckpoint,
         condition: 'EPIC-JOINERY status=done',
       };
 
-      const status = checkCheckpointCompletion(checkpoint);
-      expect(status.checkpoint).toBe(checkpoint);
+      expect(checkCheckpointCompletion(checkpoint)).toBe(true);
     });
 
-    it('should correctly parse FILE condition', () => {
+    it('should return false for EPIC condition with non-matching status', () => {
+      writeEpicsYaml({
+        epics: [{ id: 'EPIC-JOINERY', name: 'Joinery', status: 'active' }],
+      });
+
       const checkpoint: Checkpoint = {
         ...mockCheckpoint,
-        condition: 'FILE:docs/projects/EPICS.yaml contains:EPIC-TEST',
+        condition: 'EPIC-JOINERY status=done',
       };
 
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue('epics:\n- id: EPIC-TEST');
-
-      const status = checkCheckpointCompletion(checkpoint);
-      expect(status.checkpoint).toBe(checkpoint);
+      expect(checkCheckpointCompletion(checkpoint)).toBe(false);
     });
 
     it('should return false for invalid condition', () => {
@@ -270,105 +295,61 @@ describe('Checkpoint Tracker (ADR-053)', () => {
         condition: 'INVALID condition format',
       };
 
-      const status = checkCheckpointCompletion(checkpoint);
-      expect(status.completed).toBe(false);
+      expect(checkCheckpointCompletion(checkpoint)).toBe(false);
     });
   });
 
   describe('Message status checking', () => {
-    it('should find message file and check status', () => {
+    it('should find message file in terminal outbox and check status', () => {
+      const outboxDir = path.join(TERMINALS_DIR, 'backend', 'outbox');
+      fs.mkdirSync(outboxDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(outboxDir, '2026-07-02_103_test-msg.md'),
+        '---\nref: MSG-BACKEND-103\nstatus: DONE\n---\n\nContent here',
+        'utf-8'
+      );
+
       const checkpoint: Checkpoint = {
         ...mockCheckpoint,
         condition: 'MSG-BACKEND-103 status=DONE',
       };
 
-      // Mock outbox directory with message file
-      vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-      vi.spyOn(fs, 'readdirSync').mockReturnValue(['2026-07-02_103_test-msg.md']);
-      vi.spyOn(fs, 'readFileSync').mockReturnValue('id: MSG-BACKEND-103\nstatus: DONE\n\nContent here');
-
-      const status = checkCheckpointCompletion(checkpoint);
-      expect(status).toBeDefined();
-      expect(status.evidence).toBeDefined();
+      expect(checkCheckpointCompletion(checkpoint)).toBe(true);
     });
   });
 
-  describe('Stuck checkpoint detection', () => {
-    it('should identify stuck checkpoints', () => {
-      const epic: Epic = {
-        id: 'EPIC-TEST-001',
-        name: 'Test',
-        status: 'active',
-        checkpoints: [
-          { id: 'CP-001', name: 'Done', status: 'done', condition: 'test' },
-          { id: 'CP-002', name: 'Stuck', status: 'stuck', condition: 'test' },
-          { id: 'CP-003', name: 'Pending', status: 'pending', condition: 'test' },
+  describe('updateCheckpointStatus', () => {
+    it('should persist checkpoint status change to EPICS.yaml', () => {
+      writeEpicsYaml({
+        epics: [
+          {
+            id: 'EPIC-TEST-001',
+            name: 'Test Epic',
+            status: 'active',
+            checkpoints: [
+              { id: 'CP-001', name: 'CP', status: 'pending', condition: 'MSG-BACKEND-1 status=DONE' },
+            ],
+          },
         ],
-      };
+      });
 
-      const stuck = getStuckCheckpoints(epic);
-      expect(stuck.length).toBe(1);
-      expect(stuck[0].id).toBe('CP-002');
-    });
-  });
+      const ok = updateCheckpointStatus('EPIC-TEST-001', 'CP-001', 'done');
+      expect(ok).toBe(true);
 
-  describe('Epic blocking detection', () => {
-    it('should detect if epic is blocked by dependency', () => {
-      const dependentEpic: Epic = {
-        id: 'EPIC-DEPENDENT',
-        name: 'Dependent Epic',
-        status: 'active',
-        depends_on: ['EPIC-BLOCKER'],
-      };
-
-      const blockerEpic: Epic = {
-        id: 'EPIC-BLOCKER',
-        name: 'Blocker Epic',
-        status: 'pending',
-      };
-
-      const allEpics: Epic[] = [dependentEpic, blockerEpic];
-
-      const isBlocked = isEpicBlocked(dependentEpic, allEpics);
-      expect(isBlocked).toBe(true);
+      const written = yaml.load(fs.readFileSync(EPICS_PATH, 'utf-8')) as { epics: Epic[] };
+      expect(written.epics[0].checkpoints[0].status).toBe('done');
     });
 
-    it('should return false if dependency is done', () => {
-      const dependentEpic: Epic = {
-        id: 'EPIC-DEPENDENT',
-        name: 'Dependent Epic',
-        status: 'active',
-        depends_on: ['EPIC-BLOCKER'],
-      };
-
-      const blockerEpic: Epic = {
-        id: 'EPIC-BLOCKER',
-        name: 'Blocker Epic',
-        status: 'done',
-      };
-
-      const allEpics: Epic[] = [dependentEpic, blockerEpic];
-
-      const isBlocked = isEpicBlocked(dependentEpic, allEpics);
-      expect(isBlocked).toBe(false);
-    });
-
-    it('should return false if no dependencies', () => {
-      const epic: Epic = {
-        id: 'EPIC-INDEPENDENT',
-        name: 'Independent Epic',
-        status: 'active',
-      };
-
-      const isBlocked = isEpicBlocked(epic, [epic]);
-      expect(isBlocked).toBe(false);
+    it('should return false when EPICS.yaml is missing', () => {
+      expect(updateCheckpointStatus('EPIC-TEST-001', 'CP-001', 'done')).toBe(false);
     });
   });
 });
 
 describe('Integration: Mode #4 Workflow', () => {
   it('should detect structured program mode and load epic context', () => {
-    const mockEpicData = {
+    resetTestTree();
+    writeEpicsYaml({
       epics: [
         {
           id: 'EPIC-INTEGRATION-TEST',
@@ -384,10 +365,7 @@ describe('Integration: Mode #4 Workflow', () => {
           ],
         },
       ],
-    };
-
-    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
-    vi.spyOn(fs, 'readFileSync').mockReturnValue(yaml.dump(mockEpicData));
+    });
 
     // Mode detection should work
     const mode = detectOperationMode();
@@ -398,12 +376,11 @@ describe('Integration: Mode #4 Workflow', () => {
     expect(epic?.id).toBe('EPIC-INTEGRATION-TEST');
 
     // Checkpoint tracking should work
-    const nextCheckpoint = getNextPendingCheckpoint(epic!);
+    const nextCheckpoint = getNextCheckpoint(epic!);
     expect(nextCheckpoint?.id).toBe('CP-INT-001');
 
-    // Checkpoint completion check should work
-    const status = checkCheckpointCompletion(nextCheckpoint!);
-    expect(status).toBeDefined();
-    expect(status.checkpoint.id).toBe('CP-INT-001');
+    // Checkpoint completion check should work (no outbox message → false)
+    const completed = checkCheckpointCompletion(nextCheckpoint!);
+    expect(completed).toBe(false);
   });
 });

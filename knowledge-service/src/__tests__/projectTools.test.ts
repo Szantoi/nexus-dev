@@ -12,6 +12,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import {
@@ -25,9 +26,10 @@ import {
 } from '../projectTools';
 import { TaskChain } from '../pipeline/projectDispatcher';
 
-// Test fixtures directory
-const TEST_PROJECTS_DIR = '/tmp/test-projects';
-const TEST_TERMINALS_DIR = '/tmp/test-terminals';
+// Test fixtures directory (forward slashes: projectTools joins paths with '/')
+const TEST_BASE_DIR = path.join(os.tmpdir(), `project-tools-test-${process.pid}`).replace(/\\/g, '/');
+const TEST_PROJECTS_DIR = `${TEST_BASE_DIR}/test-projects`;
+const TEST_TERMINALS_DIR = `${TEST_BASE_DIR}/test-terminals`;
 
 describe('Project Tools', () => {
   beforeEach(async () => {
@@ -45,8 +47,7 @@ describe('Project Tools', () => {
 
   afterEach(async () => {
     // Clean up test directories
-    await fs.rm(TEST_PROJECTS_DIR, { recursive: true, force: true });
-    await fs.rm(TEST_TERMINALS_DIR, { recursive: true, force: true });
+    await fs.rm(TEST_BASE_DIR, { recursive: true, force: true });
   });
 
   describe('create_project', () => {
@@ -64,7 +65,7 @@ describe('Project Tools', () => {
       const result = await handleCreateProject(args);
 
       expect(result.success).toBe(true);
-      expect(result.path).toBe(path.join(TEST_PROJECTS_DIR, 'test-project'));
+      expect(result.path).toBe(`${TEST_PROJECTS_DIR}/test-project`);
       expect(result.files).toContain('PROJECT.md');
       expect(result.files).toContain('TASKS.yaml');
       expect(result.files).toContain('STATUS.md');
@@ -133,12 +134,16 @@ describe('Project Tools', () => {
 
     it('should handle errors gracefully', async () => {
       const args: CreateProjectArgs = {
-        slug: '../../../etc/passwd',  // Path traversal attempt
+        slug: 'invalid-project',
         name: 'Invalid Project',
       };
 
+      // Point PROJECTS_DIR below a regular FILE → mkdir fails on every platform
+      const blockerFile = `${TEST_BASE_DIR}/not-a-directory`;
+      await fs.writeFile(blockerFile, 'blocker', 'utf-8');
+
       const originalProjectsDir = process.env.PROJECTS_DIR;
-      process.env.PROJECTS_DIR = '/invalid/read-only/path/that/does/not/exist';
+      process.env.PROJECTS_DIR = `${blockerFile}/projects`;
 
       const result = await handleCreateProject(args);
 

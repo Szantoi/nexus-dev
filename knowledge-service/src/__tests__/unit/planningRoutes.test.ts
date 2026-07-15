@@ -2,40 +2,42 @@
  * planningRoutes.test.ts — Unit tests for Planning Focus API
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterAll, beforeAll, describe, it, expect, beforeEach } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { promises as fs } from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
-import { createPlanningRouter } from '../../api/planningRoutes';
+import { clearFocusCache, createPlanningRouter } from '../../api/planningRoutes';
 
 describe('Planning Focus API', () => {
   let app: Express;
-  const testFocusPath = path.join(process.cwd(), '../../docs/planning/domain-focus.md');
-  let originalContent: string | null = null;
-  const testToken = 'dev-token-spaceos-dashboard-2026'; // Valid dashboard token
+  // Hermetic: point the router at a temp focus file (read per-request via env)
+  const testFocusDir = path.join(os.tmpdir(), `planning-routes-test-${process.pid}`);
+  const testFocusPath = path.join(testFocusDir, 'domain-focus.md');
+  const testToken = 'dev-token-root-2026'; // Default dev token (task-audit/auth.ts fallback config)
 
   beforeEach(() => {
     // Setup Express app with router for each test
     app = express();
     app.use(express.json());
     app.use('/api/planning', createPlanningRouter());
+    clearFocusCache();
   });
 
-  // Backup ONCE at start of suite
   beforeAll(async () => {
-    try {
-      originalContent = await fs.readFile(testFocusPath, 'utf-8');
-    } catch {
-      originalContent = null;
-    }
+    process.env.PLANNING_FOCUS_PATH = testFocusPath;
+    await fs.mkdir(testFocusDir, { recursive: true });
+    await fs.writeFile(
+      testFocusPath,
+      `---\ndomain: manufacturing\nupdated_at: '2026-07-01T00:00:00.000Z'\n---\n# Planning Focus\n\n- Initial criteria\n`,
+      'utf-8'
+    );
   });
 
-  // Restore ONCE at end of suite
   afterAll(async () => {
-    if (originalContent !== null) {
-      await fs.writeFile(testFocusPath, originalContent, 'utf-8');
-    }
+    delete process.env.PLANNING_FOCUS_PATH;
+    await fs.rm(testFocusDir, { recursive: true, force: true });
   });
 
   describe('GET /api/planning/domain-focus', () => {

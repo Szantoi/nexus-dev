@@ -36,7 +36,7 @@ async function createInboxMessage(
   content: string
 ): Promise<boolean> {
   try {
-    const inboxDir = path.join('/opt/spaceos', 'terminals', toTerminal, 'inbox');
+    const inboxDir = path.join(process.env.SPACEOS_ROOT || '/opt/spaceos', 'terminals', toTerminal, 'inbox');
     await fs.mkdir(inboxDir, { recursive: true });
     const fileName = `${messageId}.md`;
     const filePath = path.join(inboxDir, fileName);
