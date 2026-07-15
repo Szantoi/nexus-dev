@@ -7,7 +7,7 @@
 
 ## Aktuális fókusz
 
-Knowledge-service modernizáció — MIND AZ 5 FÁZIS KÉSZ. Hátralévő: opcionális cleanup-ok (legacy mcp.ts switch törlése, routes-átmozgatás, pipeline-alfolderezés — lásd todo.md backlog).
+Knowledge-service modernizáció KÉSZ (mind az 5 fázis). Új irány: VPS-deploy + lokális ébresztés (pull-modell) — 1. lépés, a token-auth réteg KÉSZ (`36a4dad`): auth/tokenAuth.ts, AUTH_MODE=required fail-closed, globális /api kapu, élőben verifikálva a 3466-on. Következő: Tailscale-setup vagy lokális runner (Gábor dönt, melyik előbb).
 
 ## Állapot
 

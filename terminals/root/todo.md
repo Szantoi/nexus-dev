@@ -13,7 +13,7 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 
 ### Opcionális cleanup (nincs sürgősség)
 - [ ] mcp.ts legacy TOOLS tömb + switch törlése (fallback eltávolítása)
-- [ ] auth-réteg külön modulba szervezése
+- [ ] identity.ts/terminalConfig `/opt/spaceos` fallback-útvonalak rendezése Windowson (get_identity ma /opt/spaceos-t ad vissza)
 
 ### 4. fázis — Architektúra
 - [ ] `src/routes/` maradék 2 fájl átmozgatása `interfaces/http/routes/` alá
@@ -23,7 +23,7 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 
 ### VPS-deploy + lokális ébresztés (terv 2026-07-15, Gábor igénye: lokális wake + erős biztonság)
 - [ ] Tailscale a VPS és a lokális gépek közé; knowledge-service csak tailnet-interfészen figyeljen (publikus port zárva)
-- [ ] Auth: eszközönkénti bearer-token az MCP/HTTP rétegben — terminál-identitás a tokenből, NE önbevallásból (ToolContext.terminal); token-visszavonás + dispatch audit-log
+- [ ] Epic-router külön token-rendszerének (SHA256-derivált, TERMINAL_TOKEN_SECRET) egyesítése a tokenAuth-tal
 - [ ] Lokális runner (inbox-watcher lokális párja): kifelé irányuló poll a VPS dispatch-sorára, helyi Claude Code session-indítás, ZÁRT parancskészlet (csak whitelistelt terminál + hivatkozott MSG-feladat, soha nyers shell)
 - [ ] Runner-regisztráció + heartbeat: terminál→gép hozzárendelés a szerveren; offline gép feladata a sorban várakozik, flotta-státusz mutatja az elérhetőséget
 - [ ] Long-poll/SSE a runner-poll helyett: másodperces ébresztés csapat-láncokhoz (A done → B wake), a kapcsolatot továbbra is a runner nyitja kifelé
@@ -51,3 +51,4 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [x] 2026-07-15 — 3. fázis TELJES: 103 tool migrálva 14 modulba (ToolRegistry pattern), 889 teszt zöld
 - [x] 2026-07-15 — 4. fázis DDD-döntés LEZÁRVA: scaffolding törölve (chat-root review, "A opció", `046b8bb`)
 - [x] 2026-07-15 — `C:\opt` maradványok (spaceos + nexus-dev) törölve Gábor jóváhagyásával
+- [x] 2026-07-15 — Token-auth réteg: auth/tokenAuth.ts modul + AUTH_MODE fail-closed + globális /api kapu + agents.yaml gitignore/example, 19 új teszt, élőben verifikálva (`36a4dad`)
