@@ -25,6 +25,8 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [ ] Tailscale a VPS és a lokális gépek közé; knowledge-service csak tailnet-interfészen figyeljen (publikus port zárva)
 - [ ] Auth: eszközönkénti bearer-token az MCP/HTTP rétegben — terminál-identitás a tokenből, NE önbevallásból (ToolContext.terminal); token-visszavonás + dispatch audit-log
 - [ ] Lokális runner (inbox-watcher lokális párja): kifelé irányuló poll a VPS dispatch-sorára, helyi Claude Code session-indítás, ZÁRT parancskészlet (csak whitelistelt terminál + hivatkozott MSG-feladat, soha nyers shell)
+- [ ] Runner-regisztráció + heartbeat: terminál→gép hozzárendelés a szerveren; offline gép feladata a sorban várakozik, flotta-státusz mutatja az elérhetőséget
+- [ ] Long-poll/SSE a runner-poll helyett: másodperces ébresztés csapat-láncokhoz (A done → B wake), a kapcsolatot továbbra is a runner nyitja kifelé
 - [ ] Runner Windows-támogatás: session-indítás tmux nélkül (közvetlen processz / Windows Terminal)
 - [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
 
