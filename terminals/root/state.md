@@ -7,14 +7,18 @@
 
 ## Aktuális fókusz
 
-Knowledge-service modernizáció — 1., 2., 3. (indítás) és 5. fázis KÉSZ. Következő: 4. fázis (DDD-döntés, Gábor) + mcp.ts maradék toolok migrálása.
+Knowledge-service modernizáció — 1., 2., 3. és 5. fázis KÉSZ. Következő: 4. fázis (DDD-döntés, Gábor) + legacy mcp.ts switch törlése (opcionális cleanup).
 
 ## Állapot
 
 - ✅ 1. fázis (takarítás): halott kód törölve, dependency-k rendezve — commit `0d9cba7`
 - ✅ 2. fázis (tooling): Biome + CI + zod env-config + logger (944 console.* cserélve) + smoke/hermetikus teszt-szétválasztás — commit `c14dc14`
   - Bónusz bugfix: duplikált `get_workflow` MCP tool (az új workflow-manager tool elérhetetlen volt) → `get_workflow_details`
-- ✅ 3. fázis (mcp.ts dekompozíció) ELINDÍTVA: ToolRegistry-varrat él, 3 csoport (~16 tool) kiszervezve, minta + README kész — commit `7730c93`. Maradék ~85 tool migrálása inkrementálisan folytatható (recept: `src/interfaces/mcp/tools/README.md`).
+- ✅ 3. fázis (mcp.ts dekompozíció) TELJES: **103 tool migrálva** 14 modulba (ToolRegistry pattern). Modulok:
+  - identity.tools.ts (6), skills.tools.ts (8), terminal-status.tools.ts (17), mailbox.tools.ts (11)
+  - focus-queue.tools.ts (5), session.tools.ts (9), project.tools.ts (6), telegram.tools.ts (4)
+  - codegen.tools.ts (9), goal.tools.ts (19), worker.tools.ts (6+subscription), knowledge/workflow/task-message-box (3)
+  - Legacy mcp.ts switch megmarad fallback-ként (109 case) — törlése future cleanup, nincs sürgősség
 - ✅ Runtime-verifikáció: szerver bootol Windowson a 3466-on, MCP tools/list 121 tool duplikáció nélkül, registry-toolok élesben hívhatók — commit `e349f97`
 - ✅ 5. fázis (teszt-megerősítés) KÉSZ: 98 → 0 tesztbukás. Hermetikus suite: 49 fájl / 888 teszt zöld. A háttér-agent részmunkáját (EPICS_PATH/SPACEOS_ROOT env-varratok, temp-fixture-ök) verifikáltam és befejeztem: graphRoutes fixture séma-kiegészítés, mcp-tools pattern-elvárások igazítása a stub-viselkedéshez, epic-router terminál-kontextus reset a concurrent teszthez, hookTimeout 30s (terhelés alatti import-lassulás).
 - ⏸️ 4. fázis (DDD-döntés): Gábor döntésére vár — bekötni vagy törölni a halott domain/ réteget

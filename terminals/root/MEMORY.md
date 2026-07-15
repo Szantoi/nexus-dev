@@ -80,3 +80,37 @@ A háttér-agent a havi költségkeret-limitbe futott és félbehagyta; a részm
 ### Tanulság
 - Tesztbukás-triázs: külön kell választani a "izoláltan is bukik" (valódi hiba) és a "csak teljes suite alatt bukik" (terhelés/megosztott állapot) eseteket — a 98-ból 29 az utóbbi volt.
 - A megosztott module-szintű SQLite (epicRouter) tesztek közti állapot-szivárgást okoz — tesztenkénti kontextus-reset kell.
+
+---
+
+## 2026-07-15 — 3. fázis (mcp.ts dekompozíció) TELJES
+
+**103 tool migrálva** a ToolRegistry architektúrára, 14 doménspecifikus modulba szervezve:
+
+| Modul | Tool-szám | Fő funkciók |
+|-------|-----------|-------------|
+| identity.tools.ts | 6 | get_identity, list_terminals, read/write/append_memory, get_capabilities |
+| skills.tools.ts | 8 | list_skills, get_skill, get_workflow, get_terminal_setup, get_project_context, terminal_docs |
+| terminal-status.tools.ts | 17 | register_working/idle, session_state, context_saturation, checkpoints, domain_memories |
+| mailbox.tools.ts | 11 | list_inbox, create_task, send_message, submit_done, complete_inbox_message |
+| focus-queue.tools.ts | 5 | get/set_focus_queue, add_focus_item, set_active_task, set_task_status |
+| session.tools.ts | 9 | request/spawn_work_session, tiered_memory, retrospective, handoff, daily_digest |
+| project.tools.ts | 6 | create_project, get_project_status, dispatch_next, list_blocked, skeleton/endpoint gen |
+| telegram.tools.ts | 4 | telegram_reply/broadcast, get_telegram_history, request_review |
+| codegen.tools.ts | 9 | generate_api_client/component/module/hook, verify_frontend_build, analyze_bundle_size |
+| goal.tools.ts | 19 | create/list/check/complete_goal, memory_health, compress_memory, epic_progress, create_skill |
+| worker.tools.ts | 6+sub | spawn_parallel/raw_workers, get_worker/service_status, subscription tools |
+| knowledge/workflow/tmb | 3 | search_knowledge, list_workflows, tmb_create_task |
+
+### Implementációs részletek
+- Migráció a `src/interfaces/mcp/tools/README.md` recept alapján
+- Minden tool `success()`/`error()` helper-ekkel, JSON-text result shape
+- ToolContext.terminal a caller-azonosításhoz (auth, broadcast)
+- TypeScript típusok javítva: CreateSkillParams (template/trigger_patterns), CreateResult.id
+- Unit tesztek frissítve a registry-megfelelés ellenőrzéséhez
+
+### Státusz
+- **Tesztek:** 49 fájl / 889 teszt ZÖLD (frissített mcpToolRegistry.test.ts)
+- **TypeScript:** 0 hiba (`npm run typecheck`)
+- **Build:** sikeres
+- Legacy mcp.ts switch (109 case) fallback-ként megmarad — törlése future cleanup, nincs sürgősség

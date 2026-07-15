@@ -8,17 +8,12 @@
 ## Aktív
 
 - [ ] 4. fázis DDD-döntés Gáborral: `domain/` + `infrastructure/` bekötése VAGY törlése
-- [ ] mcp.ts maradék ~85 tool migrálása a registry-re (recept: `src/interfaces/mcp/tools/README.md`) — csoportonként, inkrementálisan
 
 ## Backlog
 
-### 3. fázis folytatása — mcp.ts dekompozíció
-- [ ] identity csoport (get_identity, list_terminals, read/write/append_memory, get_capabilities)
-- [ ] skills csoport (list_skills, get_skill, get_workflow, get_terminal_setup, ...)
-- [ ] terminal-status + focus-queue csoport
-- [ ] mailbox csoport
-- [ ] memória / projekt / telegram / epic csoportok
-- [ ] a végén: TOOLS tömb + switch teljes törlése, auth-réteg külön modulba
+### Opcionális cleanup (nincs sürgősség)
+- [ ] mcp.ts legacy TOOLS tömb + switch törlése (fallback eltávolítása)
+- [ ] auth-réteg külön modulba szervezése
 
 ### 4. fázis — Architektúra
 - [ ] `src/routes/` maradék 2 fájl átmozgatása `interfaces/http/routes/` alá
@@ -45,3 +40,4 @@
 - [x] 2026-07-14 — workflowDb + indexer hardcodolt útvonalak → config/paths (C:\opt szemét-írás megszűnt)
 - [x] 2026-07-15 — 5. fázis: teszt-megerősítés KÉSZ — 98 → 0 bukás, hermetikus suite 49 fájl / 888 teszt zöld
 - [x] 2026-07-15 — Minden commit pusholva GitHubra (origin/main)
+- [x] 2026-07-15 — 3. fázis TELJES: 103 tool migrálva 14 modulba (ToolRegistry pattern), 889 teszt zöld

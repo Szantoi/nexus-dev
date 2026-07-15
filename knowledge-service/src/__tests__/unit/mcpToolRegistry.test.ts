@@ -30,11 +30,23 @@ describe('MCP tool registry', () => {
     // task-message-box group
     expect(toolRegistry.has('tmb_create_task')).toBe(true);
     expect(toolRegistry.has('tmb_get_inbox')).toBe(true);
-    // workflow group (renamed tool included)
+    // workflow group
     expect(toolRegistry.has('list_workflows')).toBe(true);
     expect(toolRegistry.has('get_workflow_details')).toBe(true);
-    // the legacy WORKFLOW.md tool must NOT be in the registry (still in mcp.ts)
-    expect(toolRegistry.has('get_workflow')).toBe(false);
+    // skills group (migrated from mcp.ts)
+    expect(toolRegistry.has('get_workflow')).toBe(true);
+    // identity group
+    expect(toolRegistry.has('get_identity')).toBe(true);
+    expect(toolRegistry.has('list_terminals')).toBe(true);
+    // mailbox group
+    expect(toolRegistry.has('list_inbox')).toBe(true);
+    expect(toolRegistry.has('create_task')).toBe(true);
+    // telegram group
+    expect(toolRegistry.has('telegram_reply')).toBe(true);
+    // goal/memory group
+    expect(toolRegistry.has('create_goal')).toBe(true);
+    // worker group
+    expect(toolRegistry.has('spawn_parallel_workers')).toBe(true);
   });
 
   it('is idempotent — double registration does not duplicate definitions', () => {
@@ -76,8 +88,16 @@ describe('MCP tool registry', () => {
     expect(searchKnowledge).toHaveBeenLastCalledWith('q', 5);
   });
 
-  it('unknown tools are not claimed by the registry (legacy switch fallback)', () => {
-    expect(toolRegistry.getHandler('telegram_reply')).toBeUndefined();
-    expect(toolRegistry.getHandler('list_inbox')).toBeUndefined();
+  it('now-migrated tools are claimed by the registry', () => {
+    // These were previously in mcp.ts switch, now migrated to registry
+    expect(toolRegistry.getHandler('telegram_reply')).toBeDefined();
+    expect(toolRegistry.getHandler('list_inbox')).toBeDefined();
+    expect(toolRegistry.getHandler('create_goal')).toBeDefined();
+    expect(toolRegistry.getHandler('spawn_parallel_workers')).toBeDefined();
+  });
+
+  it('unknown/nonexistent tools are not in the registry', () => {
+    expect(toolRegistry.getHandler('nonexistent_tool_xyz')).toBeUndefined();
+    expect(toolRegistry.getHandler('fake_tool_123')).toBeUndefined();
   });
 });
