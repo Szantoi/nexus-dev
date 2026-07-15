@@ -5,7 +5,7 @@
 # Cél: a projekt állapota fájlban él, nem a beszélgetés-kontextusban.
 
 version: "1.0"
-updated: "2026-07-14"
+updated: "2026-07-15"
 
 epics:
   - id: EPIC-KS-CLEANUP
@@ -60,8 +60,9 @@ epics:
       - EPIC-KS-TOOLING
     parallel_with:
       - EPIC-KS-MCP-SPLIT
-    status: active
+    status: done
     tasks_yaml: ../../terminals/root/todo.md
     description: >
       Környezetfüggő tesztek hermetizálása (EPICS fixture, /opt/spaceos
       függések kivezetése), smoke-suite külön configban.
+      Eredmény: 98 → 0 bukás, 49 fájl / 888 teszt zöld (2026-07-15).

@@ -3,11 +3,10 @@
 > A feladatok nyilvántartása. Új feladat ide kerül; kész feladat pipát kap és dátumot.
 > Állapot-kontextus: state.md, hosszú távú tanulságok: MEMORY.md.
 
-**Utolsó frissítés:** 2026-07-14 (este)
+**Utolsó frissítés:** 2026-07-15
 
 ## Aktív
 
-- [ ] 5. fázis: környezetfüggő teszt-bukások javítása (98 db, 15 fájl) — háttér-agent dolgozik rajta
 - [ ] 4. fázis DDD-döntés Gáborral: `domain/` + `infrastructure/` bekötése VAGY törlése
 - [ ] mcp.ts maradék ~85 tool migrálása a registry-re (recept: `src/interfaces/mcp/tools/README.md`) — csoportonként, inkrementálisan
 
@@ -44,3 +43,5 @@
 - [x] 2026-07-14 — 3. fázis indítás: ToolRegistry-varrat + 3 csoport kiszervezve + migrációs recept (`7730c93`)
 - [x] 2026-07-14 — Runtime-verifikáció Windowson: boot 3466, health OK, MCP 121 tool, registry-hívások élesben (`e349f97`)
 - [x] 2026-07-14 — workflowDb + indexer hardcodolt útvonalak → config/paths (C:\opt szemét-írás megszűnt)
+- [x] 2026-07-15 — 5. fázis: teszt-megerősítés KÉSZ — 98 → 0 bukás, hermetikus suite 49 fájl / 888 teszt zöld
+- [x] 2026-07-15 — Minden commit pusholva GitHubra (origin/main)
