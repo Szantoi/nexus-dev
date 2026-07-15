@@ -21,6 +21,7 @@ import {
 import { startChatSession } from '../chatSessionStarter';
 import { sendFromTerminal } from './multiBotManager';
 import { logger } from '../core/logger';
+import { TMUX_ENTER_VARIANTS } from '../pipeline/common';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -140,9 +141,8 @@ function injectToTmuxSession(
       .replace(/\r?\n/g, ' ')
       .replace(/'/g, "'\\''");
 
-    // Send text, wait, then send Enter using hex code (0d = carriage return)
-    // Using -H 0d instead of Enter keyword to avoid bracketed paste mode swallowing it
-    const cmd = `tmux send-keys -t ${sessionName} -l '${safeText}' && sleep 2 && tmux send-keys -t ${sessionName} -H 0d`;
+    // Send text, wait, then send multiple Enter variants to reduce stuck prompts
+    const cmd = `tmux send-keys -t ${sessionName} -l '${safeText}' && sleep 2 && tmux send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS}`;
     execSync(cmd, { timeout: 15000 });
 
     logger.info(`[TelegramService] Injected message into ${sessionName}`);

@@ -21,6 +21,7 @@
  */
 
 import { ConversationMessage, Conversation, getConversationMessages } from './conversationManager';
+import { TMUX_ENTER_VARIANTS } from '../pipeline/common';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -211,7 +212,8 @@ export function buildTmuxCommand(
 ): string {
   const escapedContext = escapeForTmux(context);
   // Use heredoc-style injection for multi-line content
-  return `tmux send-keys -t ${sessionName} -H 0x0D 0x0D '${escapedContext}'`;
+  // Send multiple Enter variants to reduce stuck prompts
+  return `tmux send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS} '${escapedContext}'`;
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────

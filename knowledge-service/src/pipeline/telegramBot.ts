@@ -15,7 +15,7 @@
  * the message is injected directly into the root tmux session.
  */
 
-import { log } from './common';
+import { log, TMUX_ENTER_VARIANTS } from './common';
 import { getFleetSnapshot, type FleetSnapshot } from './missionControl';
 import { execSync } from 'child_process';
 import {
@@ -145,8 +145,8 @@ function sendPromptToTmuxSession(sessionName: string, text: string): boolean {
       execSync(`tmux send-keys -t ${sessionName} -l '${chunk}'`, { timeout: 5000 });
     }
 
-    // Send Enter using hex code 0d to avoid bracketed paste mode issue
-    execSync(`tmux send-keys -t ${sessionName} -H 0d`, { timeout: 5000 });
+    // Send multiple Enter variants to reduce stuck prompts
+    execSync(`tmux send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS}`, { timeout: 5000 });
 
     log(`[TelegramBot] Injected message into ${sessionName}`);
     return true;

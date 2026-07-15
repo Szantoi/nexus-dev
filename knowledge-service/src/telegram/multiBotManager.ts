@@ -21,6 +21,7 @@ import {
 } from './conversationManager';
 import type { IncomingTelegramMessage } from './contextBuilder';
 import { logger } from '../core/logger';
+import { TMUX_ENTER_VARIANTS } from '../pipeline/common';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,8 @@ function injectToTmuxSession(sessionName: string, text: string): boolean {
 
   try {
     const safeText = text.replace(/\r?\n/g, ' ').replace(/'/g, "'\\''");
-    const cmd = `tmux send-keys -t ${sessionName} -l '${safeText}' && sleep 0.5 && tmux send-keys -t ${sessionName} -H 0d`;
+    // Send multiple Enter variants to reduce stuck prompts
+    const cmd = `tmux send-keys -t ${sessionName} -l '${safeText}' && sleep 0.5 && tmux send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS}`;
     execSync(cmd, { timeout: 15000 });
     return true;
   } catch (err) {

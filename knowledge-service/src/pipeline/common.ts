@@ -15,6 +15,18 @@ export const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
 export const LOG_DIR = path.join(SPACEOS_ROOT, 'logs/dispatcher');
 export const STATE_FILE = path.join(SPACEOS_ROOT, 'scripts/.nightwatch-state');
 
+// ─── Tmux Enter Key Variants ──────────────────────────────────────────────────
+// Multiple Enter variants to reduce chance of stuck prompts.
+// Claude Code may swallow some variants, so we send all of them.
+// Configure in one place, used everywhere.
+export const TMUX_ENTER_VARIANTS = '-H 0d -H 0a Enter C-m C-j';
+// Explanation:
+// - -H 0d = hex CR (carriage return)
+// - -H 0a = hex LF (line feed)
+// - Enter = tmux keyword (may be swallowed by Claude Code)
+// - C-m   = Ctrl+M (same as CR)
+// - C-j   = Ctrl+J (same as LF)
+
 // ─── Config-driven exports (loaded from config/terminals.json) ───────────────
 
 // Tmux socket path
@@ -136,17 +148,17 @@ export async function sendKeys(sessionName: string, keys: string): Promise<void>
 }
 
 // Send Enter key (tries both sockets)
-// Uses -H 0d (hex carriage return) instead of Enter keyword to avoid bracketed paste mode issue
+// Uses TMUX_ENTER_VARIANTS - multiple Enter variants to reduce stuck prompts
 export async function sendEnter(sessionName: string): Promise<void> {
   // Try configured socket first
   try {
-    await execAsync(`tmux -S ${TMUX_SOCKET} send-keys -t ${sessionName} -H 0d`);
+    await execAsync(`tmux -S ${TMUX_SOCKET} send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS}`);
     return;
   } catch {
     // Try default socket as fallback
   }
   try {
-    await execAsync(`tmux send-keys -t ${sessionName} -H 0d`);
+    await execAsync(`tmux send-keys -t ${sessionName} ${TMUX_ENTER_VARIANTS}`);
   } catch {
     // Ignore errors
   }

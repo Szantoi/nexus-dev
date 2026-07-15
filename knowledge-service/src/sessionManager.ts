@@ -23,6 +23,7 @@ import {
 } from './terminalConfig';
 import * as terminalsConfig from './config/terminals';
 import { handleSessionEnd, type SessionEndContext } from './sessionHooks';
+import { TMUX_ENTER_VARIANTS } from './pipeline/common';
 import { logger } from './core/logger';
 
 const TMUX_SOCKET = terminalsConfig.getTmuxSocket();
@@ -389,8 +390,8 @@ export async function injectPrompt(options: SessionInjectOptions): Promise<Sessi
     // Split into chunks if needed, send with -l flag for literal interpretation
     const escapedPrompt = prompt.replace(/'/g, "'\\''");
     execSync(`tmux -S ${TMUX_SOCKET} send-keys -t ${session} -l '${escapedPrompt}'`);
-    // Use hex code 0d (carriage return) instead of Enter keyword to avoid bracketed paste mode issue
-    execSync(`tmux -S ${TMUX_SOCKET} send-keys -t ${session} -H 0d`);
+    // Send multiple Enter variants to reduce chance of stuck prompts
+    execSync(`tmux -S ${TMUX_SOCKET} send-keys -t ${session} ${TMUX_ENTER_VARIANTS}`);
 
     const result: SessionActionResult = {
       success: true,
