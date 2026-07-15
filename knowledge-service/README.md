@@ -575,11 +575,86 @@ const nextDecision = handleTaskCompletion('backend', 'MSG-BACKEND-042', 'EPIC-CU
 // Automatically decides next task based on epic context
 ```
 
-## Next Steps (Phase 11)
+### Phase 11: MCP Tool Registry Migration ✅ (2026-07-15)
 
-1. Complete mcp.ts → interfaces/mcp/tools migration (2035 lines)
-2. Add infrastructure layer implementations
-3. Delete server.legacy.ts after verification period
-4. Marvin integration for planning pipeline
-5. Guardrail service integration
-6. HTTPS/WSS for production
+- ✅ 103 tools migrated from mcp.ts to modular ToolRegistry
+- ✅ 14 tool modules created in `src/interfaces/mcp/tools/`
+- ✅ TypeScript errors fixed (CreateSkillParams, CreateResult)
+- ✅ All unit tests passing (889 tests)
+
+### Phase 12: TMUX Enter Key Reliability ✅ (2026-07-15)
+
+A tmux session-ök "beragadt Enter" problémájának megoldása.
+
+#### A probléma
+
+Tmux send-keys után néha a prompt nem fut le, mert az Enter billentyűt:
+- Claude Code elnyeli (ha `Enter` kulcsszó)
+- A terminál nem értelmezi megfelelően
+
+#### Megoldás
+
+Több Enter variánst küldünk egyszerre (`TMUX_ENTER_VARIANTS`):
+
+```typescript
+// src/pipeline/common.ts
+export const TMUX_ENTER_VARIANTS = '-H 0d -H 0a Enter C-m C-j';
+```
+
+| Variáns | Hex | Leírás |
+|---------|-----|--------|
+| `-H 0d` | 0x0D | CR (carriage return) - legmegbízhatóbb |
+| `-H 0a` | 0x0A | LF (line feed) - Unix newline |
+| `Enter` | - | Tmux kulcsszó (lehet elnyeli a CLI) |
+| `C-m` | 0x0D | Ctrl+M = CR |
+| `C-j` | 0x0A | Ctrl+J = LF |
+
+#### Használó fájlok
+
+| Fájl | Funkció |
+|------|---------|
+| `src/pipeline/common.ts` | `sendEnter()` - központi definíció |
+| `src/sessionManager.ts` | `injectPrompt()` |
+| `src/telegram/telegramService.ts` | `injectToTmuxSession()` |
+| `src/telegram/multiBotManager.ts` | `injectToTmuxSession()` |
+| `src/pipeline/telegramBot.ts` | Telegram message injection |
+| `src/telegram/contextBuilder.ts` | `buildTmuxCommand()` |
+
+#### Root üzemeltetési útmutató
+
+**Módosítás:**
+```typescript
+// Ha más variánsokat szeretnél, csak itt kell módosítani:
+// src/pipeline/common.ts:22
+export const TMUX_ENTER_VARIANTS = '-H 0d -H 0a Enter C-m C-j';
+```
+
+**Tesztelés:**
+```bash
+# 1. Syntax ellenőrzés (nem kell session)
+tmux send-keys -t nonexistent -H 0d -H 0a Enter C-m C-j 2>&1 | grep -q "no server" && echo "Syntax OK"
+
+# 2. Live teszt működő session-nel
+tmux send-keys -t spaceos-monitor-chat "Teszt" && \
+  sleep 0.5 && \
+  tmux send-keys -t spaceos-monitor-chat -H 0d -H 0a Enter C-m C-j
+
+# 3. Unit tesztek
+npm test -- --grep "TMUX"
+```
+
+**Hibaelhárítás:**
+
+| Tünet | Ok | Megoldás |
+|-------|-----|----------|
+| Prompt nem fut le | Enter variáns nem jut át | Növeld a variánsok számát |
+| Dupla Enter | Túl sok variáns működik | Csökkentsd (pl. csak `-H 0d`) |
+| Syntax error | Rossz tmux verzió | Ellenőrizd `tmux -V` (≥3.0 kell) |
+
+## Next Steps (Phase 13)
+
+1. Add infrastructure layer implementations
+2. Delete server.legacy.ts after verification period
+3. Marvin integration for planning pipeline
+4. Guardrail service integration
+5. HTTPS/WSS for production
