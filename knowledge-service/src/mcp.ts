@@ -8,7 +8,6 @@
 import { Router, Request, Response } from 'express';
 import { searchKnowledge, getDocumentCount, usingChroma } from './vectorStore';
 import { embeddingBackend } from './embeddings';
-import { AGENTS_CONFIG_PATH } from './config/paths';
 import { listInbox, listInboxMetadata, sendMessage, submitDone, getTaskStatus, readInboxMessage, completeInboxMessage, appendToMessage, createTask } from './mailbox';
 // Registry-based tools (EPIC-KS-MCP-SPLIT): groups migrated out of this file
 // live under interfaces/mcp/tools/ and are dispatched via toolRegistry.
@@ -194,112 +193,17 @@ const router = Router();
 // MCP Protocol Version
 const MCP_VERSION = '2024-11-05';
 
-// ─── Agent Authentication (loaded from YAML config) ────────────────────────
-//
-// Config file: config/agents.yaml
-// Auto-reloads every 30 seconds without restart.
-//
-// Tokens can also be set via environment variables:
-//   MCP_AUTH_TOKEN=xxx       -> master token (root access)
-//   MCP_TOKEN_<NAME>=xxx     -> agent token (overrides YAML)
+// ─── Agent Authentication ───────────────────────────────────────────────────
+// Token handling and the authenticate/authenticateRest middlewares live in
+// auth/tokenAuth.ts (config/agents.yaml + MCP_AUTH_TOKEN / MCP_TOKEN_<NAME>).
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { logger } from './core/logger';
+import { authenticateMcp, authenticateRest } from './auth/tokenAuth';
 
-interface AgentsConfig {
-  version?: string;
-  updated?: string;
-  master_token?: string;
-  agents: Record<string, string>;  // token -> agent_name
-  groups?: Record<string, string[]>;
-  default_agent?: string | null;
-}
-
-// AGENTS_CONFIG_PATH imported from ./config/paths (env-overridable per island)
-
-let masterToken: string = process.env.MCP_AUTH_TOKEN || '';
-let agentTokens: Record<string, string> = {};  // token -> agent_name
-let defaultAgent: string | null = null;
-let lastAgentsConfigMtime: number = 0;
-
-/**
- * Load agent tokens from YAML config and environment variables
- */
-function loadAgentTokens(): void {
-  // First load from env variables (these always take precedence)
-  const envTokens: Record<string, string> = {};
-  for (const key of Object.keys(process.env)) {
-    if (key.startsWith('MCP_TOKEN_')) {
-      const agentName = key.substring(10).toLowerCase(); // MCP_TOKEN_CONDUCTOR -> conductor
-      const token = process.env[key] || '';
-      if (token) {
-        envTokens[token] = agentName;  // Reverse mapping: token -> agent
-      }
-    }
-  }
-
-  // Load master token from env (only if set, don't clear existing)
-  const envMasterToken = process.env.MCP_AUTH_TOKEN;
-  if (envMasterToken) {
-    masterToken = envMasterToken;
-  }
-
-  try {
-    const stat = fs.statSync(AGENTS_CONFIG_PATH);
-    const mtime = stat.mtimeMs;
-
-    // Skip if file hasn't changed and we already loaded
-    if (mtime === lastAgentsConfigMtime && Object.keys(agentTokens).length > 0) {
-      return;
-    }
-
-    const content = fs.readFileSync(AGENTS_CONFIG_PATH, 'utf-8');
-    const config = yaml.load(content) as AgentsConfig;
-
-    if (config) {
-      // Use YAML master token if env not set
-      // Always read from YAML on file change (unless env overrides)
-      if (!envMasterToken && config.master_token) {
-        masterToken = config.master_token;
-      }
-
-      // Load agent tokens from YAML (env vars override these)
-      const yamlTokens: Record<string, string> = {};
-      if (config.agents) {
-        for (const [token, agentName] of Object.entries(config.agents)) {
-          if (token && agentName) {
-            yamlTokens[token] = agentName;
-          }
-        }
-      }
-
-      // Merge: env tokens override YAML tokens
-      agentTokens = { ...yamlTokens, ...envTokens };
-
-      defaultAgent = config.default_agent || null;
-      lastAgentsConfigMtime = mtime;
-
-      const tokenCount = Object.keys(agentTokens).length;
-      logger.info(`[MCP] 🔑 Agent tokens loaded (${tokenCount} agents, master: ${masterToken ? 'set' : 'not set'})`);
-    }
-  } catch (err) {
-    // If YAML fails, use env vars only
-    if (Object.keys(agentTokens).length === 0) {
-      agentTokens = envTokens;
-      logger.warn(`[MCP] ⚠️ Could not load agents.yaml, using env vars only (${Object.keys(envTokens).length} agents)`);
-    }
-  }
-}
-
-// Initial load
-loadAgentTokens();
-
-// Auto-reload every 30 seconds
-setInterval(() => {
-  loadAgentTokens();
-}, 30_000);
+export { authenticateRest };
 
 // ─── Tool Permissions (loaded from YAML config) ────────────────────────────
 //
@@ -377,25 +281,6 @@ setInterval(() => {
 }, RELOAD_INTERVAL_MS);
 
 /**
- * Get agent name from token
- * Returns: 'root' for master token, agent name for specific token, defaultAgent if configured, null otherwise
- */
-function getAgentFromToken(token: string): string | null {
-  // Check master token first
-  if (masterToken && token === masterToken) {
-    return 'root';
-  }
-
-  // Check agent tokens (from YAML + env vars)
-  const agentName = agentTokens[token];
-  if (agentName) {
-    return agentName;
-  }
-
-  return null;
-}
-
-/**
  * Check if terminal can use a tool
  */
 function canUseTool(terminal: string, toolName: string): boolean {
@@ -428,92 +313,6 @@ function canUseTool(terminal: string, toolName: string): boolean {
  */
 function filterToolsForTerminal(tools: any[], terminal: string): any[] {
   return tools.filter(tool => canUseTool(terminal, tool.name));
-}
-
-// Middleware state: store terminal for later use
-declare global {
-  namespace Express {
-    interface Request {
-      mcpTerminal?: string;
-    }
-  }
-}
-
-// ─── Authentication Middleware ──────────────────────────────────────────────
-
-function authenticate(req: Request, res: Response, next: () => void) {
-  // If no tokens configured, allow all (dev mode)
-  if (!masterToken && Object.keys(agentTokens).length === 0) {
-    req.mcpTerminal = 'root'; // Default to root access in dev mode
-    next();
-    return;
-  }
-
-  const authHeader = req.headers.authorization;
-
-  // Check for default agent if no auth header
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    if (defaultAgent) {
-      req.mcpTerminal = defaultAgent;
-      next();
-      return;
-    }
-    res.status(401).json({
-      jsonrpc: '2.0',
-      error: { code: -32001, message: 'Unauthorized: Bearer token required' },
-      id: null,
-    });
-    return;
-  }
-
-  const token = authHeader.substring(7);
-  const agent = getAgentFromToken(token);
-
-  if (!agent) {
-    res.status(403).json({
-      jsonrpc: '2.0',
-      error: { code: -32002, message: 'Forbidden: Invalid token' },
-      id: null,
-    });
-    return;
-  }
-
-  req.mcpTerminal = agent;
-  next();
-}
-
-// ─── REST Authentication Middleware (MSG-NEXUS-016) ─────────────────────────
-
-/**
- * Authentication middleware for REST /api/mailbox endpoints
- * Similar to MCP authenticate(), but returns JSON error responses
- */
-export function authenticateRest(req: Request, res: Response, next: () => void): void {
-  // If no tokens configured, allow all (dev mode)
-  if (!masterToken && Object.keys(agentTokens).length === 0) {
-    req.mcpTerminal = 'root'; // Default to root access in dev mode
-    next();
-    return;
-  }
-
-  const authHeader = req.headers.authorization;
-
-  // Require Bearer token
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Unauthorized: Bearer token required' });
-    return;
-  }
-
-  const token = authHeader.substring(7);
-  const agent = getAgentFromToken(token);
-
-  if (!agent) {
-    res.status(403).json({ error: 'Forbidden: Invalid token' });
-    return;
-  }
-
-  req.mcpTerminal = agent;
-  next();
 }
 
 /**
@@ -5621,7 +5420,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
 
 // ─── MCP JSON-RPC Handler ───────────────────────────────────────────────────
 
-router.post('/', authenticate, async (req: Request, res: Response) => {
+router.post('/', authenticateMcp, async (req: Request, res: Response) => {
   const { jsonrpc, method, params, id } = req.body;
 
   if (jsonrpc !== '2.0') {

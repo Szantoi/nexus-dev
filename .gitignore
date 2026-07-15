@@ -3,6 +3,9 @@ dist/
 data/
 logs/
 .env
+
+# Auth tokens (secrets) — commit only the .example template
+**/config/agents.yaml
 *.db
 *.db-shm
 *.db-wal

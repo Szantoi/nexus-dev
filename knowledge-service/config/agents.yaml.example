@@ -1,0 +1,30 @@
+# agents.yaml — Bearer-token -> terminal identity mapping (SECRET, gitignored)
+#
+# Copy to agents.yaml and fill in real tokens. Generate a token with:
+#   node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+#
+# Env vars override this file:
+#   MCP_AUTH_TOKEN=xxx       -> master token (grants 'root')
+#   MCP_TOKEN_<NAME>=xxx     -> per-agent token (MCP_TOKEN_CONDUCTOR -> conductor)
+#
+# AUTH_MODE env var (see src/auth/tokenAuth.ts):
+#   open     -> local dev: no tokens configured = everyone is 'root'
+#   required -> fail closed: valid token mandatory on /mcp and every /api route
+#
+# The service auto-reloads this file every 30 seconds.
+
+version: "1.0"
+updated: "2026-07-15"
+
+# Master token: full 'root' access. Keep it off developer machines.
+master_token: "REPLACE-WITH-RANDOM-TOKEN"
+
+# token -> agent name. One token per device/terminal so they are individually revocable.
+agents:
+  "REPLACE-WITH-RANDOM-TOKEN-1": conductor
+  "REPLACE-WITH-RANDOM-TOKEN-2": backend
+  "REPLACE-WITH-RANDOM-TOKEN-3": frontend
+
+# Optional: identity for requests without an Authorization header.
+# Only honored in AUTH_MODE=open — 'required' ignores it (no anonymous access).
+default_agent: null

@@ -30,7 +30,8 @@ import {
 } from '../interfaces/http/routes';
 
 // Import existing routers (not yet migrated)
-import mcpRouter, { authenticateRest, authorizeMailboxRest } from '../mcp';
+import mcpRouter, { authorizeMailboxRest } from '../mcp';
+import { authenticateRest, apiAuthGate } from '../auth/tokenAuth';
 import graphRoutes from '../api/graphRoutes';
 import { createPlanningRouter } from '../api/planningRoutes';
 import subscriptionRoutes from '../routes/subscriptionRoutes';
@@ -138,6 +139,10 @@ export function createApp(config: AppConfig = {}): Express {
 
   app.use(express.json());
   app.use(rateLimit);
+
+  // In AUTH_MODE=required every /api route needs a valid Bearer token;
+  // in 'open' mode this is a no-op and per-route auth (mailbox) still applies.
+  app.use('/api', apiAuthGate);
 
   // ─── MCP Protocol ──────────────────────────────────────────────────────────
 

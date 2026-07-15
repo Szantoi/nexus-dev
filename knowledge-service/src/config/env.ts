@@ -31,6 +31,10 @@ const EnvSchema = z.object({
 
   // Root of the SpaceOS tree on the host (terminals, docs, nexus live under it).
   SPACEOS_ROOT: z.string().min(1).default('/opt/spaceos'),
+
+  // Authentication mode (see auth/tokenAuth.ts). 'open' preserves local-dev
+  // behavior; 'required' fails closed — mandatory for exposed deployments.
+  AUTH_MODE: z.enum(['open', 'required']).default('open'),
 });
 
 const parsed = EnvSchema.safeParse(process.env);
