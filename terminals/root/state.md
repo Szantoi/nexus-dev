@@ -7,7 +7,7 @@
 
 ## Aktuális fókusz
 
-Knowledge-service modernizáció — 1., 2., 3. és 5. fázis KÉSZ. Következő: 4. fázis (DDD-döntés, Gábor) + legacy mcp.ts switch törlése (opcionális cleanup).
+Knowledge-service modernizáció — MIND AZ 5 FÁZIS KÉSZ. Hátralévő: opcionális cleanup-ok (legacy mcp.ts switch törlése, routes-átmozgatás, pipeline-alfolderezés — lásd todo.md backlog).
 
 ## Állapot
 
@@ -21,17 +21,17 @@ Knowledge-service modernizáció — 1., 2., 3. és 5. fázis KÉSZ. Következő
   - Legacy mcp.ts switch megmarad fallback-ként (109 case) — törlése future cleanup, nincs sürgősség
 - ✅ Runtime-verifikáció: szerver bootol Windowson a 3466-on, MCP tools/list 121 tool duplikáció nélkül, registry-toolok élesben hívhatók — commit `e349f97`
 - ✅ 5. fázis (teszt-megerősítés) KÉSZ: 98 → 0 tesztbukás. Hermetikus suite: 49 fájl / 888 teszt zöld. A háttér-agent részmunkáját (EPICS_PATH/SPACEOS_ROOT env-varratok, temp-fixture-ök) verifikáltam és befejeztem: graphRoutes fixture séma-kiegészítés, mcp-tools pattern-elvárások igazítása a stub-viselkedéshez, epic-router terminál-kontextus reset a concurrent teszthez, hookTimeout 30s (terhelés alatti import-lassulás).
-- ⏸️ 4. fázis (DDD-döntés): Gábor döntésére vár — bekötni vagy törölni a halott domain/ réteget
+- ✅ 4. fázis (DDD-döntés) LEZÁRVA: a nappali chat-root review "A opció" döntése alapján a bekötetlen `domain/` + `infrastructure/` scaffolding (2300 LOC) TÖRÖLVE — commit `046b8bb`. (Megjegyzés: ez felülírta a korábbi "Bekötés" választ ebben a chatben.)
+- ✅ 3. fázis TELJES: 103 tool migrálva 14 modulba — commit `72b953c`; tmux Enter-variánsok centralizálva — commit `d22edbd`
 - ✅ Minden commit pusholva GitHubra (origin/main)
 
 ## Környezet
 
 - DEV: port 3466 — MŰKÖDIK Windowson (`node scripts/dev-start.mjs`)
 - ChromaDB nem fut a gépen → in-memory fallback (indexelés OK, perzisztencia nincs)
-- Ismert szemét: `C:\opt\spaceos` (5 MB régi teszt-runtime-adat korábbi futásokból) — törölhető, ha senkinek nem kell
+- `C:\opt` (spaceos + nexus-dev maradványok) TÖRÖLVE 2026-07-15 — Gábor jóváhagyta
 - PowerShell-sajátosság: tsc/npx kimenetét fájlba kell irányítani (pipeline-crash), a Bash tool megbízhatóbb
 
 ## Nyitott kérdések
 
-- DDD-scaffolding sorsa (4. fázis) — Gábor dönt
 - Megjegyzés: a Claude havi költségkeret elfogyott a háttér-agenteknél — a további munkát inline érdemes végezni

@@ -7,7 +7,7 @@
 
 ## Aktív
 
-- [ ] 4. fázis DDD-döntés Gáborral: `domain/` + `infrastructure/` bekötése VAGY törlése
+_(nincs aktív feladat — a backlogból választható a következő)_
 
 ## Backlog
 
@@ -24,7 +24,6 @@
 ### Kisebb tételek
 - [ ] 159 `any` fokozatos csökkentése (Biome noExplicitAny warn → error ratchet)
 - [ ] Biome warn-ra vett szabályok ratchetelése (noAssignInExpressions, noControlCharactersInRegex, useIterableCallbackReturn)
-- [ ] `C:\opt\spaceos` (5 MB régi teszt-adat) törlése, ha Gábor jóváhagyja
 - [ ] deploy-to-prod.sh cross-platform kiváltása (Node), prod-layout env-fájllal
 - [ ] README.md frissítése (elavult: Voyage/Gemini setup, lint-szekció, portok)
 
@@ -41,3 +40,5 @@
 - [x] 2026-07-15 — 5. fázis: teszt-megerősítés KÉSZ — 98 → 0 bukás, hermetikus suite 49 fájl / 888 teszt zöld
 - [x] 2026-07-15 — Minden commit pusholva GitHubra (origin/main)
 - [x] 2026-07-15 — 3. fázis TELJES: 103 tool migrálva 14 modulba (ToolRegistry pattern), 889 teszt zöld
+- [x] 2026-07-15 — 4. fázis DDD-döntés LEZÁRVA: scaffolding törölve (chat-root review, "A opció", `046b8bb`)
+- [x] 2026-07-15 — `C:\opt` maradványok (spaceos + nexus-dev) törölve Gábor jóváhagyásával
