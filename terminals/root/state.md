@@ -11,7 +11,9 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 
 **VPS (109.122.222.198, Debian 13):** részletek a memóriában [[vps-uzemeltetes]]. nexus-dev deploy: `/opt/nexus-dev`, port 3466, **csak a tailnet-interfészen** (100.82.133.87) figyel, `AUTH_MODE=required`, `systemd nexus-dev-ks.service`, külön `nexus-dev-knowledge` Chroma-kollekció. Tailnet: VPS=nexus-vps (100.82.133.87), Windows=nexus-dev-win (100.78.193.104). Biztonsági javítás: a publikusan nyitott ChromaDB (8001) bezárva.
 
-Következő: runner-regisztráció + heartbeat (flotta-státusz), VPS knowledge-base indexelése (nexus-dev-knowledge ~üres), runner mint auto-induló Windows-szolgáltatás. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
+**Több-szigetes kiszolgálás KÉSZ** (`9cb2083`, élőben igazolva): egy service több szigetet szolgál ki, a sziget a hívó tokenjéből dől el (agents.yaml `agent_islands`), sosem a kérésből. Ezzel a "ne fusson szigetenként szerver" cél technikai akadálya elhárult — a meglévő 3456/3458/3460 külön processzek már beolvaszthatók. (Megjegyzés: a nexus-dev-knowledge azért 1 dokumentumos, mert a repo docs/knowledge-ben tényleg 1 placeholder van — nem indexelési hiba.)
+
+Következő: a meglévő sziget-service-ek beolvasztása EGY service-be, runner-regisztráció + heartbeat (flotta-státusz), runner mint auto-induló Windows-szolgáltatás. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
 
 ## Állapot
 

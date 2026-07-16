@@ -30,9 +30,10 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
 
 ### Egy szerver — több sziget (Gábor 2026-07-16: központi + sziget-saját tudás, ne fusson szigetenként szerver)
-- [ ] Sziget-szkópolt tudás-kiszolgálás: `search_knowledge`/indexer island+domain szeparációval (chunk-metaadat már van: `domain`; kell: island dimenzió + szűrés identitás alapján)
-- [ ] Funkció-szkópolt MCP tool-nézetek: a tool-permission mátrix (terminálonkénti szűrés, ma 262 vs 226) kiegészítése funkció-profilokkal (pl. knowledge-only, mailbox-only endpoint-nézet), hogy egy agentnek ne 200+ toolból kelljen válogatnia — monolit marad, csak a felület szeletelődik
-- [ ] Szerver-székhely melletti mailbox-útvonal quirk: POST inbox a `Development\terminals\` alá írt a repo helyett (getMailboxPath/SPACEOS_ROOT eltérés) — kivizsgálni
+- [ ] **A meglévő sziget-service-ek kiváltása**: ma 3456 (nexus), 3458, 3460 (doorstar) külön processz fut — a több-szigetes kiszolgálás kész, ezek beolvaszthatók EGY service-be (agent_islands mapping + kliensek átirányítása). Ez a tényleges "ne fusson szigetenként szerver" lépés.
+- [ ] Indexer sziget-paraméter: `addChunks` már fogad islandot, de az indexer CLI még csak az ISLAND_ID-t indexeli — több sziget indexelése egy futásból
+- [ ] `search_knowledge` domain-szűrő (szigeten BELÜLI projekt-szkóp; a chunk-metaadatban már van `domain`)
+- [ ] Funkció-szkópolt MCP tool-nézetek: a tool-permission mátrix kiegészítése funkció-profilokkal (pl. knowledge-only, mailbox-only), hogy egy agentnek ne 200+ toolból kelljen válogatnia — monolit marad, csak a felület szeletelődik
 
 ### Kisebb tételek
 - [ ] 159 `any` fokozatos csökkentése (Biome noExplicitAny warn → error ratchet)
@@ -63,3 +64,4 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [x] 2026-07-16 — HOST env (config-vezérelt bind-cím) — `71ac72a`
 - [x] 2026-07-16 — nexus-dev deploy a VPS-re (/opt/nexus-dev, port 3466, tailnet-only, AUTH_MODE=required, systemd nexus-dev-ks.service, külön nexus-dev-knowledge kollekció); E2E igazolva: lokális runner ← tailnet → VPS-agy SSE-ébresztéssel
 - [x] 2026-07-16 — BUGFIX mailbox útvonal: `__dirname/../../..` a repo szülőjére mutatott (/opt), config-vezérelt TERMINALS_PATH-ra javítva + regressziós teszt — `a21aa20`
+- [x] 2026-07-16 — **Több-szigetes kiszolgálás** (`9cb2083`): vectorStore kollekció-cache szigetenként (indulási kötés helyett), sziget a hívó IDENTITÁSÁBÓL (agents.yaml `agent_islands`) — sosem a kérésből; 9 új teszt. Élőben igazolva a VPS-en: ugyanaz a service+tool, backend-token → nexus-dev (1 találat), spaceos-reader-token → spaceos (4817 chunkból); args-ból sziget-igénylés hatástalan
