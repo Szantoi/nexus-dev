@@ -3,35 +3,54 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-15
+**Utolsó frissítés:** 2026-07-16
 
 ## Aktuális fókusz
 
-Knowledge-service modernizáció — 1., 2., 3. és 5. fázis KÉSZ. Következő: 4. fázis (DDD-döntés, Gábor) + legacy mcp.ts switch törlése (opcionális cleanup).
+Knowledge-service modernizáció — **MIND AZ 5 FÁZIS KÉSZ** + TMUX Enter variants implementáció + dokumentáció. A rendszer üzemképes.
 
 ## Állapot
 
 - ✅ 1. fázis (takarítás): halott kód törölve, dependency-k rendezve — commit `0d9cba7`
 - ✅ 2. fázis (tooling): Biome + CI + zod env-config + logger (944 console.* cserélve) + smoke/hermetikus teszt-szétválasztás — commit `c14dc14`
-  - Bónusz bugfix: duplikált `get_workflow` MCP tool (az új workflow-manager tool elérhetetlen volt) → `get_workflow_details`
-- ✅ 3. fázis (mcp.ts dekompozíció) TELJES: **103 tool migrálva** 14 modulba (ToolRegistry pattern). Modulok:
-  - identity.tools.ts (6), skills.tools.ts (8), terminal-status.tools.ts (17), mailbox.tools.ts (11)
-  - focus-queue.tools.ts (5), session.tools.ts (9), project.tools.ts (6), telegram.tools.ts (4)
-  - codegen.tools.ts (9), goal.tools.ts (19), worker.tools.ts (6+subscription), knowledge/workflow/task-message-box (3)
-  - Legacy mcp.ts switch megmarad fallback-ként (109 case) — törlése future cleanup, nincs sürgősség
-- ✅ Runtime-verifikáció: szerver bootol Windowson a 3466-on, MCP tools/list 121 tool duplikáció nélkül, registry-toolok élesben hívhatók — commit `e349f97`
-- ✅ 5. fázis (teszt-megerősítés) KÉSZ: 98 → 0 tesztbukás. Hermetikus suite: 49 fájl / 888 teszt zöld. A háttér-agent részmunkáját (EPICS_PATH/SPACEOS_ROOT env-varratok, temp-fixture-ök) verifikáltam és befejeztem: graphRoutes fixture séma-kiegészítés, mcp-tools pattern-elvárások igazítása a stub-viselkedéshez, epic-router terminál-kontextus reset a concurrent teszthez, hookTimeout 30s (terhelés alatti import-lassulás).
-- ⏸️ 4. fázis (DDD-döntés): Gábor döntésére vár — bekötni vagy törölni a halott domain/ réteget
+- ✅ 3. fázis (mcp.ts dekompozíció) TELJES: **103 tool migrálva** 14 modulba (ToolRegistry pattern) — commit `72b953c`
+- ✅ 4. fázis (DDD-döntés): **DDD scaffolding TÖRÖLVE** (~2300 LOC) — commit `046b8bb`
+- ✅ 5. fázis (teszt-megerősítés): 98 → 0 tesztbukás, 889 teszt zöld — commit `7afbcd4`
+- ✅ **TMUX Enter variants**: 5 különböző Enter típus a beragadt promptok ellen — commit `d22edbd`
+- ✅ **Dokumentáció frissítve**: README.md + knowledge-service/README.md — commit `57111b3`
 - ✅ Minden commit pusholva GitHubra (origin/main)
+
+## Legutóbbi változás: TMUX Enter Key Variants
+
+A tmux send-keys után néha beragad a prompt. Megoldás: 5 különböző Enter variáns egyidejű küldése.
+
+```typescript
+// src/pipeline/common.ts:22
+export const TMUX_ENTER_VARIANTS = '-H 0d -H 0a Enter C-m C-j';
+```
+
+| Variáns | Jelentés |
+|---------|----------|
+| `-H 0d` | Hex CR (carriage return) — legmegbízhatóbb |
+| `-H 0a` | Hex LF (line feed) |
+| `Enter` | Tmux kulcsszó (Claude Code elnyelheti) |
+| `C-m` | Ctrl+M = CR |
+| `C-j` | Ctrl+J = LF |
+
+**Használó fájlok:** common.ts, sessionManager.ts, telegramService.ts, multiBotManager.ts, telegramBot.ts, contextBuilder.ts
 
 ## Környezet
 
-- DEV: port 3466 — MŰKÖDIK Windowson (`node scripts/dev-start.mjs`)
-- ChromaDB nem fut a gépen → in-memory fallback (indexelés OK, perzisztencia nincs)
-- Ismert szemét: `C:\opt\spaceos` (5 MB régi teszt-runtime-adat korábbi futásokból) — törölhető, ha senkinek nem kell
-- PowerShell-sajátosság: tsc/npx kimenetét fájlba kell irányítani (pipeline-crash), a Bash tool megbízhatóbb
+- **Linux (PROD):** port 3466 — MŰKÖDIK, 889 teszt zöld, Telegram botok aktívak
+- **Windows (DEV):** port 3466 — működik (`node scripts/dev-start.mjs`)
+- ChromaDB: 4817 dokumentum indexelve
+
+## Adatbázis-sémák (már léteznek)
+
+- `workflow.db`: workflows, workflow_states, workflow_history, workflow_tasks, epics, epic_tasks, epic_history
+- `epic_router.db`: projects, epics, terminal_context, task_queue
+- EPICS.yaml → DB sync: `syncFromEpicsYaml()` függvény az epicRouter.ts-ben
 
 ## Nyitott kérdések
 
-- DDD-scaffolding sorsa (4. fázis) — Gábor dönt
-- Megjegyzés: a Claude havi költségkeret elfogyott a háttér-agenteknél — a további munkát inline érdemes végezni
+- Legacy mcp.ts switch (109 case) törlése — opcionális cleanup, nincs sürgősség

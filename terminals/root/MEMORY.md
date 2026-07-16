@@ -114,3 +114,58 @@ A háttér-agent a havi költségkeret-limitbe futott és félbehagyta; a részm
 - **TypeScript:** 0 hiba (`npm run typecheck`)
 - **Build:** sikeres
 - Legacy mcp.ts switch (109 case) fallback-ként megmarad — törlése future cleanup, nincs sürgősség
+
+---
+
+## 2026-07-16 — TMUX Enter Key Variants implementáció
+
+### A probléma
+
+Tmux send-keys után néha a prompt "beragad" — az Enter billentyű nem jut át megfelelően. Okok:
+- Claude Code elnyeli az `Enter` tmux kulcsszót
+- A terminál nem értelmezi megfelelően az egyféle Enter-t
+
+### Megoldás
+
+Több Enter variáns egyidejű küldése — központosítva egy helyen:
+
+```typescript
+// src/pipeline/common.ts:22
+export const TMUX_ENTER_VARIANTS = '-H 0d -H 0a Enter C-m C-j';
+```
+
+| Variáns | Hex | Leírás |
+|---------|-----|--------|
+| `-H 0d` | 0x0D | CR (carriage return) — legmegbízhatóbb |
+| `-H 0a` | 0x0A | LF (line feed) — Unix newline |
+| `Enter` | - | Tmux kulcsszó (Claude Code elnyelheti) |
+| `C-m` | 0x0D | Ctrl+M = CR |
+| `C-j` | 0x0A | Ctrl+J = LF |
+
+### Érintett fájlok
+
+6 fájl frissítve a központi konstans használatára:
+
+| Fájl | Funkció |
+|------|---------|
+| `src/pipeline/common.ts` | `sendEnter()` - központi definíció |
+| `src/sessionManager.ts` | `injectPrompt()` |
+| `src/telegram/telegramService.ts` | `injectToTmuxSession()` |
+| `src/telegram/multiBotManager.ts` | `injectToTmuxSession()` |
+| `src/pipeline/telegramBot.ts` | Telegram message injection |
+| `src/telegram/contextBuilder.ts` | `buildTmuxCommand()` |
+
+### Tesztelés
+
+- Tmux syntax check: OK
+- Unit tesztek: 889 sikeres
+- Live teszt: `spaceos-monitor` terminál válaszolt ("Igen.")
+
+### Commitok
+
+- `d22edbd` — fix(tmux): Centralize Enter key variants to reduce stuck prompts
+- `57111b3` — docs: Add TMUX Enter variants documentation for operators
+
+### Tanulság
+
+Ha egy értéket több helyen használunk, **azonnal** központosítani kell — ne várd meg, hogy 6 helyen legyen duplikálva.
