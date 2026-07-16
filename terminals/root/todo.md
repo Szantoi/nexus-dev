@@ -7,7 +7,8 @@
 
 ## Aktív
 
-_(nincs aktív feladat — a backlogból választható a következő)_
+- [ ] **DÖNTÉS KELL (Gábor):** az árva mailbox-fa (`/opt/nexus/src/terminals`, 17 üzenet) — a mailbox-bug elnyelte őket, senki nem látta. Valódi tartalom van bennük (conductor „frontend dispatch verified 3 tasks" 07-16 22:46; root inbox „architect session summary — 7 task completed"; architect DONE-jelentés a 103 MCP toolról; librarian „nexus-dev→nexus-core migration plan"; explorer audit-kérés). Áthelyezésük az élő fába FELDOLGOZÁST indítana (a watcher <7 napos UNREAD üzenetre ébreszt) → ezért nem nyúltam hozzá. Opciók: (a) átnézni és kézzel átemelni, ami még releváns, (b) archívumba tenni, (c) hagyni.
+- [ ] Terjesztés folytatása: a joinerytech (3458) és doorstar (3460) sziget-service-ek még a régi, buggos kódot futtatják (mailbox-hasadás + nincs auth). A doorstar origin-je `/opt/nexus-dev` → onnan húzhat; a joinerytech saját másolat.
 
 ## Backlog
 
@@ -64,4 +65,5 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [x] 2026-07-16 — HOST env (config-vezérelt bind-cím) — `71ac72a`
 - [x] 2026-07-16 — nexus-dev deploy a VPS-re (/opt/nexus-dev, port 3466, tailnet-only, AUTH_MODE=required, systemd nexus-dev-ks.service, külön nexus-dev-knowledge kollekció); E2E igazolva: lokális runner ← tailnet → VPS-agy SSE-ébresztéssel
 - [x] 2026-07-16 — BUGFIX mailbox útvonal: `__dirname/../../..` a repo szülőjére mutatott (/opt), config-vezérelt TERMINALS_PATH-ra javítva + regressziós teszt — `a21aa20`
+- [x] 2026-07-16 — **PROD RELEASE** (`dda0bcc` a nexus-core `release/vps` ágán): a mai javítások élesben a 3456-on. Rendrakás is: a 288 „dirty" fájl oka kiderült — a prod `src/`-je ÜRES volt (csak `dist/`-ből futott, júl. 15-i build). A forrás visszaállítva (`git archive` a nexus-devből), a prod most a SAJÁT forrásából épül. Nohup → **systemd (`nexus-ks.service`)**, auto-restart + boot. Igazolva: mailbox-hasadás gyógyult (az API az élő fát olvassa), auth open módban = változatlan viselkedés, port-PID == MainPID, 0 restart/0 hiba. Backup: /opt/nexus/backups/pre-release-20260716-2253
 - [x] 2026-07-16 — **Több-szigetes kiszolgálás** (`9cb2083`): vectorStore kollekció-cache szigetenként (indulási kötés helyett), sziget a hívó IDENTITÁSÁBÓL (agents.yaml `agent_islands`) — sosem a kérésből; 9 új teszt. Élőben igazolva a VPS-en: ugyanaz a service+tool, backend-token → nexus-dev (1 találat), spaceos-reader-token → spaceos (4817 chunkból); args-ból sziget-igénylés hatástalan
