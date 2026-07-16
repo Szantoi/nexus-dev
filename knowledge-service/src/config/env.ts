@@ -19,6 +19,11 @@ const EnvSchema = z.object({
   // HTTP port. DEV convention: 3466, PROD: 3456 (see repo README).
   PORT: z.coerce.number().int().min(1).max(65535).default(3456),
 
+  // Bind address. Default 0.0.0.0 (all interfaces) preserves prior behavior;
+  // set to a private interface IP (e.g. a Tailscale 100.x address) to keep
+  // the service off the public internet on exposed hosts.
+  HOST: z.string().min(1).default('0.0.0.0'),
+
   // ChromaDB server (Docker).
   CHROMA_URL: z.url().default('http://localhost:8001'),
 

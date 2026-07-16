@@ -19,6 +19,7 @@ import { logger } from './core/logger';
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PORT = env.PORT;
+const HOST = env.HOST;
 const reactBuildPath = path.join(__dirname, '../public');
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -44,8 +45,10 @@ async function main() {
     port: PORT,
   });
 
-  // Start HTTP server
-  const server = app.listen(PORT, () => {
+  // Start HTTP server. Bind host is config-driven (env.HOST) so exposed
+  // deployments can listen on a private interface only (e.g. Tailscale).
+  const server = app.listen(PORT, HOST, () => {
+    logger.info(`[Server] Listening on ${HOST}:${PORT}`);
     startServices(PORT);
   });
 
