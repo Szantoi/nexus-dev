@@ -7,7 +7,7 @@
 
 ## Aktuális fókusz
 
-VPS-deploy + lokális ébresztés (pull-modell). 1. lépés token-auth KÉSZ (`36a4dad`). 2. lépés lokális runner MVP KÉSZ: `src/runner/` — kifelé irányuló poll az UNREAD-sorra, zárt parancskészletű `claude -p` session-indítás Windowson tmux nélkül, prompt stdin-en (network-adat sosem ér parancssort), runner.yaml gitignore + .example, indítás: `node scripts/runner-start.mjs`. Élőben verifikálva a 3466 ellen backend-tokennel. Következő: Tailscale/VPS (Gábor kell hozzá) vagy runner-regisztráció+heartbeat / SSE-ébresztés (a szerver-oldali SSE már létezik: `/api/mailbox/:terminal/subscribe`). Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
+VPS-deploy + lokális ébresztés (pull-modell). 1. lépés token-auth KÉSZ (`36a4dad`). 2. lépés lokális runner MVP KÉSZ: `src/runner/` — kifelé irányuló poll az UNREAD-sorra, zárt parancskészletű `claude -p` session-indítás Windowson tmux nélkül, prompt stdin-en (network-adat sosem ér parancssort), runner.yaml gitignore + .example, indítás: `node scripts/runner-start.mjs`. Élőben verifikálva a 3466 ellen backend-tokennel. SSE-ébresztés is KÉSZ: a runner a `/api/mailbox/:terminal/subscribe` streamre kötve ~90 ms alatt ébred (poll marad biztonsági hálónak; az SSE-esemény csak ébreszt, a launch-döntés a pollé). Következő: Tailscale/VPS (Gábor kell hozzá) vagy runner-regisztráció+heartbeat. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
 
 ## Állapot
 
