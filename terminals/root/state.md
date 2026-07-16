@@ -7,7 +7,11 @@
 
 ## Aktuális fókusz
 
-VPS-deploy + lokális ébresztés (pull-modell). 1. lépés token-auth KÉSZ (`36a4dad`). 2. lépés lokális runner MVP KÉSZ: `src/runner/` — kifelé irányuló poll az UNREAD-sorra, zárt parancskészletű `claude -p` session-indítás Windowson tmux nélkül, prompt stdin-en (network-adat sosem ér parancssort), runner.yaml gitignore + .example, indítás: `node scripts/runner-start.mjs`. Élőben verifikálva a 3466 ellen backend-tokennel. SSE-ébresztés is KÉSZ: a runner a `/api/mailbox/:terminal/subscribe` streamre kötve ~90 ms alatt ébred (poll marad biztonsági hálónak; az SSE-esemény csak ébreszt, a launch-döntés a pollé). Következő: Tailscale/VPS (Gábor kell hozzá) vagy runner-regisztráció+heartbeat. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
+VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpontig igazolva**. A teljes lánc: token-auth (`36a4dad`) → lokális runner MVP (`src/runner/`, zárt parancskészletű `claude -p`, Windows-first) → SSE-ébresztés (~90 ms) → Tailscale-hálózat → VPS-deploy. Élő E2E: feladat a VPS-agyba → SSE-ébresztés a tailneten át → lokális runner elindítja a sessiont.
+
+**VPS (109.122.222.198, Debian 13):** részletek a memóriában [[vps-uzemeltetes]]. nexus-dev deploy: `/opt/nexus-dev`, port 3466, **csak a tailnet-interfészen** (100.82.133.87) figyel, `AUTH_MODE=required`, `systemd nexus-dev-ks.service`, külön `nexus-dev-knowledge` Chroma-kollekció. Tailnet: VPS=nexus-vps (100.82.133.87), Windows=nexus-dev-win (100.78.193.104). Biztonsági javítás: a publikusan nyitott ChromaDB (8001) bezárva.
+
+Következő: runner-regisztráció + heartbeat (flotta-státusz), VPS knowledge-base indexelése (nexus-dev-knowledge ~üres), runner mint auto-induló Windows-szolgáltatás. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
 
 ## Állapot
 

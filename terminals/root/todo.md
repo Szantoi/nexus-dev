@@ -22,9 +22,11 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [ ] `DomainError`-hierarchia kiterjesztése (72 nyers `throw new Error` cseréje)
 
 ### VPS-deploy + lokális ébresztés (terv 2026-07-15, Gábor igénye: lokális wake + erős biztonság)
-- [ ] Tailscale a VPS és a lokális gépek közé; knowledge-service csak tailnet-interfészen figyeljen (publikus port zárva)
 - [ ] Epic-router külön token-rendszerének (SHA256-derivált, TERMINAL_TOKEN_SECRET) egyesítése a tokenAuth-tal
 - [ ] Runner-regisztráció + heartbeat: terminál→gép hozzárendelés a szerveren; offline gép feladata a sorban várakozik, flotta-státusz mutatja az elérhetőséget
+- [ ] VPS knowledge-base indexelése: a `nexus-dev-knowledge` kollekció ~üres (1 doc) — indexer futtatása a docs/knowledge-re
+- [ ] Chroma végleges zárás: compose-ban `127.0.0.1:8001:8000` + recreate (most DOCKER-USER iptables + systemd tartja); Gábor jóváhagyásával
+- [ ] Runner mint Windows-szolgáltatás (auto-indulás bootkor) — most kézzel indul
 - [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
 
 ### Egy szerver — több sziget (Gábor 2026-07-16: központi + sziget-saját tudás, ne fusson szigetenként szerver)
@@ -56,3 +58,8 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [x] 2026-07-15 — Token-auth réteg: auth/tokenAuth.ts modul + AUTH_MODE fail-closed + globális /api kapu + agents.yaml gitignore/example, 19 új teszt, élőben verifikálva (`36a4dad`)
 - [x] 2026-07-16 — Lokális runner MVP: src/runner/ (poll → zárt parancskészletű `claude -p` session-indítás, Windows-first, tmux nélkül), 25 új teszt, élőben verifikálva a 3466 ellen (dedup, model-whitelist, backend-token)
 - [x] 2026-07-16 — Runner SSE-ébresztés: sseListener + pollLoop.wake(), élőben ~90 ms wake-latencia (60 mp-es poll mellett), 9 új teszt; az esemény csak ébreszt, a launch-döntés a pollnál marad
+- [x] 2026-07-16 — Tailscale hálózat: VPS (nexus-vps, 100.82.133.87) + Windows-gép (100.78.193.104) egy tailneten; a szerver csak a tailnet-interfészen figyel
+- [x] 2026-07-16 — VPS biztonsági javítások: ChromaDB (8001) publikus lyuk zárva (DOCKER-USER iptables + systemd perzisztencia); Postgres félrevezető ufw-szabály törölve
+- [x] 2026-07-16 — HOST env (config-vezérelt bind-cím) — `71ac72a`
+- [x] 2026-07-16 — nexus-dev deploy a VPS-re (/opt/nexus-dev, port 3466, tailnet-only, AUTH_MODE=required, systemd nexus-dev-ks.service, külön nexus-dev-knowledge kollekció); E2E igazolva: lokális runner ← tailnet → VPS-agy SSE-ébresztéssel
+- [x] 2026-07-16 — BUGFIX mailbox útvonal: `__dirname/../../..` a repo szülőjére mutatott (/opt), config-vezérelt TERMINALS_PATH-ra javítva + regressziós teszt — `a21aa20`
