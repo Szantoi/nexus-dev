@@ -4,8 +4,9 @@ data/
 logs/
 .env
 
-# Auth tokens (secrets) — commit only the .example template
+# Auth tokens (secrets) — commit only the .example templates
 **/config/agents.yaml
+**/config/runner.yaml
 *.db
 *.db-shm
 *.db-wal

@@ -1,0 +1,46 @@
+# runner.yaml — Local runner configuration (TEMPLATE)
+#
+# Copy to config/runner.yaml and fill in. runner.yaml is GITIGNORED
+# (it may carry the token) — only this .example is committed.
+#
+# The runner is the local counterpart of the server-side InboxWatcher:
+# it polls the central knowledge-service (VPS) for UNREAD tasks addressed
+# to the terminals listed below, and starts a local headless Claude Code
+# session (`claude -p`) for each. Pull model: this machine only opens
+# OUTBOUND connections — the server never connects in.
+
+# Central knowledge-service. DEV: http://localhost:3466
+# VPS via Tailscale: http://<tailnet-name>:3456
+server_url: http://localhost:3466
+
+# Identity token for this machine (one token per device, revocable —
+# see config/agents.yaml on the server). Prefer the RUNNER_TOKEN env var;
+# this field is the fallback.
+# token: "<generate: node -e \"console.log(require('crypto').randomBytes(24).toString('hex'))\">"
+
+# Poll cadence. Long-poll/SSE upgrade is planned; 5s is fine to start.
+poll_interval_ms: 5000
+
+# When the server is unreachable, polls back off exponentially up to this cap.
+max_backoff_ms: 300000
+
+# A task that stays UNREAD (session died before ack) is retried at most
+# max_attempts times, waiting retry_cooldown_ms between attempts.
+max_attempts: 3
+retry_cooldown_ms: 600000
+
+# Claude CLI binary and extra args appended to every session
+# (args are validated: no whitespace or shell metacharacters).
+claude_bin: claude
+extra_args: []
+
+# Session logs + runner state land here (relative to knowledge-service/).
+log_dir: logs/runner
+
+# Terminals THIS machine serves — the whitelist. Tasks addressed to any
+# other terminal are invisible to this runner.
+terminals:
+  backend:
+    workdir: C:\Users\szant\Documents\Development\nexus-dev\terminals\backend
+    models: [haiku, sonnet, opus]   # models this terminal may request
+    default_model: sonnet
