@@ -12,6 +12,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import matter from 'gray-matter';
 import { logger } from './core/logger';
+import { TERMINALS_PATH } from './config/paths';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -81,12 +82,13 @@ interface TaskStatus {
 
 // ─── Constants ────────────────────────────────────────────────────────────
 
-const REPO_ROOT = path.resolve(__dirname, '../../..');
-// New terminal structure (2026-06-21) - each terminal has its own mailbox
-const TERMINALS_ROOT = path.join(REPO_ROOT, 'terminals');
-// Legacy mailbox root (symlink for backward compatibility)
-const LEGACY_MAILBOX_ROOT = path.join(REPO_ROOT, 'docs/mailbox');
-const TASKS_ROOT = path.join(REPO_ROOT, 'docs/tasks');
+// Terminal mailbox root — use the canonical, config-driven path (honors
+// TERMINALS_PATH / the deployment layout). The previous `__dirname/../../..`
+// resolved one level ABOVE the repo (e.g. /opt instead of /opt/nexus-dev),
+// so mailbox writes landed outside the repo.
+const TERMINALS_ROOT = TERMINALS_PATH;
+// docs/tasks lives beside the terminals dir, one level up from it.
+const TASKS_ROOT = path.join(path.dirname(TERMINALS_PATH), 'docs/tasks');
 
 // Helper to get mailbox path for a terminal
 function getMailboxPath(terminal: string): string {
