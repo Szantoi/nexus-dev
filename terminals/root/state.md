@@ -11,9 +11,11 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 
 **VPS (109.122.222.198, Debian 13):** részletek a memóriában [[vps-uzemeltetes]]. nexus-dev deploy: `/opt/nexus-dev`, port 3466, **csak a tailnet-interfészen** (100.82.133.87) figyel, `AUTH_MODE=required`, `systemd nexus-dev-ks.service`, külön `nexus-dev-knowledge` Chroma-kollekció. Tailnet: VPS=nexus-vps (100.82.133.87), Windows=nexus-dev-win (100.78.193.104). Biztonsági javítás: a publikusan nyitott ChromaDB (8001) bezárva.
 
-**Több-szigetes kiszolgálás KÉSZ** (`9cb2083`, élőben igazolva): egy service több szigetet szolgál ki, a sziget a hívó tokenjéből dől el (agents.yaml `agent_islands`), sosem a kérésből. Ezzel a "ne fusson szigetenként szerver" cél technikai akadálya elhárult — a meglévő 3456/3458/3460 külön processzek már beolvaszthatók. (Megjegyzés: a nexus-dev-knowledge azért 1 dokumentumos, mert a repo docs/knowledge-ben tényleg 1 placeholder van — nem indexelési hiba.)
+**Több-szigetes kiszolgálás KÉSZ** (`9cb2083`, élőben igazolva): egy service több szigetet szolgál ki, a sziget a hívó tokenjéből dől el (agents.yaml `agent_islands`), sosem a kérésből. A `nexus-dev-knowledge` kollekció 17 chunk (a VPS-hozzáférés oktatóanyag) — korábban 1 placeholder volt.
 
-Következő: a meglévő sziget-service-ek beolvasztása EGY service-be, runner-regisztráció + heartbeat (flotta-státusz), runner mint auto-induló Windows-szolgáltatás. Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
+**PROD RELEASE KÉSZ** (`dda0bcc`, nexus-core `release/vps`): a mai javítások élesben a 3456-on. Gábor döntése alapján NEM a "beolvasztás" (egy service mindenkinek) irányba mentünk — az RAM-nyeresége (~600 MB / 15 GB) nem indokolt nagy refaktort; a valódi fájdalom a négy elsodródott kódverzió volt. Rendrakás is megtörtént: a prod `src/`-je ÜRES volt (csak júl. 15-i `dist/`-ből futott), most a saját forrásából épül; nohup → **systemd `nexus-ks.service`**. Igazolva: mailbox-hasadás gyógyult, auth `open` módban = változatlan viselkedés, 0 restart/0 hiba. Backup: `/opt/nexus/backups/pre-release-20260716-2253`. A `deploy-to-prod.sh` VESZÉLYES, ne használd (lásd [[vps-uzemeltetes]] release-recept).
+
+**Következő:** (1) döntés az árva mailbox-fáról (17 elnyelt agent-üzenet, lásd todo Aktív); (2) terjesztés befejezése: joinerytech (3458) + doorstar (3460) még a régi, buggos kódot futtatja; (3) runner-regisztráció + heartbeat; (4) runner mint auto-induló Windows-szolgáltatás. Gábor iránya: központi szerver sziget-saját tudással (kiszolgáló réteg KÉSZ), agent-management lokálisan (= runner, KÉSZ).
 
 ## Állapot
 
@@ -30,14 +32,18 @@ Következő: a meglévő sziget-service-ek beolvasztása EGY service-be, runner-
 - ✅ 4. fázis (DDD-döntés) LEZÁRVA: a nappali chat-root review "A opció" döntése alapján a bekötetlen `domain/` + `infrastructure/` scaffolding (2300 LOC) TÖRÖLVE — commit `046b8bb`. (Megjegyzés: ez felülírta a korábbi "Bekötés" választ ebben a chatben.)
 - ✅ 3. fázis TELJES: 103 tool migrálva 14 modulba — commit `72b953c`; tmux Enter-variánsok centralizálva — commit `d22edbd`
 - ✅ Minden commit pusholva GitHubra (origin/main)
+- ✅ Teszt-állapot: 57 fájl / 952 teszt zöld (2026-07-16), typecheck + biome tiszta
 
 ## Környezet
 
 - DEV: port 3466 — MŰKÖDIK Windowson (`node scripts/dev-start.mjs`)
-- ChromaDB nem fut a gépen → in-memory fallback (indexelés OK, perzisztencia nincs)
+- ChromaDB: állapotfüggő a Windows-gépen (2026-07-16-án futott, 4817 dokumentumot szolgált ki) — ha nem megy, in-memory fallback. A health `documents` mezője INDULÁSKORI pillanatkép, nem élő szám.
 - `C:\opt` (spaceos + nexus-dev maradványok) TÖRÖLVE 2026-07-15 — Gábor jóváhagyta
 - PowerShell-sajátosság: tsc/npx kimenetét fájlba kell irányítani (pipeline-crash), a Bash tool megbízhatóbb
+- VPS-hozzáférés: `nexus-vps` alias (+ projektenkénti kulcsok: `joinerytech-vps`, `doorstar-vps`) — oktatóanyag: `docs/knowledge/vps-hozzaferes-modell.md`
 
 ## Nyitott kérdések
 
+- **Árva mailbox-fa a prodon** (`/opt/nexus/src/terminals`, 17 üzenet): Gábor döntésére vár — lásd todo Aktív.
+- A prod `AUTH_MODE=required`-re kapcsolása: a réteg készen áll, de token-osztás kell hozzá a kliensekhez. Ma `open` módban fut (= régi viselkedés).
 - Megjegyzés: a Claude havi költségkeret elfogyott a háttér-agenteknél — a további munkát inline érdemes végezni
