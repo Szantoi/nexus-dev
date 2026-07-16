@@ -32,6 +32,20 @@ curl -s -X POST http://localhost:3466/mcp -H 'Content-Type: application/json' \
 
 REST surface: `/api/*` (projects, mailbox, epic-router, ...), public: `/health`, `/ready`.
 
+## Runner (local wake-up daemon)
+
+```bash
+cd /c/Users/szant/Documents/Development/nexus-dev
+RUNNER_CONFIG_PATH='<path to runner.yaml>' RUNNER_TOKEN=<token> node scripts/runner-start.mjs
+```
+
+- Polls `/api/mailbox/<terminal>/inbox?status=UNREAD` and spawns `claude --model <m> -p` per task.
+- For live verification WITHOUT burning Claude budget: point `claude_bin` in runner.yaml at a
+  stub .cmd that echoes stdin (see scratchpad fake-claude pattern) — full chain runs, no real session.
+- Set `SPACEOS_ROOT` explicitly when starting the server, otherwise mailbox writes land under
+  a `/opt/spaceos`-derived path (and note: even with it set, POST inbox has been observed writing
+  to `Development\terminals\` instead of the repo — pre-existing quirk, in backlog).
+
 ## Gotchas
 
 - DEV = 3466; PROD = 3456 — never verify against 3456.

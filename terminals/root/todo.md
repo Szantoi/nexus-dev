@@ -3,7 +3,7 @@
 > A feladatok nyilvántartása. Új feladat ide kerül; kész feladat pipát kap és dátumot.
 > Állapot-kontextus: state.md, hosszú távú tanulságok: MEMORY.md.
 
-**Utolsó frissítés:** 2026-07-15
+**Utolsó frissítés:** 2026-07-16
 
 ## Aktív
 
@@ -24,11 +24,14 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 ### VPS-deploy + lokális ébresztés (terv 2026-07-15, Gábor igénye: lokális wake + erős biztonság)
 - [ ] Tailscale a VPS és a lokális gépek közé; knowledge-service csak tailnet-interfészen figyeljen (publikus port zárva)
 - [ ] Epic-router külön token-rendszerének (SHA256-derivált, TERMINAL_TOKEN_SECRET) egyesítése a tokenAuth-tal
-- [ ] Lokális runner (inbox-watcher lokális párja): kifelé irányuló poll a VPS dispatch-sorára, helyi Claude Code session-indítás, ZÁRT parancskészlet (csak whitelistelt terminál + hivatkozott MSG-feladat, soha nyers shell)
 - [ ] Runner-regisztráció + heartbeat: terminál→gép hozzárendelés a szerveren; offline gép feladata a sorban várakozik, flotta-státusz mutatja az elérhetőséget
-- [ ] Long-poll/SSE a runner-poll helyett: másodperces ébresztés csapat-láncokhoz (A done → B wake), a kapcsolatot továbbra is a runner nyitja kifelé
-- [ ] Runner Windows-támogatás: session-indítás tmux nélkül (közvetlen processz / Windows Terminal)
+- [ ] Runner SSE-ébresztés: a meglévő `/api/mailbox/:terminal/subscribe` SSE-végpontra kötés a poll mellé (másodperces wake csapat-láncokhoz; a kapcsolatot a runner nyitja kifelé) — a szerver-oldal már KÉSZ
 - [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
+
+### Egy szerver — több sziget (Gábor 2026-07-16: központi + sziget-saját tudás, ne fusson szigetenként szerver)
+- [ ] Sziget-szkópolt tudás-kiszolgálás: `search_knowledge`/indexer island+domain szeparációval (chunk-metaadat már van: `domain`; kell: island dimenzió + szűrés identitás alapján)
+- [ ] Funkció-szkópolt MCP tool-nézetek: a tool-permission mátrix (terminálonkénti szűrés, ma 262 vs 226) kiegészítése funkció-profilokkal (pl. knowledge-only, mailbox-only endpoint-nézet), hogy egy agentnek ne 200+ toolból kelljen válogatnia — monolit marad, csak a felület szeletelődik
+- [ ] Szerver-székhely melletti mailbox-útvonal quirk: POST inbox a `Development\terminals\` alá írt a repo helyett (getMailboxPath/SPACEOS_ROOT eltérés) — kivizsgálni
 
 ### Kisebb tételek
 - [ ] 159 `any` fokozatos csökkentése (Biome noExplicitAny warn → error ratchet)
@@ -52,3 +55,4 @@ _(nincs aktív feladat — a backlogból választható a következő)_
 - [x] 2026-07-15 — 4. fázis DDD-döntés LEZÁRVA: scaffolding törölve (chat-root review, "A opció", `046b8bb`)
 - [x] 2026-07-15 — `C:\opt` maradványok (spaceos + nexus-dev) törölve Gábor jóváhagyásával
 - [x] 2026-07-15 — Token-auth réteg: auth/tokenAuth.ts modul + AUTH_MODE fail-closed + globális /api kapu + agents.yaml gitignore/example, 19 új teszt, élőben verifikálva (`36a4dad`)
+- [x] 2026-07-16 — Lokális runner MVP: src/runner/ (poll → zárt parancskészletű `claude -p` session-indítás, Windows-first, tmux nélkül), 25 új teszt, élőben verifikálva a 3466 ellen (dedup, model-whitelist, backend-token)

@@ -3,11 +3,11 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-15
+**Utolsó frissítés:** 2026-07-16
 
 ## Aktuális fókusz
 
-Knowledge-service modernizáció KÉSZ (mind az 5 fázis). Új irány: VPS-deploy + lokális ébresztés (pull-modell) — 1. lépés, a token-auth réteg KÉSZ (`36a4dad`): auth/tokenAuth.ts, AUTH_MODE=required fail-closed, globális /api kapu, élőben verifikálva a 3466-on. Következő: Tailscale-setup vagy lokális runner (Gábor dönt, melyik előbb).
+VPS-deploy + lokális ébresztés (pull-modell). 1. lépés token-auth KÉSZ (`36a4dad`). 2. lépés lokális runner MVP KÉSZ: `src/runner/` — kifelé irányuló poll az UNREAD-sorra, zárt parancskészletű `claude -p` session-indítás Windowson tmux nélkül, prompt stdin-en (network-adat sosem ér parancssort), runner.yaml gitignore + .example, indítás: `node scripts/runner-start.mjs`. Élőben verifikálva a 3466 ellen backend-tokennel. Következő: Tailscale/VPS (Gábor kell hozzá) vagy runner-regisztráció+heartbeat / SSE-ébresztés (a szerver-oldali SSE már létezik: `/api/mailbox/:terminal/subscribe`). Gábor 2026-07-16-i iránya: EGY központi szerver minden szigetnek, sziget-saját tudással + funkció-szkópolt tool-nézetekkel (backlogban), agent-management lokálisan (= runner).
 
 ## Állapot
 
