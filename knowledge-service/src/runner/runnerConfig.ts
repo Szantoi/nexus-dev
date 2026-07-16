@@ -43,6 +43,9 @@ export const RunnerConfigSchema = z.object({
   // where the whole file is secret-managed. runner.yaml is gitignored.
   token: z.string().min(1).optional(),
   poll_interval_ms: z.coerce.number().int().min(500).default(5000),
+  // Second-level wake-up via the server's SSE endpoint; the poll stays on
+  // as the fallback either way.
+  sse_enabled: z.boolean().default(true),
   // Backoff cap when the server is unreachable.
   max_backoff_ms: z.coerce.number().int().min(1000).default(300_000),
   // A task that stays UNREAD (session died before ack) is retried at most

@@ -18,8 +18,12 @@ server_url: http://localhost:3466
 # this field is the fallback.
 # token: "<generate: node -e \"console.log(require('crypto').randomBytes(24).toString('hex'))\">"
 
-# Poll cadence. Long-poll/SSE upgrade is planned; 5s is fine to start.
+# Poll cadence — the safety net; with SSE on, wake-up is near-instant anyway.
 poll_interval_ms: 5000
+
+# Second-level wake-up via the server's SSE stream
+# (/api/mailbox/:terminal/subscribe). Poll stays on as fallback either way.
+sse_enabled: true
 
 # When the server is unreachable, polls back off exponentially up to this cap.
 max_backoff_ms: 300000

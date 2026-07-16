@@ -12,6 +12,7 @@ import { ProcessedStore } from './processedStore';
 import { ServerClient } from './serverClient';
 import { SessionLauncher } from './sessionLauncher';
 import { startPollLoop } from './pollLoop';
+import { startSseListener, type SseListenerHandle } from './sseListener';
 
 function main(): void {
   const config = loadRunnerConfig();
@@ -33,8 +34,27 @@ function main(): void {
     store,
   });
 
+  // Second-level wake: one SSE stream per served terminal. Events only
+  // nudge the poll loop — the poll stays the single launch authority.
+  const sseListeners: SseListenerHandle[] = [];
+  if (config.sse_enabled) {
+    for (const terminal of Object.keys(config.terminals)) {
+      sseListeners.push(
+        startSseListener({
+          serverUrl: config.server_url,
+          token: config.token,
+          terminal,
+          maxBackoffMs: config.max_backoff_ms,
+          onWake: () => loop.wake(),
+        }),
+      );
+    }
+    logger.info(`[Runner] SSE wake enabled for ${sseListeners.length} terminal(s)`);
+  }
+
   const shutdown = (signal: string): void => {
     logger.info(`[Runner] ${signal} received, stopping poll loop...`);
+    for (const listener of sseListeners) listener.stop();
     loop.stop();
     store.save();
     const active = launcher.activeCount();

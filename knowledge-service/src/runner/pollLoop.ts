@@ -83,16 +83,30 @@ export async function pollOnce(
 
 export interface PollLoopHandle {
   stop(): void;
+  /** Trigger an immediate poll (e.g. on an SSE wake event). Safe to call anytime. */
+  wake(): void;
 }
 
 export function startPollLoop(config: RunnerConfig, deps: PollDeps): PollLoopHandle {
   let stopped = false;
   let timer: NodeJS.Timeout | null = null;
+  let running = false;
+  let wakeRequested = false;
   let consecutiveFullFailures = 0;
   const terminalCount = Object.keys(config.terminals).length;
 
   const tick = async (): Promise<void> => {
-    if (stopped) return;
+    if (stopped || running) {
+      // A wake during an in-flight tick queues one follow-up tick.
+      if (running) wakeRequested = true;
+      return;
+    }
+    running = true;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+
     try {
       const res = await pollOnce(config, deps);
       consecutiveFullFailures =
@@ -102,11 +116,12 @@ export function startPollLoop(config: RunnerConfig, deps: PollDeps): PollLoopHan
       logger.error('[Runner] Unexpected poll error:', err);
       consecutiveFullFailures++;
     }
+    running = false;
 
-    const delay = Math.min(
-      config.poll_interval_ms * 2 ** consecutiveFullFailures,
-      config.max_backoff_ms,
-    );
+    const delay = wakeRequested
+      ? 0
+      : Math.min(config.poll_interval_ms * 2 ** consecutiveFullFailures, config.max_backoff_ms);
+    wakeRequested = false;
     if (consecutiveFullFailures > 0) {
       logger.warn(`[Runner] Poll failing (server unreachable or error), backing off: next poll in ${delay}ms`);
     }
@@ -123,6 +138,9 @@ export function startPollLoop(config: RunnerConfig, deps: PollDeps): PollLoopHan
     stop(): void {
       stopped = true;
       if (timer) clearTimeout(timer);
+    },
+    wake(): void {
+      void tick();
     },
   };
 }
