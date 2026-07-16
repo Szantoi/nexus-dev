@@ -31,11 +31,14 @@ export function registerKnowledgeTools(): void {
         required: ['query'],
       },
     },
-    async (args) => {
+    async (args, context) => {
       const query = String(args.query || '');
       const limit = Math.min(Number(args.limit) || 5, 20);
-      const results = await searchKnowledge(query, limit);
-      return success({ query, limit, count: results.length, results });
+      // Island comes from the caller's identity (server-side config), never
+      // from args — an agent cannot read another island's knowledge.
+      const island = context?.island;
+      const results = await searchKnowledge(query, limit, island);
+      return success({ query, limit, island, count: results.length, results });
     }
   );
 }

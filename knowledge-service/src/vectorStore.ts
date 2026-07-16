@@ -4,6 +4,12 @@
  * ChromaDB runs via Docker at CHROMA_URL (default: http://localhost:8001).
  * Embedding is handled by embeddings.ts (Voyage AI or local).
  * If ChromaDB is unavailable, falls back to an in-memory store (no persistence).
+ *
+ * MULTI-ISLAND: one service instance serves several islands, each backed by
+ * its own collection (`<island>-knowledge`). Collections are opened lazily
+ * and cached per island, so the island can be chosen PER REQUEST (from the
+ * caller's identity) instead of being fixed at startup. Callers that pass no
+ * island get DEFAULT_ISLAND (env ISLAND_ID) — existing behavior unchanged.
  */
 
 import { ChromaClient, Collection } from 'chromadb';
@@ -26,12 +32,85 @@ interface MemoryDoc {
   embedding: number[];
 }
 
-let collection: Collection | null = null;
-let memoryDocs: MemoryDoc[] = [];
+/** Island used when a caller does not specify one. */
+export const DEFAULT_ISLAND = ISLAND_ID;
+
+// Island ids become ChromaDB collection names and may originate from caller
+// identity — keep them to a strict, boring shape.
+const ISLAND_ID_RX = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+export class UnknownIslandError extends Error {
+  constructor(island: string) {
+    super(`Invalid island id: ${island}`);
+    this.name = 'UnknownIslandError';
+  }
+}
+
+/**
+ * Collection name for an island. The default island honors an explicit
+ * COLLECTION_NAME override so existing single-island deployments keep
+ * pointing at their current collection.
+ */
+export function collectionNameForIsland(island: string): string {
+  return island === DEFAULT_ISLAND ? COLLECTION_NAME : `${island}-knowledge`;
+}
+
+function resolveIsland(island?: string): string {
+  const id = island ?? DEFAULT_ISLAND;
+  if (!ISLAND_ID_RX.test(id)) throw new UnknownIslandError(id);
+  return id;
+}
+
+let client: ChromaClient | null = null;
+let embeddingFunction: XenovaEmbeddingFunction | null = null;
+/** island -> ChromaDB collection (lazily opened). */
+const collections = new Map<string, Collection>();
+/** island -> in-memory docs (fallback when ChromaDB is unavailable). */
+const memoryDocsByIsland = new Map<string, MemoryDoc[]>();
 let isChromaConnected = false;
 let initialized = false;
 
 const CHROMA_URL = env.CHROMA_URL;
+
+function memoryDocsFor(island: string): MemoryDoc[] {
+  let docs = memoryDocsByIsland.get(island);
+  if (!docs) {
+    docs = [];
+    memoryDocsByIsland.set(island, docs);
+  }
+  return docs;
+}
+
+/**
+ * Open (and cache) the collection for an island. Returns null when ChromaDB
+ * is unavailable — callers then use the in-memory fallback.
+ */
+async function getCollection(island: string): Promise<Collection | null> {
+  if (!isChromaConnected || !client) return null;
+
+  const cached = collections.get(island);
+  if (cached) return cached;
+
+  const name = collectionNameForIsland(island);
+  const created = await client.getOrCreateCollection({
+    name,
+    metadata: { description: `SpaceOS Knowledge Base — island: ${island}` },
+    embeddingFunction: embeddingFunction as any, // chromadb types are incomplete
+  });
+  collections.set(island, created);
+  logger.info(`🟢 [VDB] Collection ready: ${name} (island: ${island})`);
+  return created;
+}
+
+/** Test seam: drop cached client/collections so a fresh init can run. */
+export function resetVectorStoreForTests(): void {
+  client = null;
+  embeddingFunction = null;
+  collections.clear();
+  memoryDocsByIsland.clear();
+  isChromaConnected = false;
+  initialized = false;
+}
 
 export async function initVectorStore(): Promise<void> {
   if (initialized) return;
@@ -41,7 +120,7 @@ export async function initVectorStore(): Promise<void> {
 
   try {
     const chromaUrl = new URL(CHROMA_URL);
-    const client = new ChromaClient({
+    client = new ChromaClient({
       host: chromaUrl.hostname,
       port: parseInt(chromaUrl.port || '8001', 10),
       ssl: chromaUrl.protocol === 'https:',
@@ -50,16 +129,16 @@ export async function initVectorStore(): Promise<void> {
 
     // Use XenovaEmbeddingFunction (@xenova/transformers all-MiniLM-L6-v2, 384 dim)
     // Client-side ONNX embedding, NO Sharp dependency, same model as ChromaDB server default
-    const embeddingFunction = new XenovaEmbeddingFunction();
-
-    collection = await client.getOrCreateCollection({
-      name: COLLECTION_NAME,
-      metadata: { description: 'SpaceOS Knowledge Base — docs/knowledge/**/*.md' },
-      embeddingFunction: embeddingFunction as any, // chromadb types are incomplete
-    });
+    embeddingFunction = new XenovaEmbeddingFunction();
 
     isChromaConnected = true;
-    logger.info(`🟢 [VDB] ChromaDB connected: ${CHROMA_URL} (collection: ${COLLECTION_NAME})`);
+
+    // Open the default island eagerly so startup still surfaces a bad
+    // ChromaDB/collection immediately; other islands open on first use.
+    await getCollection(DEFAULT_ISLAND);
+    logger.info(
+      `🟢 [VDB] ChromaDB connected: ${CHROMA_URL} (default island: ${DEFAULT_ISLAND})`
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logger.warn(`⚠️  [VDB] ChromaDB unavailable: ${msg}`);
@@ -70,14 +149,17 @@ export async function initVectorStore(): Promise<void> {
 }
 
 export async function addChunks(
-  chunks: Array<{ id: string; text: string; metadata: Record<string, string | number | boolean> }>
+  chunks: Array<{ id: string; text: string; metadata: Record<string, string | number | boolean> }>,
+  island?: string
 ): Promise<void> {
+  const islandId = resolveIsland(island);
   const valid = chunks.filter(c => c.text.trim().length > 10);
   if (valid.length === 0) return;
 
   const embeddings = await embedDocuments(valid.map(c => c.text));
+  const collection = await getCollection(islandId);
 
-  if (isChromaConnected && collection) {
+  if (collection) {
     // If embeddings is undefined, ChromaDB server will calculate them
     const upsertParams: any = {
       ids: valid.map(c => c.id),
@@ -91,8 +173,9 @@ export async function addChunks(
   } else {
     // In-memory fallback uses embeddings if available, otherwise placeholders
     const placeholderEmbedding = [0];
+    const docs = memoryDocsFor(islandId);
     for (let i = 0; i < valid.length; i++) {
-      memoryDocs.push({
+      docs.push({
         id: valid[i].id,
         text: valid[i].text,
         metadata: valid[i].metadata,
@@ -114,11 +197,14 @@ function cosineSim(a: number[], b: number[]): number {
 
 export async function searchKnowledge(
   query: string,
-  topK = 5
+  topK = 5,
+  island?: string
 ): Promise<SearchResult[]> {
+  const islandId = resolveIsland(island);
   const qEmbedding = await embedQuery(query);
+  const collection = await getCollection(islandId);
 
-  if (isChromaConnected && collection) {
+  if (collection) {
     const count = await collection.count();
     if (count === 0) return [];
 
@@ -148,12 +234,13 @@ export async function searchKnowledge(
       }));
   }
 
-  // Memory fallback
+  // Memory fallback (per island)
+  const memoryDocs = memoryDocsFor(islandId);
   if (qEmbedding === undefined) {
     // Keyword-matching search fallback
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);
     if (terms.length === 0) return [];
-    
+
     return memoryDocs
       .map(doc => {
         let matches = 0;
@@ -178,11 +265,13 @@ export async function searchKnowledge(
     .map(({ text, metadata, score }) => ({ text, metadata, score }));
 }
 
-export async function getDocumentCount(): Promise<number> {
-  if (isChromaConnected && collection) {
+export async function getDocumentCount(island?: string): Promise<number> {
+  const islandId = resolveIsland(island);
+  const collection = await getCollection(islandId);
+  if (collection) {
     return await collection.count();
   }
-  return memoryDocs.length;
+  return memoryDocsFor(islandId).length;
 }
 
 export function usingChroma(): boolean {

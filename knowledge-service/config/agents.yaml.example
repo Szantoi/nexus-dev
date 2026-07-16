@@ -28,3 +28,20 @@ agents:
 # Optional: identity for requests without an Authorization header.
 # Only honored in AUTH_MODE=open — 'required' ignores it (no anonymous access).
 default_agent: null
+
+# ─── Multi-island knowledge scoping ──────────────────────────────────────────
+#
+# One service instance can serve several islands: each island has its own
+# ChromaDB collection (`<island>-knowledge`), and knowledge queries are scoped
+# to the island the CALLER's identity maps to. The island is never taken from
+# request input — an agent cannot read another island's knowledge.
+#
+# agent name -> island. Agents not listed fall back to `default_island`,
+# and then to the service's own ISLAND_ID env var.
+agent_islands:
+  backend: nexus-dev
+  # doorstar-dev: doorstar
+  # cabinet-dev: cabinetbilder-cad
+
+# Island for agents with no explicit mapping. Omit to use ISLAND_ID.
+default_island: null

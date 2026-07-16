@@ -41,6 +41,8 @@ export type ToolHandler = (
 
 export interface ToolContext {
   terminal?: string;
+  /** Knowledge island the caller is scoped to (resolved from its identity). */
+  island?: string;
   agentId?: string;
   permissions?: string[];
 }

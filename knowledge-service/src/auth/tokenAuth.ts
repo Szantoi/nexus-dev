@@ -20,15 +20,17 @@
 import { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
-import { AGENTS_CONFIG_PATH } from '../config/paths';
+import { AGENTS_CONFIG_PATH, ISLAND_ID } from '../config/paths';
 import { env } from '../config/env';
 import { logger } from '../core/logger';
 
-// Middleware state: resolved terminal identity for downstream handlers
+// Middleware state: resolved terminal identity + knowledge island for
+// downstream handlers.
 declare global {
   namespace Express {
     interface Request {
       mcpTerminal?: string;
+      mcpIsland?: string;
     }
   }
 }
@@ -40,6 +42,10 @@ interface AgentsConfig {
   agents: Record<string, string>; // token -> agent_name
   groups?: Record<string, string[]>;
   default_agent?: string | null;
+  // Multi-island: which knowledge island each agent is scoped to. Agents not
+  // listed fall back to default_island, then to the service's ISLAND_ID.
+  agent_islands?: Record<string, string>; // agent_name -> island
+  default_island?: string | null;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -48,6 +54,8 @@ let authMode: 'open' | 'required' = env.AUTH_MODE;
 let masterToken: string = process.env.MCP_AUTH_TOKEN || '';
 let agentTokens: Record<string, string> = {}; // token -> agent_name
 let defaultAgent: string | null = null;
+let agentIslands: Record<string, string> = {}; // agent_name -> island
+let defaultIsland: string | null = null;
 let lastAgentsConfigMtime: number = 0;
 
 // ─── Token Loading ────────────────────────────────────────────────────────────
@@ -105,6 +113,8 @@ export function loadAgentTokens(): void {
       agentTokens = { ...yamlTokens, ...envTokens };
 
       defaultAgent = config.default_agent || null;
+      agentIslands = config.agent_islands || {};
+      defaultIsland = config.default_island || null;
       lastAgentsConfigMtime = mtime;
 
       const tokenCount = Object.keys(agentTokens).length;
@@ -136,6 +146,16 @@ export function hasTokensConfigured(): boolean {
   return Boolean(masterToken) || Object.keys(agentTokens).length > 0;
 }
 
+/**
+ * Knowledge island an agent is scoped to: explicit mapping, else the
+ * configured default_island, else the service's own island (ISLAND_ID).
+ * The island is never taken from client input — only from server-side config
+ * keyed by the identity the token resolved to.
+ */
+export function getIslandForAgent(agent: string): string {
+  return agentIslands[agent] || defaultIsland || ISLAND_ID;
+}
+
 export function getAuthMode(): 'open' | 'required' {
   return authMode;
 }
@@ -151,6 +171,8 @@ export function resetAuthStateForTests(): void {
   masterToken = process.env.MCP_AUTH_TOKEN || '';
   agentTokens = {};
   defaultAgent = null;
+  agentIslands = {};
+  defaultIsland = null;
   lastAgentsConfigMtime = 0;
 }
 
@@ -208,6 +230,7 @@ export function authenticateMcp(req: Request, res: Response, next: () => void): 
     return;
   }
   req.mcpTerminal = result.agent;
+  req.mcpIsland = getIslandForAgent(result.agent);
   next();
 }
 
@@ -220,6 +243,7 @@ export function authenticateRest(req: Request, res: Response, next: () => void):
     return;
   }
   req.mcpTerminal = result.agent;
+  req.mcpIsland = getIslandForAgent(result.agent);
   next();
 }
 

@@ -75,17 +75,27 @@ describe('MCP tool registry', () => {
     const payload = JSON.parse(result.content[0].text);
     expect(payload).toMatchObject({ query: 'EF Core migration', limit: 3, count: 1 });
     expect(payload.results[0].text).toContain('EF Core migration');
-    expect(searchKnowledge).toHaveBeenCalledWith('EF Core migration', 3);
+    // No island in context → undefined, so the store uses its default island.
+    expect(searchKnowledge).toHaveBeenCalledWith('EF Core migration', 3, undefined);
   });
 
   it('search_knowledge clamps limit to 20 and defaults to 5', async () => {
     const handler = toolRegistry.getHandler('search_knowledge')!;
 
     await handler({ query: 'q', limit: 100 }, {});
-    expect(searchKnowledge).toHaveBeenLastCalledWith('q', 20);
+    expect(searchKnowledge).toHaveBeenLastCalledWith('q', 20, undefined);
 
     await handler({ query: 'q' }, {});
-    expect(searchKnowledge).toHaveBeenLastCalledWith('q', 5);
+    expect(searchKnowledge).toHaveBeenLastCalledWith('q', 5, undefined);
+  });
+
+  it('search_knowledge scopes to the island from the caller context, not from args', async () => {
+    const handler = toolRegistry.getHandler('search_knowledge')!;
+
+    await handler({ query: 'q', island: 'spaceos' }, { terminal: 'doorstar-dev', island: 'doorstar' });
+
+    // The context island wins; the args.island claim is ignored entirely.
+    expect(searchKnowledge).toHaveBeenLastCalledWith('q', 5, 'doorstar');
   });
 
   it('now-migrated tools are claimed by the registry', () => {

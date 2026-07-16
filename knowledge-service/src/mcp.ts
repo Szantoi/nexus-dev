@@ -2509,14 +2509,15 @@ const TOOLS = [
 async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
-  callerTerminal?: string  // Added for auth-aware tools (2026-06-24)
+  callerTerminal?: string,  // Added for auth-aware tools (2026-06-24)
+  callerIsland?: string     // Multi-island: knowledge scope of the caller
 ): Promise<{ content: Array<{ type: string; text: string }> }> {
   try {
     // Registry-based tools first (migrated groups); errors propagate to the
     // shared catch below so the {error} JSON shape stays identical.
     const registered = toolRegistry.getHandler(name);
     if (registered) {
-      return await registered(args, { terminal: callerTerminal });
+      return await registered(args, { terminal: callerTerminal, island: callerIsland });
     }
 
     switch (name) {
@@ -5500,7 +5501,7 @@ router.post('/', authenticateMcp, async (req: Request, res: Response) => {
         logger.info(`[MCP] 📥 ${name} (caller: ${callerTerminal}, target: ${targetTerminal})`);
 
         try {
-          const result = await handleToolCall(name, args || {}, callerTerminal);
+          const result = await handleToolCall(name, args || {}, callerTerminal, req.mcpIsland);
           const duration = Date.now() - startTime;
           logger.info(`[MCP] ✅ ${name} (${duration}ms)`);
 
