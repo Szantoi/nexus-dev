@@ -1,0 +1,197 @@
+{
+  "$comment": "TASK-DP-003 — verziózott séma a task-frontmatterhez, a program-README taskindexhez és az evidence manifesthez. Fogyasztó: scripts/check-tasks.mjs. Kanonikus forrás-döntés: ADR-068 (task-frontmatter = design-intent kanonikus forrás task-szinten; EPICS.yaml = program/mérföldkő/epic szinten).",
+  "schemaVersion": "1.1.0",
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-07-18",
+      "change": "Első verzió (TASK-DP-003): task-frontmatter, program-README taskindex és evidence manifest séma + archívum-szabályok programonként."
+    },
+    {
+      "version": "1.1.0",
+      "date": "2026-07-18",
+      "change": "TASK-DP-003 2. körös független review (3. gap) nyomán: a `program`, `milestone` és `epic` mezőleírás pontosítva — a task `program`-jának KÖTELEZŐEN egyeznie kell a hivatkozott epic `program` mezőjével (nincs ismert kivétel), DE a task `milestone`-jának NEM kell egyeznie az epic `milestone` mezőjével (egy epic a ZÁRÓ mérföldkövét deklarálja, ami több, korábbi mérföldkőben készülő task felett is átívelhet — élő precedens: a QC-VERIFICATION epic `milestone: QC-M4` alatt zárul, miközben TASK-QC-005/006/011/012/013 `milestone: QC-M2`). Lásd scripts/check-tasks.mjs `checkEpicsReferences()` és a TASK-DP-003 taskfájl 2. körös review + Implementáció-szakasza a teljes indoklásért."
+    }
+  ],
+
+  "unknownFieldPolicy": {
+    "mode": "additive-allowed",
+    "reasoning": "Az EPICS.yaml fejléce (docs/projects/EPICS.yaml, TASK-QC-001 döntés) és a hozzá tartozó epicsValidator.ts is additív bővítést enged: ismeretlen mező nem hibáztatott, csak a deklarált mezők kapnak típus-/enum-ellenőrzést. Ugyanez a szabály vonatkozik a task-frontmatterre, a program-README táblára és az evidence manifestre is — régi validátor/parser így nem törik egy jövőbeli, dokumentált mezőbővítéstől."
+  },
+
+  "taskFrontmatter": {
+    "$comment": "docs/tasks/<program-dir>/*.md és docs/tasks/<program-dir>/archive/*.md fájlok YAML frontmatter mezői.",
+    "requiredFields": [
+      "id", "title", "program", "project", "milestone", "epic",
+      "status", "priority", "owner_role", "created", "source"
+    ],
+    "optionalFields": ["depends_on", "parallel_with", "blocked_reason", "updated"],
+    "fields": {
+      "id": {
+        "type": "string",
+        "pattern": "^TASK-[A-Z]+-\\d{3}[A-Z]?$",
+        "description": "Program-prefixű, 3 számjegyű sorszám, opcionális egybetűs al-azonosítóval (pl. TASK-QC-008A)."
+      },
+      "title": { "type": "string", "minLength": 1 },
+      "program": {
+        "type": "string",
+        "description": "Létező programazonosítónak kell lennie a docs/projects/EPICS.yaml programs[].id halmazában, ÉS meg kell egyeznie azzal a program-id-vel, amelyhez a task saját `epic:` mezője (lásd lent) tartozik az EPICS.yaml epics[].program mezője szerint. Ennek a program-egyezésnek NINCS ismert, dokumentált kivétele (2026-07-18, TASK-DP-003 2. körös független review: a valós repóban 0 program-mismatch, 5 milestone-crossing mellett — lásd a `milestone` mező leírását)."
+      },
+      "project": { "type": "string", "minLength": 1 },
+      "milestone": {
+        "type": "string",
+        "description": "Létező mérföldkő-azonosító a hivatkozott program (a task saját `program:` mezője) programs[].milestones[].id halmazában. FONTOS ASZIMMETRIA a `program`-mal szemben: a task `milestone` mezőjének NEM kell megegyeznie a hivatkozott epic saját `milestone` mezőjével. Az epic `milestone` mezője a ZÁRÓ mérföldkövet jelöli (\"ebben a mérföldkőben tekinthető az epic lezártnak\"), nem azt, hogy MINDEN hozzá tartozó task ugyanabban a mérföldkőben készül — egy epic korábbi mérföldkőben induló/készülő taskokat is tartalmazhat, és csak a legkésőbbi, záró mérföldkőben zárul. Élő, szándékos precedens: a `QC-VERIFICATION` epic (docs/projects/EPICS.yaml) `milestone: QC-M4` alatt zárul (\"...ezért az epic csak a QC-M4 mérföldkőben zárulhat\" — lásd az epic saját leírását), miközben a hozzá tartozó `TASK-QC-005`, `TASK-QC-006`, `TASK-QC-011`, `TASK-QC-012`, `TASK-QC-013` mindegyike `milestone: QC-M2`-t deklarál. A validátor (scripts/check-tasks.mjs `checkEpicsReferences()`) EZT A MINTÁT SZÁNDÉKOSAN NEM hibáztatja — csak a task saját program-jának milestones[] listája ellen ellenőriz létezést, az epic milestone-jával nem vet össze semmit (2026-07-18, TASK-DP-003 2. körös független review 3. talált, majd tudatosan NEM-hibaként lezárt gapje)."
+      },
+      "epic": {
+        "type": "string",
+        "description": "Létező epic-azonosító a docs/projects/EPICS.yaml epics[].id halmazában, és az epicnek pontosan erre a task-fájlra kell hivatkoznia epics[].tasks[] alatt (bidirekcionális tagság-ellenőrzés — lásd epicsMembership szakasz). Az epic saját `program` mezőjének egyeznie kell a task `program:` mezőjével (kötelező — lásd fent); az epic saját `milestone` mezőjének NEM kell egyeznie a task `milestone:` mezőjével (lazább — lásd fent)."
+      },
+      "status": {
+        "type": "string",
+        "enum": ["ready", "in_progress", "done", "blocked", "deleted"]
+      },
+      "priority": {
+        "type": "string",
+        "enum": ["critical", "high", "medium", "low"]
+      },
+      "depends_on": {
+        "type": "array",
+        "items": "string (task id)",
+        "default": [],
+        "description": "Minden elemnek létező task-id-nek kell lennie a teljes felfedezett halmazban (aktív + archivált). Önhivatkozás tilos. A depends_on élek DAG-ot alkotnak, kör tilos."
+      },
+      "parallel_with": {
+        "type": "array",
+        "items": "string (task id)",
+        "default": [],
+        "description": "Informatív, nem-DAG kapcsolat — csak létezés-ellenőrzés, ciklus-ellenőrzésbe nem számít bele."
+      },
+      "owner_role": { "type": "string", "minLength": 1 },
+      "created": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+        "description": "ISO dátum (YYYY-MM-DD)."
+      },
+      "updated": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "source": { "type": "string", "minLength": 1 },
+      "blocked_reason": {
+        "type": "string",
+        "minLength": 1,
+        "requiredWhen": "status == 'blocked'",
+        "description": "A blocked státusz csak akkor érvényes életciklus-állapot (ADR-068 döntés, ld. TASK-ISL-001 precedens), ha van dokumentált blocked_reason."
+      }
+    }
+  },
+
+  "statusTransitions": {
+    "$comment": "ADR-068 task-lifecycle állapotgépe. A validátor csak akkor tudja ellenőrizni, ha van előző állapot (git-alapú --diff-base futásban); alap (snapshot-only) futásban csak a statikus invariánsokat kényszeríti ki (pl. archívumban csak done, blocked-hoz blocked_reason kell).",
+    "allowedEdges": [
+      ["ready", "in_progress"],
+      ["in_progress", "in_progress"],
+      ["in_progress", "blocked"],
+      ["blocked", "in_progress"],
+      ["in_progress", "ready"],
+      ["in_progress", "done"],
+      ["done", "archived"]
+    ],
+    "note": "'archived' nem frontmatter-status-érték, hanem a fájl archive/ alá kerülése — a done→archived él a mozgatás ténye, nem egy negyedik status-string."
+  },
+
+  "epicsMembership": {
+    "$comment": "docs/projects/EPICS.yaml epics[].tasks[] bidirekcionális egyeztetése.",
+    "rules": [
+      "Minden felfedezett task-fájl (aktív ÉS archivált) id-jének szerepelnie kell VALAMELYIK epics[].tasks[] listában.",
+      "Az epics[].tasks[].file mezőnek (EPICS.yaml könyvtárához relatív útvonal) pontosan a ténylegesen felfedezett task-fájl útvonalára kell mutatnia.",
+      "Minden epics[].tasks[].id-nek léteznie kell egy ténylegesen felfedezett task-fájlként — ha nem, az EPICS.yaml egy nemlétező fájlra hivatkozik (hiba)."
+    ],
+    "orphanIsError": true
+  },
+
+  "programReadmeIndex": {
+    "$comment": "docs/tasks/<program-dir>/README.md 'Feladatok' táblázata — LAZÁBB ellenőrzés, mert a táblázat szabad prózát (✅ done, körjelzés stb.) is tartalmaz, ez nem géppel generált adat, hanem emberi index.",
+    "validated": [
+      "Minden [TASK-XXX-NNN ...](útvonal) formátumú link célja létező fájl a README könyvtárához képest.",
+      "A táblázatban említett minden task-id szerepel a ténylegesen felfedezett task-halmazban (ha nem, elavult/törölt hivatkozás)."
+    ],
+    "notValidated": [
+      "A táblázat oszlopainak (Mérföldkő, Prioritás, Függőség) tartalmi egyezése a frontmatterrel — ez emberi olvashatósági segédlet, nem kanonikus adat (a kanonikus adat a task-frontmatterben és az EPICS.yaml-ban él, ADR-068 szerint)."
+    ]
+  },
+
+  "archivePolicy": {
+    "$comment": "Programonként eltérő archívum-szabály, a program archive/README.md alapján. A programDir kulcs a docs/tasks/ alatti könyvtárnév.",
+    "common": {
+      "requiredStatus": "done",
+      "requiredSection": "## Implementáció",
+      "sectionRegex": "^## Implementáció"
+    },
+    "perProgram": {
+      "development-process": {
+        "requireExecutionEvidenceBlock": true,
+        "requireReviewerIndependent": true,
+        "requireReviewerDecisionPass": true,
+        "source": "docs/tasks/development-process/archive/README.md 2+4. pont + README.md 'Kötelező evidence manifest' szakasz"
+      },
+      "quality-compliance": {
+        "requireExecutionEvidenceBlock": false,
+        "requireReviewerIndependent": false,
+        "requireReviewerDecisionPass": false,
+        "source": "docs/tasks/quality-compliance/archive/README.md — csak Implementáció-szakaszt ír elő, evidence manifest formátumot nem"
+      },
+      "island-runtime": {
+        "requireExecutionEvidenceBlock": false,
+        "requireReviewerIndependent": false,
+        "requireReviewerDecisionPass": false,
+        "source": "docs/tasks/island-runtime/archive/README.md — Implementáció-szakaszt és független reviewert ír elő, de nem az execution_evidence YAML-blokk formátumát"
+      }
+    },
+    "knownGap": "docs/tasks/development-process/archive/TASK-DP-001-worktree-baseline.md nem tartalmaz execution_evidence blokkot (csak TASK-DP-002 vezette be ténylegesen ezt a mintát) — ez egy valós, a validátor futása által feltárt, korábbi (a kapu bevezetése ELŐTTI) hiányosság, amit ez a task NEM javít (fájlhatár: nem módosítható más task tartalmilag), csak jelent. Lásd TASK-DP-003 Implementáció-szakasz."
+  },
+
+  "evidenceManifest": {
+    "$comment": "A development-process/README.md 'Kötelező evidence manifest' YAML-blokkja.",
+    "requiredFields": [
+      "task_id", "goal", "success_criteria", "exit_condition", "base_commit",
+      "branch", "commits", "pull_request", "environments", "commands",
+      "reviewer", "state_sync"
+    ],
+    "fields": {
+      "task_id": { "type": "string" },
+      "goal": { "type": "string" },
+      "success_criteria": { "type": "array", "items": "string" },
+      "exit_condition": { "type": "string" },
+      "base_commit": { "type": "string" },
+      "branch": { "type": "string" },
+      "commits": { "type": "array", "items": "string" },
+      "pull_request": { "type": "string" },
+      "environments": {
+        "type": "array",
+        "items": { "os": "windows|linux", "shell": "string", "node": "string" }
+      },
+      "commands": {
+        "type": "array",
+        "items": { "command": "string", "exit_code": "number", "result": "PASS|FAIL" }
+      },
+      "reviewer": {
+        "type": "object",
+        "fields": {
+          "identity": "string",
+          "independent": "boolean",
+          "decision": "PASS|FAIL|REQUEST_CHANGES",
+          "evidence": "string"
+        }
+      },
+      "state_sync": {
+        "type": "object",
+        "fields": {
+          "task": "boolean", "epics": "boolean", "state": "boolean",
+          "todo": "boolean", "memory": "boolean"
+        }
+      }
+    },
+    "secretPolicy": "A manifest titkot vagy teljes nyers logot nem tartalmazhat — ez a validátor nem duplikálja a scripts/secret-scan.mjs kaput, de a commands[].result és reviewer.evidence mezőkben egyszerű, ismert secret-minta (pl. 'Authorization: Bearer', '-----BEGIN') előfordulására figyelmeztet."
+  }
+}

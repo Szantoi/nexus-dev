@@ -29,17 +29,18 @@
   független review → non-production release/rollback → konzisztens state
   bizonyítéklánc és `TASK-DP-011` PASS audit.
 
-- [ ] **NEXUS-ISLAND-RUNTIME program — ISL-001 DONE, implementáció indítható:**
-  a `TASK-ISL-001` 6 review-kör után `done` (Gábor döntése: hívásgráf-audit +
-  subscriptionManager-kapuzás; a hívásgráf-módszer 5 új launch-utat talált,
-  köztük az MCP `complete_task` checkpoint-launch fő élt). `ISL-ARCHITECTURE`
-  epic `done`. Az ADR-081 launch-leltár (22 élő + 1 kategória + 1 holt + 1
-  alvó) az ISL-013 munkalistája. **Következő döntés (Gábor): induljon-e az
-  ISL-implementáció?** A közvetlenül ISL-001-re épülő taskok (ISL-002 compound
-  identity, ISL-007 CLI-adapter contract) felszabadultak — de az ADR-068
-  állapotgép miatt `blocked → ready` NEM egy lépés (előbb `in_progress`).
-  A 16 blocked ISL-task `blocked_reason`-je most PONTATLAN (ISL-001-et még
-  „emberi döntésre vár"-ként írja) — a program folytatásakor frissítendő.
+- [ ] **NEXUS-ISLAND-RUNTIME program AKTÍV — Codex/Linux autonóm rollout
+  működik:** ISL-002 és ISL-007 `in_progress`; minden ISL blocked reason a
+  tényleges aktuális függőségre/platformhiányra frissítve. A JoineryTech VPS
+  runner+timer aktív, read-only/write canary PASS, első valós időzített
+  Conductor-ciklus szabályosan eszkalált és lezárt. Következő kapuk:
+  (a) `MSG-ROOT-004` root döntés és célzott válasz-task a Conductornak;
+  (b) Windows Codex sandbox-helper javítás + native service evidence;
+  (c) Claude/Antigravity Linux+Windows smoke;
+  (d) ISL-004…006 kanonikus store + atomi lease/fencing + runner registry;
+  (e) ADR-081 teljes launch-authority implementáció és független review;
+  (f) tiszta commit/PR, secret-scan, Linux/Windows CI és GitHub release.
+  Részletes runbook: `docs/knowledge/codex-autonom-runner-vps-uzemeltetes.md`.
 
 
 - [ ] **joinerytech pre-existens registry-bug (owner: joinerytech-csapat):** a régi `messageRegistry` SQLite CHECK-constraintje (`type IN (...)`, `priority IN ('critical','high','medium','low')`) elutasít pár valódi üzenetet a sync során (3678 halmozott hiba a log életében — nem a mailbox-fix okozta). Az üzenetek fájlként megvannak/kézbesíthetők, csak a registry-index hiányos. A modern nexus-kódban ez a modul már más — a végleges gyógyír a sziget kódfrissítése.
@@ -76,6 +77,14 @@
 
 ## Kész
 
+- [x] 2026-07-21 — **Codex-elsődleges Linux autonóm rollout checkpoint:**
+  providerfüggetlen runner, terminal-scoped auth, backlog-karantén,
+  claim/release, active marker, durable completion, systemd runner+timer és
+  backup/rollback. Read-only (`MSG-EXPLORER-025`) + workspace-write
+  (`MSG-EXPLORER-026`) canary PASS; első időzített Conductor-ciklus
+  (`MSG-CONDUCTOR-049`) biztonságosan eszkalált és lezárt; blocked-state guard
+  megakadályozza az ismétlődő költséges ciklust. Ez checkpoint, nem a teljes
+  ISL-program lezárása.
 - [x] 2026-07-21 — **TASK-ISL-001 (szigetüzemi célarchitektúra) DONE** — 6
   review-kör, hívásgráf-alapú launch-audit. Gábor döntése oldotta fel a
   blokkot (módszertan + kapuzás). A hívásgráf-módszer 5 új launch-utat

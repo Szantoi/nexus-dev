@@ -31,22 +31,22 @@ javítottam. Fontos felfedezés eközben: `TASK-DP-004` és `TASK-DP-007`
 függőségei (DP-002/003, ill. DP-003/006) már teljesültek — `blocked`→
 `ready`-re állítva, mindkettő INDÍTHATÓ. `TASK-DP-005` csak DP-004 után.
 
-**NEXUS-ISLAND-RUNTIME program: ISL-001 DONE, epic lezárva** (2026-07-21):
-Gábor tulajdonosi döntése után (hívásgráf-audit + subscriptionManager
-kapuzás) a `TASK-ISL-001` **6 review-kör** alatt konvergált és `done`
-(független reviewer zárta). A hívásgráf-módszertan azonnal igazolta magát:
-a 4-6. kör **5 további, korábban nem dokumentált launch-utat** tárt fel,
-amit a regex 3 körön át nem látott — köztük az MCP `complete_task` →
-checkpoint-launch FŐ ÉL (ADR-053), a `POST /api/epic-router/.../complete`
-(terminál-token, nem root!), a telegram-webhook (hardcodolt secret-fallback),
-és a `POST /api/subscriptions/test-trigger`. Végleges ADR-081 launch-leltár:
-**22 élő + 1 fájlrendszeri kategória + 1 holt + 1 alvó út** — ez lesz az
-ISL-013 (launch authority) pontos munkalistája. Az `ISL-ARCHITECTURE` epic
-`done` (EPICS.yaml). **A ISL-002…017 implementációs taskok innen
-indíthatók** (közvetlen függőségeik felszabadultak; a lánc a design intentre
-épül). Kiemelt üzemeltetési következmény: a launch authority (ISL-013)
-bevezetésekor a NAPI checkpoint-automatizmus is átmegy a kapun → a legitim
-folyamat sebessége/épsége kiemelt terv-szempont.
+**NEXUS-ISLAND-RUNTIME AKTÍV — Codex/Linux autonóm rollout PASS**
+(2026-07-21): ISL-001 6 review-kör után `done`; ISL-002 és ISL-007
+`in_progress`, a többi task valós függőség- és platformblokkal vár. A
+JoineryTech VPS-en a providerfüggetlen runner és a Codex adapter systemd alatt
+aktív. Watcher csak SSE wake; legacy launcherek off; régi UNREAD backlog
+fail-closed karantén; szerveroldali claim/release; terminálonként aktív marker;
+completion csak exit 0 + tartós MCP `complete_task` együttese. Linux read-only
+canary `MSG-EXPLORER-025` PASS, workspace-write canary `MSG-EXPLORER-026` PASS.
+Az első időzített Conductor-ciklus (`MSG-CONDUCTOR-049`) kanonikus
+prioritásütközést talált, kódmódosítás nélkül `MSG-ROOT-004` root-eszkalációt
+hozott létre, frissítette state/todo/MEMORY fájljait és szabályosan lezárt. A
+timer blocked-state guarddal nem ismétli a döntésre váró ciklust. Windows-native
+Codex BLOCKED (`codex-windows-sandbox-setup.exe` access denied); Claude és
+Antigravity valós 3×2 evidence hiányzik. Runbook:
+`docs/knowledge/codex-autonom-runner-vps-uzemeltetes.md`. A forrás GitHubra
+publikálható szerkezetben a repóban van, de a kevert munkafa még nem release.
 
 **Két QC-follow-up bug JAVÍTVA** (2026-07-21, mindkettő független review PASS
 → `done`): **QC-011** (workflowDb history: hiányzó better-sqlite3 named param
@@ -78,7 +78,10 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 
 **Árva mailbox-fák LEZÁRVA** (2026-07-21, Gábor A-döntése után): mindkét fa (prod 18 + joinerytech 74 fájl) teljesen átnézve — **nulla nyitott teendő**, minden lezárt DONE/nyugta/elavult Fázis-0 task. Archiválva: `terminals.orphan-archive-20260721` + README, service-ek egészségesek. Figyelem: a joinerytech árvából 25 fájl git-követett volt → 25 `D` a forkjuk git status-ában, commit a csapatuk döntése.
 
-**Következő:** (1) runner-regisztráció + heartbeat; (2) runner mint auto-induló Windows-szolgáltatás; (3) opcionális: szigetek teljes kódfrissítése vagy központi service-re állítása (a mailbox-drift megszűnt, a kód-drift marad). Gábor iránya: központi szerver sziget-saját tudással (kiszolgáló réteg KÉSZ), agent-management lokálisan (= runner, KÉSZ).
+**Következő:** (1) JoineryTech root válasz `MSG-ROOT-004`-re; (2) natív Windows
+Codex sandbox-helper javítás + service smoke; (3) Claude/Antigravity valós
+Linux/Windows mátrix; (4) ISL-004…006 kanonikus store, atomi lease/fencing és
+runner registry; (5) független review, tiszta commit/PR és GitHub release gate.
 
 ## Állapot
 

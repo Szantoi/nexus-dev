@@ -1,0 +1,785 @@
+# TASK-DP-001 — Munkafa-leltár és kontrollált baseline: változásmanifest
+#
+# FORMÁTUM-VÁLASZTÁS (dokumentálva, ahogy a task előírja): YAML, nem Markdown.
+# Indoklás: (1) a repo már ma is YAML-t használ kanonikus, géppel olvasott
+# állapotforrásként (docs/projects/EPICS.yaml) — ugyanaz a konvenció; (2) a
+# kötelező belső konzisztencia-ellenőrzés ("minden git status sor pontosan
+# egy manifest-csoportban van") gépi parse-olást igényel, YAML-lel egy
+# egyszerű szkript összeszámolhatja a `files:` listák hosszát és
+# összevetheti a git status sorszámával; (3) a DP-003 (task-séma CI-kapu)
+# és DP-006 (change-provenance) várhatóan ugyanezt a fájlt fogja gépi
+# ellenőrzésre használni — YAML illeszkedik a tervezett tooling-hoz.
+#
+# Ez a fájl NEM tartalmaz titkot, tokent vagy .env-tartalmat — csak
+# fájlnév + méret-kategória + program/task-hivatkozás szinten.
+
+manifest_version: "1.1"
+task_id: TASK-DP-001
+# generated_at: óra:perc:másodperc pontosságú időbélyeg, nem csak dátum —
+# a független reviewer (2026-07-18, 1. kör, REQUEST_CHANGES) javaslata
+# alapján, mert egy élő, több agent által egyidejűleg szerkesztett
+# munkafában a puszta dátum nem elég a pillanatfelvétel frissességének
+# megítéléséhez (lásd revision_history és restore_and_compare_procedure).
+generated_at: "2026-07-18T11:57:00+02:00"
+generated_by: "conductor (owner_role: conductor), NEXUS-DEVELOPMENT-PROCESS program"
+revision_history:
+  - version: "1.0"
+    generated_at: "2026-07-18T11:24:58+02:00"
+    note: >
+      Első verzió: 247/247 git-status bejegyzés lefedve a generálás
+      pillanatában (géppel igazolva). Független reviewer verdikt:
+      REQUEST_CHANGES — nem tartalmi hiba (18 fájlos minta: 0 rossz
+      besorolás), hanem időzítési drift: a párhuzamosan futó TASK-DP-002 és
+      TASK-ISL-001 10 új ADR-fájlt hozott létre a manifest lezárása körüli
+      percekben, amit az 1.0-s verzió nem fedett le.
+  - version: "1.1"
+    generated_at: "2026-07-18T11:57:00+02:00"
+    note: >
+      Javítás a reviewer 3 pontja szerint: (1) új `DP-ISL-ARCHITECTURE-ADRS`
+      csoport a 10 ADR-nek (ADR-068, ADR-077…085) + a manifest saját magának
+      felvéve — 258/258 jelenlegi git-status bejegyzés lefedve; (2)
+      `generated` → `generated_at` órás/perces időbélyeg + revision_history;
+      (3) `UNCLEAR-AGENT-TOOLING` csoport explicit `human_gate` mezőt kapott
+      — a valós human-gate lépések száma a `commit_plan`-ban és a
+      narratívában egységesen 4 (QC-003, SECURITY-HARDENING,
+      UNCLEAR-DEPENDENCY-OVERRIDE, UNCLEAR-AGENT-TOOLING).
+
+# ─── BASELINE ────────────────────────────────────────────────────────────────
+baseline:
+  branch: main
+  head_commit: "50744417783992ed4c1d0eb1dc6b1704d03f9f3e"
+  head_commit_short: "5074441"
+  head_commit_subject: >
+    docs(root): munkafajlok szinkron — PROD release, arva mailbox-fa, kornyezet
+  head_commit_date: "2026-07-16 23:08:42 +0200"
+  upstream: "origin/main"
+  ahead_behind_upstream: "0 ahead / 0 behind"
+  git_status_total_entries: 258
+  git_status_total_entries_note: >
+    A v1.0 generáláskor (2026-07-18T11:24:58+02:00) 247 volt. A jelenlegi
+    258 = 247 eredeti + 10 új untracked ADR (TASK-DP-002/TASK-ISL-001
+    párhuzamos munkaterméke, lásd DP-ISL-ARCHITECTURE-ADRS csoport) + 1 új
+    untracked fájl (ez a manifest saját maga). HEAD, upstream és a
+    130/1/1 M/A/D bontás VÁLTOZATLAN — csak az untracked szám nőtt.
+  git_status_breakdown:
+    modified_tracked_unstaged: 130
+    staged_added: 1
+    staged_deleted: 1
+    untracked: 126
+  diffstat_unstaged_summary: "130 files changed, 2867 insertions(+), 6342 deletions(-)"
+  diffstat_staged_summary: "2 files changed, 43 insertions(+), 27 deletions(-)"
+  commands_used:
+    - "git rev-parse --abbrev-ref HEAD"
+    - "git rev-parse HEAD"
+    - "git rev-parse --abbrev-ref --symbolic-full-name @{u}"
+    - "git rev-list --left-right --count origin/main...HEAD"
+    - "git status --porcelain=v1 -uall"
+    - "git diff --stat"
+    - "git diff --cached --stat"
+    - "git log -1 --format=\"%H %ad %s\" --date=iso"
+
+# ─── SECRET SCAN ─────────────────────────────────────────────────────────────
+secret_scan:
+  tracked_snapshot:
+    tool: "scripts/secret-scan.mjs (repo-canonical; scope = `git ls-files`, i.e. the committable snapshot)"
+    command: "node scripts/secret-scan.mjs"
+    exit_code: 0
+    scanned_files: 347
+    patterns: 11
+    result: PASS
+  untracked_supplement:
+    tool: >
+      ad-hoc scratchpad script (session-local, NOT added to the repo), reusing
+      .secret-scan.json's patterns/config against the 115 untracked entries —
+      run because the canonical scanner intentionally scopes to `git ls-files`
+      and therefore does not see untracked files. This is a coverage gap in
+      the canonical tool for baseline purposes only, not a defect to fix in
+      this task (out of scope; note for TASK-DP-003/007 backlog).
+    scanned_files: 113
+    dirs_skipped: 2
+    result: "1 raw regex hit; verified FALSE POSITIVE (see false_positives)"
+  false_positives:
+    - file: "knowledge-service/src/__tests__/integration/epicRouterRoutes.integration.test.ts"
+      line: 190
+      pattern_id: "generic-secret-assignment"
+      finding_redacted: "SECRET…et' (len 31)"
+      verdict: >
+        `const SECRET = 'unit-terminal-secret';` — a test fixture literal used # secret-scan:allow
+        by the requireTerminalAuth authorization-matrix test, not a real
+        credential. No further file content copied into this manifest.
+  overall_result: "PASS — no real secret found in tracked or untracked snapshot."
+
+# ─── KONZISZTENCIA-SZÁMLÁLÁS ────────────────────────────────────────────────
+# Az "Elfogadási feltételek" 1. pontja szerint minden git status sor pontosan
+# egy csoportban legyen. Az alábbi számok a `groups[].files[]` listák összegei;
+# ennek 258-nak kell lennie (130 + 1 + 1 + 126), a v1.1 frissítés óta.
+consistency_check:
+  expected_total: 258
+  counted_total: 258
+  modified_tracked_counted: 130
+  staged_added_counted: 1
+  staged_deleted_counted: 1
+  untracked_counted: 126
+  history:
+    - {version: "1.0", expected_total: 247, counted_total: 247, verified_at: "2026-07-18T11:24:58+02:00"}
+    - {version: "1.1", expected_total: 258, counted_total: 258, verified_at: "2026-07-18T11:57:00+02:00", note: "10 új ADR (DP-ISL-ARCHITECTURE-ADRS csoport) + a manifest saját maga felvéve"}
+  method: >
+    Minden alábbi csoport files[] tömbje pontosan azokat az elérési utakat
+    sorolja fel, amelyek az adott csoporthoz tartoznak; egy fájl csak akkor
+    szerepel egynél több csoportban, ha a `shared_with` mező explicit
+    jelzi (lásd pl. env.ts, package.json, package-lock.json,
+    vitest.config.ts, terminals/root/todo.md) — ezekben az esetekben a
+    dupla/tripla felsorolás SZÁNDÉKOS keresztreferencia (a commit-tervezéshez
+    kell tudni, hogy egy fájl melyik hunkja melyik csoporthoz tartozik), NEM
+    hibás duplikáció.
+  verified: >
+    Géppel ellenőrizve (js-yaml parse + halmazművelet), KÉTSZER: a v1.0
+    verziónál (2026-07-18T11:24:58+02:00) 247/247, majd a független
+    reviewer 1. körös REQUEST_CHANGES-e után, a v1.1 javítás UTÁN
+    (2026-07-18T11:57:00+02:00) ÚJRA lefuttatva a `git status
+    --porcelain=v1 -uall` FRISS, 258 soros kimenetére: a manifest összes
+    `groups[].files[]`-éből képzett EGYEDI {path, git_status} kulcshalmaz és
+    a friss git-status kulcshalmaz `comm -23` / `comm -13` diffje ÜRES
+    mindkét irányban — 258/258 lefedve, nincs hiányzó és nincs kitalált/
+    extra tétel. A nyers (duplikátumokkal együtti) listaelem-szám 268 (258
+    egyedi + 10 szándékos shared_with-keresztreferencia: todo.md, ci.yml,
+    package.json [2 extra, 3 csoportban összesen], README.md,
+    tokenAuth.test.ts, appSecurity.test.ts, configCentralization.test.ts,
+    envSecurity.test.ts, env.ts — ugyanaz a 10 kereszthivatkozás, mint
+    v1.0-ban, a DP-ISL-ARCHITECTURE-ADRS csoport új fájljai nem
+    kereszthivatkozottak, csak egy csoportban élnek).
+
+# ─── VÁLTOZÁSCSOPORTOK ──────────────────────────────────────────────────────
+# git_status kód: M = módosított (unstaged), A = staged hozzáadás,
+# D = staged törlés, ?? = untracked.
+
+groups:
+
+  # ══════════════════════════════════════════════════════════════════════
+  # NEXUS-QUALITY program — lezárt, bizonyítékkal archivált taskok.
+  # KATEGÓRIA: "lezárt program végterméke, commit-kész, emberi jóváhagyásra
+  # vár" — ezek NEM elveszett vagy besorolatlan munka.
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: QC-001
+    program_task: "TASK-QC-001 (NEXUS-QUALITY / QC-GOVERNANCE, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "docs/projects/EPICS.yaml", git_status: M}
+      - {path: "knowledge-service/src/graph/types.ts", git_status: M}
+      - {path: "terminals/root/todo.md", git_status: M, shared_with: [QC-010, DP-ISL-PROGRAM-PREP], note: "3 forrás írta ugyanazt a fájlt: QC-001 kezdeti sync, QC-010 1. körös ledger-javítás, + a mai DP/ISL programbejegyzések (root). Commit előtt hunk-szintű szétválasztás kell."}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-001-project-state.md", git_status: "??"}
+    planned_commit: "1. EPICS.yaml séma-bővítés + program/epic szinkron (TASK-QC-001)"
+    required_test: "npm run typecheck; vitest run -- graph epicsValidator"
+    rollback: "additív séma-bővítés, régi parser nem törik; git checkout -- <files> ha vissza kell állni"
+
+  - id: QC-002
+    program_task: "TASK-QC-002 (NEXUS-QUALITY / QC-ARCHITECTURE, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "docs/architecture/decisions/ADR-041-graph-based-workflow-architecture.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-046-tiered-memory-architecture.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-048-kernel-row-level-security.md", git_status: "??", note: "status: proposed"}
+      - {path: "docs/architecture/decisions/ADR-049-dual-session-chat-work-architecture.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-050-code-generation-toolchain.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-052-fsm-subscription-system.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-053-mode4-program-awareness.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-054-crm-lead-opportunity-fsm.md", git_status: "??", note: "status: proposed"}
+      - {path: "docs/architecture/decisions/ADR-059-monitor-driven-goal-progression.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-060-cli-agnostic-telegram-architecture.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-066-cross-island-federation.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/ADR-067-remove-unused-ddd-scaffolding.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/PHASE1_MCP_TOOLS_REVIEW.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/README.md", git_status: "??"}
+      - {path: "docs/architecture/decisions/TEMPLATE.md", git_status: "??"}
+      - {path: "scripts/check-doc-links.mjs", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-002-adr-recovery.md", git_status: "??"}
+    planned_commit: "2. docs(architecture): 12 ADR helyreállítása + linkellenőrző (TASK-QC-002)"
+    required_test: "node scripts/check-doc-links.mjs"
+    rollback: "tisztán additív; törléssel visszaállítható, forráskódot nem érint"
+
+  - id: QC-003
+    program_task: "TASK-QC-003 (NEXUS-QUALITY / QC-SECURITY, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "knowledge-service/.env.dev", git_status: D, note: "git rm --cached; a lokális fájl a lemezen megmarad, TARTALOM NINCS a manifestben"}
+      - {path: "knowledge-service/.env.dev.example", git_status: A}
+      - {path: ".gitignore", git_status: M}
+      - {path: "knowledge-service/.gitignore", git_status: M}
+      - {path: "scripts/dev-start.mjs", git_status: M}
+      - {path: "scripts/dev-start.sh", git_status: M}
+      - {path: "scripts/runner-start.mjs", git_status: M}
+      - {path: "scripts/secret-scan.mjs", git_status: "??"}
+      - {path: ".secret-scan.json", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-003-env-hygiene.md", git_status: "??"}
+    planned_commit: "3. security(env): .env.dev kivezetése git-indexből + secret-scan bevezetése (TASK-QC-003)"
+    required_test: "node scripts/secret-scan.mjs (0 találat)"
+    rollback: "git reset HEAD -- knowledge-service/.env.dev && git checkout -- knowledge-service/.env.dev állítja vissza a staged törlést; a lokális fájl változatlan egész idő alatt"
+    human_gate: "A .env.dev staged törlés emberi megerősítést igényel: a lokális fájl NEM veszett el, csak git-indexből kerül ki — de ezt a pusholás előtt Gábornak jóvá kell hagynia (QUALITY.md 7. pont: secrets sosem gitre)."
+
+  - id: QC-004
+    program_task: "TASK-QC-004 (NEXUS-QUALITY / QC-STABILITY, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "scripts/deploy/build-release.sh", git_status: "??"}
+      - {path: "scripts/deploy/deploy-release.sh", git_status: "??"}
+      - {path: "scripts/deploy/lib.sh", git_status: "??"}
+      - {path: "scripts/deploy/deploy.config.example.sh", git_status: "??"}
+      - {path: "scripts/deploy/.gitignore", git_status: "??"}
+      - {path: "scripts/deploy/README.md", git_status: "??"}
+      - {path: "scripts/deploy/test/run-tests.sh", git_status: "??"}
+      - {path: "scripts/deploy/test/mock-health-server.mjs", git_status: "??"}
+      - {path: "scripts/deploy-to-prod.sh", git_status: M, note: "NEM törölve — figyelmeztető fejléc hozzáadva, vészhelyzeti fallback marad"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-004-safe-deploy.md", git_status: "??"}
+    planned_commit: "4. feat(deploy): build/deploy szétválasztás, auto-rollback, dry-run (TASK-QC-004)"
+    required_test: "bash scripts/deploy/test/run-tests.sh (70 hermetikus teszt)"
+    rollback: "az új scriptek addítívak; a régi deploy-to-prod.sh vészhelyzeti fallback marad, csak fejléccel bővült"
+
+  - id: QC-005
+    program_task: "TASK-QC-005 (NEXUS-QUALITY / QC-VERIFICATION, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: ".github/workflows/ci.yml", git_status: M, shared_with: [QC-008], note: "QC-005 alapozta (gate-ek, permissions, concurrency), QC-008 egy check:size lépéssel bővítette utólag — egy fájl, két task, sorrendben egymásra épülő diff"}
+      - {path: "scripts/lint-ratchet.mjs", git_status: "??"}
+      - {path: "knowledge-service/.lint-baseline.json", git_status: "??"}
+      - {path: "knowledge-service/package.json", git_status: M, shared_with: [QC-008, UNCLEAR-DEPENDENCY-OVERRIDE], note: "csak a lint:ratchet/audit:prod/secret-scan/check:links/check:size script-sorok tartoznak QC-005/008-hoz; az 'overrides: protobufjs' rész NEM ehhez tartozik, lásd UNCLEAR-DEPENDENCY-OVERRIDE csoport"}
+      - {path: "knowledge-service/vitest.config.ts", git_status: M, shared_with: [QC-006], note: "QC-005: coverage-threshold számok; QC-006: CI-multiplier=4 logika — ugyanaz a fájl, két hunk"}
+      - {path: "knowledge-service/README.md", git_status: M, shared_with: [QC-009], note: "QC-005 csak egy minimál 'CI quality gates' szakaszt adott hozzá; QC-009 ezt utólag teljesen újraírta — a jelenlegi munkafa-tartalom már a QC-009 végállapot, a QC-005-attribúció csak történeti"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-005-ci-quality-gates.md", git_status: "??"}
+    planned_commit: "5. ci(quality-gates): typecheck/lint-ratchet/coverage/audit/secret-scan/linkcheck kapuk (TASK-QC-005)"
+    required_test: "npm run lint:ratchet && npm run audit:prod && npm test -- --coverage"
+    rollback: "git checkout -- <files>; a ci.yml és package.json QC-008 hunkjait előbb külön kell választani (lásd QC-008 csoport)"
+
+  - id: QC-006
+    program_task: "TASK-QC-006 (NEXUS-QUALITY / QC-VERIFICATION, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész, DE lásd discrepancy jegyzet"
+    status: closed_pending_commit
+    discrepancy_flag: >
+      A TASK-QC-006 Implementáció-szakasza kifejezetten azt állítja, hogy a
+      tesztelt modulokon (pl. tokenAuth.ts, bootstrap/app.ts) NEM történt
+      forráskód-módosítás, csak tesztbővítés. A tényleges munkafa ennek
+      ELLENTMOND: bootstrap/app.ts, auth/tokenAuth.ts, config/env.ts és 2 route
+      fájl valódi, biztonságkritikus logikaváltozást tartalmaz (lásd a
+      SECURITY-HARDENING csoportot). Ez azt jelenti, hogy a tesztek és a
+      tesztelt forráskód közötti kapcsolat NEM tisztán "csak új teszt" —
+      emberi döntés kell, hogy a security-hardening kód QC-006 részeként
+      számítson-e el, vagy önálló, dokumentálatlan munkaként.
+    files:
+      - {path: "knowledge-service/src/__tests__/helpers/perfBudget.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/agent/agent.config.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/integration/api.config.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/agent/communication.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/agent/identity.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/agent/memory.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/agentEval.test.ts", git_status: M, note: "perfBudget-konverzió + kisebb auth-mock igazítás (app.ts CORS-változás miatt)"}
+      - {path: "knowledge-service/src/__tests__/epicsValidator.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/federationRoutes.test.ts", git_status: M, note: "perfBudget-konverzió + auth-mock igazítás"}
+      - {path: "knowledge-service/src/__tests__/integration/api.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/integration/mcp-tools.integration.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/integration/session.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/projectsApi.test.ts", git_status: M, note: "perfBudget-konverzió + auth-mock igazítás"}
+      - {path: "knowledge-service/src/__tests__/unit/componentScaffold.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/unit/dependencyResolver.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/unit/domainPatternMatcher.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/unit/sessionContextTransfer.test.ts", git_status: M}
+      - {path: "knowledge-service/src/__tests__/unit/terminalStatusAggregator.test.ts", git_status: M, shared_with: [QC-007], note: "QC-007 'utólagos javítás' szakasza szerint ide tartozik a vi.mock('../../contextPersistence') hozzáadás; a perfBudget-konverzió QC-006-hoz"}
+      - {path: "knowledge-service/src/__tests__/workflowModel.test.ts", git_status: M, note: "perfBudget-konverzió + auth-mock igazítás"}
+      - {path: "knowledge-service/src/__tests__/unit/tokenAuth.test.ts", git_status: M, shared_with: [SECURITY-HARDENING], note: "kiterjesztve; lásd discrepancy_flag"}
+      - {path: "knowledge-service/src/__tests__/unit/appSecurity.test.ts", git_status: "??", shared_with: [SECURITY-HARDENING], note: "AMBIGUOUS — egyik archivált QC-task saját 'új fájl' listája sem nevezi meg explicit; a QC-006/QC-010 futtatási parancsaiban szerepel. Lásd discrepancy_flag."}
+      - {path: "knowledge-service/src/__tests__/unit/configCentralization.test.ts", git_status: "??", note: "ITT szerepel felsorolva, de tartalmilag QC-007 (config-centralization) tesztje — lásd QC-007 csoport is; egy fájl, egy git-status-sor, elsődleges attribúció QC-007"}
+      - {path: "knowledge-service/src/__tests__/unit/contextPersistence.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/envSecurity.test.ts", git_status: "??", shared_with: [SECURITY-HARDENING]}
+      - {path: "knowledge-service/src/__tests__/unit/goalStore.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/identityStore.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/mcpTransport.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/memoryToolsFs.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/preReviewGate.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/retrospectiveStore.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/reviewerPipeline.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/skillsStore.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/terminalReviewerPipeline.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/unit/workflowManagerFs.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/integration/controlRoutes.integration.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/integration/epicRouterRoutes.integration.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/integration/kanbanRoutes.integration.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/__tests__/integration/mailboxRoutes.integration.test.ts", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-006-critical-coverage.md", git_status: "??"}
+    planned_commit: "7. test(coverage): kritikus modulok tesztlefedettség 24,5%→41% (TASK-QC-006) — CSAK a tiszta tesztfájlok; a discrepancy_flag alatti forráskód-hunkok a SECURITY-HARDENING vagy egy külön 'security-fix' commitba kerülnek, emberi döntés után"
+    required_test: "npm test (1307 teszt zöld elvárás)"
+    rollback: "git checkout -- <test files>; a forráskód-oldal (app.ts/tokenAuth.ts/env.ts) rollbackje a SECURITY-HARDENING csoport szerint külön kezelendő"
+
+  - id: QC-007
+    program_task: "TASK-QC-007 (NEXUS-QUALITY / QC-MAINTAINABILITY, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    verification_method: >
+      A ~85 pipeline/api/conductor/codegen/generators/telegram/task-audit fájl
+      mindegyikét egy grep-mintával ellenőriztem (config/paths|config/env|
+      SPACEOS_ROOT|SELF_BASE_URL|getSpaceosMode import vagy hivatkozás jelenléte
+      a diffben) + 6 fájlt egyenként, teljes diffel is átnéztem mintaként
+      (vectorStore.ts, dashboard/kanban/projects/auth.routes.ts,
+      env.ts) — mind konzisztens a config-centralizációs mintával.
+    files:
+      - {path: "knowledge-service/src/config/env.ts", git_status: M, shared_with: [SECURITY-HARDENING], note: "ENTANGLED: SPACEOS_ROOT optional-default, URL-deriválás, lazy secrets accessor = QC-007; AUTH_MODE default nyitott→required, HOST default 0.0.0.0→127.0.0.1, CORS_ORIGINS, TRUST_PROXY_HOPS = SECURITY-HARDENING. Commit előtt hunk-szintű szétválasztás szükséges."}
+      - {path: "knowledge-service/src/config/paths.ts", git_status: M}
+      - {path: "knowledge-service/src/bootstrap/startup.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/pipeline.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/watchInbox.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/watchQueue.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/telegramBot.ts", git_status: M}
+      - {path: "knowledge-service/src/vectorStore.ts", git_status: M, note: "log-üzenetből /opt/spaceos hardcode eltávolítva"}
+      - {path: "knowledge-service/.env.example", git_status: M}
+      - {path: "knowledge-service/src/__tests__/unit/configCentralization.test.ts", git_status: "??"}
+      - {path: "knowledge-service/src/interfaces/http/routes/auth.routes.ts", git_status: M}
+      - {path: "knowledge-service/src/interfaces/http/routes/dashboard.routes.ts", git_status: M}
+      - {path: "knowledge-service/src/interfaces/http/routes/kanban.routes.ts", git_status: M}
+      - {path: "knowledge-service/src/interfaces/http/routes/projects.routes.ts", git_status: M}
+      - {path: "knowledge-service/src/api/graphRoutes.ts", git_status: M}
+      - {path: "knowledge-service/src/api/planningRoutes.ts", git_status: M}
+      - {path: "knowledge-service/src/application/services/costMonitoringService.ts", git_status: M}
+      - {path: "knowledge-service/src/codegen/codegenEngine.ts", git_status: M}
+      - {path: "knowledge-service/src/codegen/frontendVerify.ts", git_status: M}
+      - {path: "knowledge-service/src/codegen/patternScaffold.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/checkpointTracker.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/conductorBriefing.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/contextSaturation.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/epicManager.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/modeDetection.ts", git_status: M}
+      - {path: "knowledge-service/src/conductor/sessionState.ts", git_status: M}
+      - {path: "knowledge-service/src/config/terminals.ts", git_status: M}
+      - {path: "knowledge-service/src/embeddings.ts", git_status: M}
+      - {path: "knowledge-service/src/eval/goldenPath.ts", git_status: M}
+      - {path: "knowledge-service/src/generators/generateEndpoint.ts", git_status: M}
+      - {path: "knowledge-service/src/generators/generateInbox.ts", git_status: M}
+      - {path: "knowledge-service/src/generators/generateModule.ts", git_status: M}
+      - {path: "knowledge-service/src/goalStore.ts", git_status: M}
+      - {path: "knowledge-service/src/identity.ts", git_status: M}
+      - {path: "knowledge-service/src/inboxWatcher.ts", git_status: M}
+      - {path: "knowledge-service/src/interfaces/mcp/tools/session.tools.ts", git_status: M}
+      - {path: "knowledge-service/src/messageRegistry.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/agentMessages.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/alertRules.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/autonomousDev.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/autoRestart.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/channelCoordinator.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/channelProvider.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/common.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/dependencyResolver.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/epicNotifications.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/epicProgressTracker.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/epicRouter.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/heartbeat.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/hourlyDigest.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/hybridSearch.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/ideaScan.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/knowledgeLoader.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/memoryStore.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/missionControl.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/pendingRetries.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/phaseCoordinator.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/pipelineDocs.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/planDebate.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/planScan.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/planSelect.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/preReviewGate.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/projectDispatcher.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/reviewer.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/rootMonitor.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/sessionContextTransfer.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/skillFactory.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/subscriptionManager.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/taskEscalation.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/watchDone.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/watchMonitor.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/watchResponse.ts", git_status: M}
+      - {path: "knowledge-service/src/pipeline/workSessionLog.ts", git_status: M}
+      - {path: "knowledge-service/src/projectTools.ts", git_status: M}
+      - {path: "knowledge-service/src/retrospective.ts", git_status: M}
+      - {path: "knowledge-service/src/sessionHooks.ts", git_status: M}
+      - {path: "knowledge-service/src/sessionManager.ts", git_status: M}
+      - {path: "knowledge-service/src/sessionStarter.ts", git_status: M}
+      - {path: "knowledge-service/src/skills.ts", git_status: M}
+      - {path: "knowledge-service/src/task-audit/auth.ts", git_status: M}
+      - {path: "knowledge-service/src/task-audit/taskCreation.ts", git_status: M}
+      - {path: "knowledge-service/src/telegram/conversationManager.ts", git_status: M}
+      - {path: "knowledge-service/src/telegram/multiBotManager.ts", git_status: M}
+      - {path: "knowledge-service/src/telegram/telegramService.ts", git_status: M}
+      - {path: "knowledge-service/src/terminalConfig.ts", git_status: M}
+      - {path: "knowledge-service/src/workflowDb.ts", git_status: M}
+      - {path: "knowledge-service/src/workflowManager.ts", git_status: M}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-007-config-centralization.md", git_status: "??"}
+    planned_commit: "6. refactor(config): runtime-config központosítás, /opt/spaceos hardcode-ok kivezetve (TASK-QC-007) — env.ts security-hunkjai NÉLKÜL, lásd note"
+    required_test: "npm run typecheck && vitest run -- configCentralization"
+    rollback: "git checkout -- <files>; env.ts esetén csak a config-hunkokat visszaállítani, a security-hunkokat megőrizni (vagy fordítva) — patch-szintű split kell"
+
+  - id: QC-008
+    program_task: "TASK-QC-008 (NEXUS-QUALITY / QC-MAINTAINABILITY, archivált, done) + follow-up backlog"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész (fő task) + nyitott backlog (follow-upok)"
+    status: closed_pending_commit
+    files:
+      - {path: "knowledge-service/src/mcp.ts", git_status: M, note: "5561→417 sor; legacy TOOLS tömb + switch fallback törölve. Valószínűleg a legnagyobb egyedi diff a teljes munkafában."}
+      - {path: "knowledge-service/src/__tests__/integration/mcpContract.integration.test.ts", git_status: "??"}
+      - {path: "scripts/check-file-size.mjs", git_status: "??"}
+      - {path: "knowledge-service/.file-size-allowlist.json", git_status: "??"}
+      - {path: "knowledge-service/src/interfaces/mcp/tools/README.md", git_status: M}
+      - {path: ".github/workflows/ci.yml", git_status: M, shared_with: [QC-005], note: "lásd QC-005 note"}
+      - {path: "knowledge-service/package.json", git_status: M, shared_with: [QC-005, UNCLEAR-DEPENDENCY-OVERRIDE], note: "check:size script sor"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-008A-sessionstarter-decomposition.md", git_status: "??", note: "backlog follow-up, status: ready, még NEM végrehajtva"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-008B-messageregistry-decomposition.md", git_status: "??", note: "backlog follow-up, status: ready"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-008C-pipeline-reviewer-decomposition.md", git_status: "??", note: "backlog follow-up, status: ready"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-008D-terminalreviewer-decomposition.md", git_status: "??", note: "backlog follow-up, status: ready"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-008E-remaining-large-files.md", git_status: "??", note: "backlog follow-up, status: ready"}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-008-large-file-decomposition.md", git_status: "??"}
+    planned_commit: "8a. refactor(mcp): legacy TOOLS/switch törlése (417 sor) + fájlméret-kapu (TASK-QC-008) | 8b. docs: QC-008A-E backlog follow-up taskok"
+    required_test: "vitest run -- mcpContract && node scripts/check-file-size.mjs"
+    rollback: "git checkout -- knowledge-service/src/mcp.ts (nagy diff — külön branch-en érdemes tesztelni pusholás előtt)"
+
+  - id: QC-009
+    program_task: "TASK-QC-009 (NEXUS-QUALITY / QC-DOCUMENTATION, archivált, done)"
+    owner: backend (QC program)
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "README.md", git_status: M}
+      - {path: "knowledge-service/README.md", git_status: M, shared_with: [QC-005]}
+      - {path: "knowledge-service/src/auth/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/bootstrap/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/config/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/interfaces/http/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/interfaces/mcp/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/pipeline/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/runner/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/telegram/README.md", git_status: "??"}
+      - {path: "knowledge-service/src/task-message-box/README.md", git_status: M}
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-009-documentation.md", git_status: "??"}
+    planned_commit: "9. docs: README-k és modul-dokumentáció frissítése (TASK-QC-009)"
+    required_test: "node scripts/check-doc-links.mjs"
+    rollback: "tisztán dokumentáció; git checkout -- <files>"
+
+  - id: QC-010
+    program_task: "TASK-QC-010 (NEXUS-QUALITY / QC-VERIFICATION, archivált, done — 2. körben PASS)"
+    owner: backend (QC program) + friss kontextusú reviewer
+    category: "lezárt program végterméke — commit-kész"
+    status: closed_pending_commit
+    files:
+      - {path: "docs/tasks/quality-compliance/archive/TASK-QC-010-independent-verification.md", git_status: "??"}
+    note: >
+      A task maga nem módosított forráskódot (pure verification). A
+      terminals/root/todo.md 1. körös ledger-szinkron javítása (amit a QC-010
+      1. futása talált hiányosnak) NEM különíthető el fájlszinten a QC-001
+      eredeti szinkronjától — lásd a QC-001 csoport todo.md megjegyzését.
+    planned_commit: "10. docs(archive): TASK-QC-010 független review archiválása (2. kör PASS)"
+    required_test: "n/a — verifikációs jelentés, nincs futtatható teszt hozzá"
+    rollback: "git checkout -- <file>"
+
+  - id: QC-FOLLOWUP-BACKLOG
+    program_task: "TASK-QC-011, TASK-QC-012, TASK-QC-013 + governance READMEs (NEXUS-QUALITY, ready, még NEM végrehajtva)"
+    owner: backend (kijelölve, végrehajtás nem indult)
+    category: "nyitott backlog dokumentáció — nem 'lezárt', hanem jövőbeli munka bejelentése"
+    status: not_started
+    files:
+      - {path: "docs/tasks/quality-compliance/TASK-QC-011-workflowdb-history-bug.md", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-012-goalstore-id-collision.md", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/TASK-QC-013-inbox-watcher-env-flag.md", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/README.md", git_status: "??"}
+      - {path: "docs/tasks/quality-compliance/archive/README.md", git_status: "??"}
+    planned_commit: "11. docs: QC follow-up backlog taskok (QC-011..013) + program-README-k"
+    required_test: "n/a (dokumentáció)"
+    rollback: "git checkout -- <files>"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # SECURITY-HARDENING — nem hivatkozott dokumentáltan EGYETLEN archivált
+  # QC-taskban sem explicit forráskód-módosításként. Kereszteződik a
+  # terminals/root/todo.md régóta nyitott backlog-tételével: "Epic-router
+  # külön token-rendszerének egyesítése a tokenAuth-tal". Ez a legfontosabb
+  # EMBERI DÖNTÉST igénylő csoport: alapértelmezett viselkedést változtat
+  # (AUTH_MODE nyitott→required, HOST 0.0.0.0→127.0.0.1).
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: SECURITY-HARDENING
+    program_task: >
+      NINCS explicit QC-task-hivatkozás. Legvalószínűbb eredet: a
+      terminals/root/todo.md régi backlog-tétele ("Epic-router külön
+      token-rendszerének (SHA256-derivált, TERMINAL_TOKEN_SECRET)
+      egyesítése a tokenAuth-tal") — ez a diffben TÉNYLEGESEN megtörtént
+      (epic-router.routes.ts requireTerminalAuth most a globális
+      apiAuthGate azonosítást használja, fail-closed lett a hiányzó titkos
+      kulcsra). A TASK-QC-006 doksija kifejezetten tagadja, hogy forráskódot
+      módosított volna ezekben a fájlokban — ELLENTMONDÁS, lásd
+      discrepancy_flag a QC-006 csoportban.
+    owner: "ISMERETLEN — emberi tisztázás szükséges"
+    category: "nem egyértelműen besorolható — ÖNÁLLÓ, BIZTONSÁGKRITIKUS változáscsoport"
+    status: needs_human_decision
+    files:
+      - {path: "knowledge-service/src/bootstrap/app.ts", git_status: M, note: "CORS allowlist (wildcard '*' törölve), CSP/X-Frame-Options/Referrer-Policy/Permissions-Policy fejlécek, requireRootForMutations legtöbb /api route elé, trust-proxy konfiguráció, 500-as hibaválaszok redaktálása"}
+      - {path: "knowledge-service/src/auth/tokenAuth.ts", git_status: M, note: "requireRoot / requireRootForMutations middleware hozzáadva"}
+      - {path: "knowledge-service/src/config/env.ts", git_status: M, shared_with: [QC-007], note: "AUTH_MODE default 'open'→'required'; HOST default '0.0.0.0'→'127.0.0.1'; CORS_ORIGINS, TRUST_PROXY_HOPS új env — VISELKEDÉS-VÁLTOZTATÓ ALAPÉRTELMEZÉSEK"}
+      - {path: "knowledge-service/src/interfaces/http/routes/epic-router.routes.ts", git_status: M, note: "TERMINAL_TOKEN_SECRET hardcode default ('spaceos-terminal-secret-2026') törölve, fail-closed ha hiányzik; requireTerminalAuth egyesítve a globális auth-identitással"}
+      - {path: "knowledge-service/src/interfaces/http/routes/mailbox.routes.ts", git_status: M, note: "Access-Control-Allow-Origin: * törölve az SSE-subscribe route-ról"}
+      - {path: "knowledge-service/src/__tests__/unit/tokenAuth.test.ts", git_status: M, shared_with: [QC-006]}
+      - {path: "knowledge-service/src/__tests__/unit/appSecurity.test.ts", git_status: "??", shared_with: [QC-006]}
+      - {path: "knowledge-service/src/__tests__/unit/envSecurity.test.ts", git_status: "??", shared_with: [QC-006]}
+    planned_commit: >
+      12. security(hardening): CORS allowlist, CSP fejlécek,
+      requireRootForMutations, epic-router token-egyesítés,
+      AUTH_MODE/HOST alapértelmezés-váltás — EZ A COMMIT NEM MEHET
+      EMBERI JÓVÁHAGYÁS NÉLKÜL PUSHRA/DEPLOY-RA (lásd human_gate).
+    required_test: "npm test -- --coverage (tokenAuth/appSecurity/envSecurity suite-ok kiemelten); élő smoke-teszt AUTH_MODE=required mellett"
+    rollback: "git checkout -- <files>; VISSZAÁLLÍTÁS ELŐTT ellenőrizni kell, hogy a jelenlegi élő VPS/DEV konfiguráció nem függ-e már az új default-októl"
+    human_gate: >
+      KRITIKUS: ez a csoport alapértelmezett biztonsági viselkedést vált
+      (fail-open → fail-closed AUTH_MODE, 0.0.0.0 → 127.0.0.1 HOST bind).
+      QUALITY.md 7. pont (stabilitás > új feature, backup kockázatos lépés
+      előtt) és a program README "push/deploy előtt emberi jóváhagyási kapu"
+      szabálya szerint Gábor explicit jóváhagyása kell PUSH ELŐTT — a DEV
+      (3466) és a VPS (3456/PROD) jelenlegi AUTH_MODE=open ill. required
+      konfigurációjára gyakorolt hatást tesztelni kell mindkét környezetben.
+
+  # ══════════════════════════════════════════════════════════════════════
+  # NEXUS-DEVELOPMENT-PROCESS + NEXUS-ISLAND-RUNTIME programelőkészítés —
+  # a mai (2026-07-18) root/conductor dokumentációs munka, KÜLÖN track a
+  # QUALITY programtól, saját reviewer-lánccal.
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: DP-ISL-PROGRAM-PREP
+    program_task: "NEXUS-DEVELOPMENT-PROCESS + NEXUS-ISLAND-RUNTIME programelőkészítés (root/conductor, 2026-07-18)"
+    owner: root
+    category: "aktív, folyamatban lévő programelőkészítés — NEM a QUALITY program része"
+    status: in_progress
+    files:
+      - {path: "docs/knowledge/fejlesztesi-folyamat-erettsegi-ertekeles.md", git_status: "??"}
+      - {path: "docs/knowledge/fejlesztesi-folyamat-taskprogram-letrehozasa.md", git_status: "??"}
+      - {path: "docs/knowledge/terminal-agent-sziget-mukodes-ertekeles.md", git_status: "??"}
+      - {path: "docs/knowledge/nexus-dev-workshop.md", git_status: M, note: "hivatkozás hozzáadva a terminal-agent-sziget doksira"}
+      - {path: "docs/tasks/README.md", git_status: "??", note: "ELAVULT: csak a quality-compliance és island-runtime programot említi, a development-process programot nem — kisebb dokumentációs rés, follow-up igény"}
+      - {path: "docs/tasks/development-process/README.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-001-worktree-baseline.md", git_status: "??", note: "ez a task saját fájlja — a manifest-generáláshoz ÉS ehhez a taskhoz tartozik, nem külön git-diff tétel"}
+      - {path: "docs/tasks/development-process/TASK-DP-001-manifest.yaml", git_status: "??", note: "EZ A FÁJL ÖNMAGA. Az első manifest-verzió (2026-07-18T11:24 körül) nem tudta felvenni saját magát, mert a git-status-snapshot elkészülte és a fájl lezárása között eltelt pár perc — a független reviewer (lásd task-fájl) ezt helyesen hiányként azonosította. Frissítés (2. kör, 2026-07-18T11:5x): felvéve."}
+      - {path: "docs/tasks/development-process/TASK-DP-002-canonical-state-adr.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-003-task-schema-gate.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-004-task-lifecycle.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-005-task-discovery-api.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-006-change-provenance.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-007-ci-platform-parity.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-008-review-archive-gate.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-009-release-provenance.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-010-process-documentation.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/TASK-DP-011-independent-audit.md", git_status: "??"}
+      - {path: "docs/tasks/development-process/archive/README.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/README.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-001-target-architecture.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-002-compound-identity.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-003-authorization-isolation.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-004-canonical-store.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-005-claim-lease-idempotency.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-006-runner-registry.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-007-cli-adapter-contract.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-008-codex-adapter.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-009-claude-adapter.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-010-antigravity-adapter.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-011-windows-runner.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-012-linux-runner.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-013-workflow-launch-authority.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-014-federation-transport.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-015-operability-recovery.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-016-documentation-migration.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/TASK-ISL-017-independent-verification.md", git_status: "??"}
+      - {path: "docs/tasks/island-runtime/archive/README.md", git_status: "??"}
+      - {path: "terminals/root/state.md", git_status: M}
+      - {path: "terminals/root/MEMORY.md", git_status: M}
+      - {path: "terminals/root/todo.md", git_status: M, shared_with: [QC-001, QC-010], note: "a mai DP/ISL bejegyzések + a QC ledger-sorok ugyanabban a fájlban — commit előtt hunk-szintű szétválasztás"}
+    planned_commit: >
+      13. docs(process): NEXUS-DEVELOPMENT-PROCESS (11 task) + NEXUS-ISLAND-RUNTIME
+      (17 task) programdokumentáció és érettségi felmérések — KÜLÖN saját
+      commit(ok), a QUALITY-commitoktól függetlenül pusholható, mivel tisztán
+      dokumentáció és nincs kódfüggése.
+    required_test: "node scripts/check-doc-links.mjs"
+    rollback: "git checkout -- <files>; tisztán dokumentáció, alacsony kockázat"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # DP-ISL-ARCHITECTURE-ADRS — a párhuzamosan futó TASK-DP-002 (kanonikus
+  # állapotmodell ADR) és TASK-ISL-001 (célarchitektúra ADR) 2. körös
+  # munkaterméke. NEM létezett a manifest 1. verziójának generálásakor
+  # (2026-07-18 ~11:24) — a független reviewer (lásd a taskfájl "Független
+  # review" szakaszát) saját `git status`-futtatással találta meg 11
+  # lefedetlen bejegyzést (10 ADR + a manifest saját maga), REQUEST_CHANGES
+  # verdikttel. Ez a csoport a javítás.
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: DP-ISL-ARCHITECTURE-ADRS
+    program_task: >
+      TASK-DP-002 (NEXUS-DEVELOPMENT-PROCESS / DP-STATE-ARCHITECTURE,
+      kanonikus állapotmodell ADR) + TASK-ISL-001 (NEXUS-ISLAND-RUNTIME /
+      ISL-ARCHITECTURE, célarchitektúra ADR) — MINDKETTŐ jelenleg fut,
+      párhuzamosan ezzel a TASK-DP-001 futással (a program README 1.
+      végrehajtási hullámaként dokumentálva: "Baseline és döntés
+      párhuzamosan: DP-001 és DP-002").
+    owner: "architect (DP-002 + ISL-001 közös munkaterméke — a két task saját reviewer-lánca dönti el a végleges felosztást)"
+    category: "párhuzamos testvér-task terméke — folyamatban, NEM ennek a tasknak a felelőssége lezárni"
+    status: in_progress
+    note: >
+      Ez a csoport SZÁNDÉKOSAN "in_progress, függő reviewtól" státuszú, nem
+      "closed_pending_commit": a DP-002 és ISL-001 taskok maguk sincsenek
+      lezárva ebben a pillanatban, tartalmuk (beleértve az ADR-ek
+      `status` mezőjét: proposed/accepted) még változhat, mielőtt saját
+      independent reviewerük lefut. Ha eddig a manifest véglegesítéséig
+      további ADR-eket vagy módosításokat hoznak létre, azt a KÖVETKEZŐ
+      reviewer/frissítési kör dolga észlelni — ez a manifest egy ésszerű,
+      2026-07-18 ~11:5x körüli pillanatfelvétel, nem valós idejű szinkron.
+    files:
+      - {path: "docs/architecture/decisions/ADR-068-canonical-project-task-state.md", git_status: "??", note: "TASK-DP-002 munkaterméke — fejléce explicit hivatkozik rá"}
+      - {path: "docs/architecture/decisions/ADR-077-island-terminal-runner-identity.md", git_status: "??", note: "TASK-ISL-001 munkaterméke — fejléce explicit hivatkozik rá"}
+      - {path: "docs/architecture/decisions/ADR-078-canonical-task-message-store.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-079-claim-lease-fencing-state-machine.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-080-unified-authorization-policy.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-081-single-launch-authority.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-082-cli-adapter-contract.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-083-federation-outbox-relay-dlq.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-084-migration-threat-rollback-plan.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+      - {path: "docs/architecture/decisions/ADR-085-slo-platform-evidence-strategy.md", git_status: "??", note: "TASK-ISL-001 munkaterméke"}
+    planned_commit: >
+      16. (NEM ennek a tasknak a commitja) docs(architecture): kanonikus
+      állapotmodell ADR (TASK-DP-002) + szigetüzemi célarchitektúra ADR-ek
+      (TASK-ISL-001) — a tényleges commit-bontást a DP-002/ISL-001 saját
+      Implementáció-szakasza és independent reviewere határozza meg, ez a
+      manifest csak nyilvántartásba veszi a jelenlétüket a TASK-DP-001
+      baseline-konzisztencia kedvéért.
+    required_test: "node scripts/check-doc-links.mjs (miután DP-002/ISL-001 lezárta a saját ADR-eit)"
+    rollback: "git checkout -- <files> — DE ez a DP-002/ISL-001 tulajdonosi döntése, nem a TASK-DP-001-é"
+
+  # ══════════════════════════════════════════════════════════════════════
+  # KÜLÖN ELBÍRÁLANDÓ / NEM BESOROLHATÓ
+  # ══════════════════════════════════════════════════════════════════════
+
+  - id: UNCLEAR-DEPENDENCY-OVERRIDE
+    program_task: "NINCS task-hivatkozás — pre-existing, uncommitted dependency pin"
+    owner: "ISMERETLEN — emberi tisztázás szükséges"
+    category: "nem besorolható — külön emberi döntés kell"
+    status: needs_human_decision
+    files:
+      - {path: "knowledge-service/package.json", git_status: M, shared_with: [QC-005, QC-008], note: "az '\"overrides\": { \"protobufjs\": \"^7.6.3\" }' blokk — a TASK-QC-005 doksija explicit megjegyzi, hogy ezt a részt NEM ő adta hozzá"}
+      - {path: "knowledge-service/package-lock.json", git_status: M, note: "85 soros diff, túlnyomórészt tranzitív peer/optional flag-ripple, amit az overrides-bejegyzés vált ki (pl. @emnapi/core, @emnapi/runtime csomagok eltűnése) — nem tartalmaz új közvetlen függőséget"}
+    planned_commit: "14. (opcionális, önálló) chore(deps): protobufjs override pin — CSAK miután Gábor megerősítette a szándékot (lehet CVE-fix, lehet véletlen/kísérleti állapot)"
+    required_test: "npm install --package-lock-only && npm run typecheck"
+    rollback: "git checkout -- knowledge-service/package.json knowledge-service/package-lock.json"
+    human_gate: "Tisztázni kell: szándékos biztonsági pin (protobufjs CVE) vagy egy félbehagyott kísérlet maradványa?"
+
+  - id: UNCLEAR-AGENT-TOOLING
+    program_task: "NINCS — nem tartozik a QUALITY, DEVELOPMENT-PROCESS vagy ISLAND-RUNTIME programhoz"
+    owner: "ISMERETLEN — emberi tisztázás szükséges"
+    category: "nem besorolható — külön eredetű agent-tooling"
+    status: needs_human_decision
+    files:
+      - {path: ".agents/skills/verify/SKILL.md", git_status: "??", note: "Claude Code skill-definíció (a 'verify' skill: a knowledge-service DEV-indítása/élő ellenőrzése) — hasznos, de egyik ismert program taskja sem hozta létre; feltehetően egy korábbi munkamenet ad-hoc tooling-hozzáadása"}
+    planned_commit: "15. (opcionális) chore(tooling): verify skill hozzáadása az agent-eszköztárhoz — külön, program-független commit"
+    required_test: "n/a (nem futtatható kód, skill-leírás)"
+    rollback: "git checkout -- .agents/skills/verify/SKILL.md (vagy törlés, ha nem kívánt)"
+    human_gate: "Tisztázni kell: kinek a munkamenete hozta létre, és szándékos-e, hogy nincs program-hivatkozása? Nem kockázatos tartalmú (a reviewer teljes egészében elolvasta, nincs benne titok), de eredete tisztázatlan — commit előtt owner-megerősítés kell."
+
+# ─── JAVASOLT COMMIT-SORREND (függőség és rollback-határ szerint) ──────────
+commit_plan:
+  ordering_rationale: >
+    A sorrend úgy épül, hogy (1) a biztonság- és titok-érzékeny, alacsony
+    kockázatú alapozás menjen elsőként, (2) a dokumentáció-only csoportok
+    bármikor közbeékelhetők kockázat nélkül, (3) a nagy, egymásra épülő
+    forráskód-csoportok (config-centralizáció → tesztek → dokumentáció)
+    logikus épülési sorrendben kövessék egymást, (4) mind a NÉGY,
+    `needs_human_gate: true` jelölésű lépés (1. QC-003 — .env.dev
+    git-index törlés; 12. SECURITY-HARDENING — alapértelmezés-váltás;
+    14. UNCLEAR-DEPENDENCY-OVERRIDE — protobufjs override szándéka;
+    15. UNCLEAR-AGENT-TOOLING — ismeretlen eredetű skill) explicit
+    jóváhagyás nélkül NE kerüljön push-ra — ez a szám korábban tévesen
+    "két csoport"-ként volt leírva egy független reviewer 2026-07-18-i
+    észrevétele nyomán javítva NÉGYRE —, (5) a QC ledger-zárás (EPICS.yaml
+    + todo.md QC-szakasz) legyen az utolsó QUALITY-commit, mert az
+    deklarálja a programot késznek — csak azután van értelme, hogy a
+    mögöttes 1-9. commit ténylegesen megtörtént, és (6) a
+    DP-ISL-ARCHITECTURE-ADRS csoport (16. lépés) NEM ennek a tasknak a
+    commitja — a saját TASK-DP-002/TASK-ISL-001 reviewer-lánca dönt róla,
+    ezért nincs `needs_human_gate` jelölése ebben a sequence-ben (más
+    task felelőssége).
+  sequence:
+    - {step: 1, group: QC-003, needs_human_gate: true, reason: ".env.dev git-index törlés megerősítése"}
+    - {step: 2, group: QC-002, needs_human_gate: false}
+    - {step: 3, group: QC-005, needs_human_gate: false, note: "package.json-t protobufjs-override NÉLKÜL commitolni (patch-split)"}
+    - {step: 4, group: QC-008, needs_human_gate: false, note: "nagy mcp.ts diff — javasolt külön feature-branch-en futtatni a teljes suite-ot pusholás előtt"}
+    - {step: 5, group: QC-004, needs_human_gate: false}
+    - {step: 6, group: QC-007, needs_human_gate: false, note: "env.ts-t a security-hunkok NÉLKÜL (patch-split)"}
+    - {step: 7, group: QC-006, needs_human_gate: false, note: "tokenAuth.test.ts/appSecurity.test.ts/envSecurity.test.ts tényleges hovatartozása a SECURITY-HARDENING döntéstől függ — lehet, hogy ezekkel együtt csúszik a 12. lépésre"}
+    - {step: 8, group: QC-009, needs_human_gate: false}
+    - {step: 9, group: QC-010, needs_human_gate: false}
+    - {step: 10, group: QC-FOLLOWUP-BACKLOG, needs_human_gate: false}
+    - {step: 11, group: QC-001, needs_human_gate: false, note: "todo.md QC-szakasz csak ITT, a program lezárását deklarálva; EPICS.yaml a valóban megtörtént commitokat tükrözze"}
+    - {step: 12, group: SECURITY-HARDENING, needs_human_gate: true, reason: "alapértelmezés-váltás (AUTH_MODE, HOST) — Gábor jóváhagyása kötelező push előtt"}
+    - {step: 13, group: DP-ISL-PROGRAM-PREP, needs_human_gate: false, note: "bármikor párhuzamosan pusholható, nem függ a QC-commitoktól; a todo.md/state.md/MEMORY.md hunkjait a QC-szakaszoktól patch-szinten el kell választani"}
+    - {step: 14, group: UNCLEAR-DEPENDENCY-OVERRIDE, needs_human_gate: true, reason: "szándék tisztázása (CVE-fix vagy véletlen)"}
+    - {step: 15, group: UNCLEAR-AGENT-TOOLING, needs_human_gate: true, reason: "owner/eredet tisztázása"}
+    - {step: 16, group: DP-ISL-ARCHITECTURE-ADRS, needs_human_gate: false, note: "NEM a TASK-DP-001 felelőssége — a TASK-DP-002/TASK-ISL-001 saját commit-terve és reviewer-lánca dönt a tényleges commit-bontásról és időzítésről"}
+  files_needing_patch_level_split_before_commit:
+    - "knowledge-service/src/config/env.ts (QC-007 vs SECURITY-HARDENING)"
+    - "knowledge-service/package.json (QC-005/QC-008 script-sorok vs UNCLEAR-DEPENDENCY-OVERRIDE)"
+    - "knowledge-service/package-lock.json (ua.)"
+    - "knowledge-service/vitest.config.ts (QC-005 vs QC-006)"
+    - "terminals/root/todo.md (QC-001/QC-010 ledger-sorok vs DP-ISL-PROGRAM-PREP bejegyzések)"
+
+# ─── BASELINE HELYREÁLLÍTÁSI / ÖSSZEHASONLÍTÁSI ELJÁRÁS ────────────────────
+restore_and_compare_procedure:
+  current_state_is_not_a_commit: >
+    FONTOS: ennek a baseline-nak NINCS commit-azonosítója — maga a piszkos
+    munkafa a "baseline". `git stash` vagy `git reset --hard` NEM használható
+    biztonságos visszaállításra, mert az elveszítené pontosan azt az
+    anyagot, amit ez a leltár rögzít. A task scope-ja kifejezetten tiltja
+    az automatikus visszaállítást/stash-t/mozgatást.
+  how_to_compare_a_future_state_to_this_baseline:
+    - "git status --porcelain=v1 -uall > current-status.txt; diff current-status.txt <ebben-a-manifestben-rögzített-258-soros-lista> — ha eltér, valami módosult a leltár óta."
+    - "git diff --stat / git diff --cached --stat összevetése a fenti diffstat_unstaged_summary / diffstat_staged_summary értékekkel."
+    - "node scripts/secret-scan.mjs újrafuttatása minden állapotváltás után (jelenlegi baseline: 0 találat, 347 fájl)."
+  freshness_warning: >
+    KÖTELEZŐ, NEM OPCIONÁLIS FIGYELMEZTETÉS (a 2026-07-18-i 1. körös
+    független review nyomán): ez a manifest egy ÉLŐ, több agent által
+    EGYIDEJŰLEG szerkesztett munkafa pillanatfelvétele. A v1.0 verzió
+    (11:24:58) a generálás pillanatában 247/247 igazoltan pontos volt, de
+    ~30 perccel később egy független reviewer saját `git status`-futtatása
+    már 258 sort talált (10 új ADR a párhuzamosan futó TASK-DP-002/
+    TASK-ISL-001-től + a manifest saját maga) — ezt a v1.1 javította. Ez A
+    MINTA MEGISMÉTLŐDHET: mire a `TASK-DP-006` (change-provenance) vagy
+    bármely más downstream fogyasztó ezt a manifestet használni akarja,
+    KÖTELEZŐ előbb újrafuttatni a `git status --porcelain=v1 -uall`-t és
+    összevetni a jelen szakasz elején leírt módszerrel — ha eltérés van,
+    a manifestet frissíteni kell (új csoport a friss fájloknak, vagy teljes
+    regenerálás), MIELŐTT bármilyen commit-döntés erre a manifestre épül.
+    A puszta létezés nem elég; minden felhasználás előtt friss egyeztetés
+    kell.
+  how_to_make_this_baseline_durably_recoverable:
+    recommended: >
+      A LEGGYORSABB módja, hogy ez a munka ne vesszen el, ha a commit_plan
+      szerinti commitsorozat végrehajtódik (lásd human_gate pontok). Amíg ez
+      nem történik meg, az EGYETLEN példány a munkafa ez a Windows-gépen élő
+      állapota.
+    non_destructive_backup_alternative: >
+      Ha commit előtt mégis biztonsági másolat kell: fájlrendszer-szintű
+      másolat (pl. `robocopy /MIR` egy külön mappába), NEM git-stash — a
+      git-stash egy git-objektum-műveletet igényel, amit ez a task nem
+      engedélyez felhasználói jóváhagyás nélkül. Ezt a manifestet készítő
+      agent NEM hajtott végre ilyen másolást (scope-on kívül); ez emberi
+      döntésre vár.
+    optional_patch_snapshot: >
+      Ha valaki egy önálló, olvasható pillanatképet akar a teljes diffről
+      anélkül, hogy bármit commitolna: `git diff > <útvonal-a-repon-kívül>`
+      és `git diff --cached > <útvonal-a-repon-kívül>` — SZÁNDÉKOSAN NEM
+      futtattam le ezt a repo-n belülre, hogy ne növeljem tovább a 247
+      bejegyzést egy 248.-kal; ha kell, a fájlt a repo-n KÍVÜLI útvonalra
+      célszerű írni.

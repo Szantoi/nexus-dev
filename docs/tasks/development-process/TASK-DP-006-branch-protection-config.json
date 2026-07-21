@@ -1,0 +1,36 @@
+{
+  "_provenance": {
+    "task_id": "TASK-DP-006",
+    "purpose": "Draft GitHub branch protection payload for `main`. NOT APPLIED — proposed only, awaiting human approval (see ADR-086, section 'Nyitott kérdések'). The `_provenance` key is metadata for humans reading this file and MUST be stripped before use as an API request body — send only the `protection_payload` object.",
+    "target_endpoint": "PUT /repos/Szantoi/nexus-dev/branches/main/protection",
+    "example_apply_command": "gh api --method PUT repos/Szantoi/nexus-dev/branches/main/protection --input <(node -e \"process.stdout.write(JSON.stringify(require('./TASK-DP-006-branch-protection-config.json').protection_payload))\")  -- NOT RUN by TASK-DP-006, documented only",
+    "generated_at": "2026-07-18",
+    "read_only_current_state_check": {
+      "command": "gh api repos/Szantoi/nexus-dev/branches/main/protection",
+      "result": "404 Branch not protected (verified 2026-07-18, read-only, no write performed)"
+    },
+    "known_caveat": "The required_status_checks.checks[].context value assumes the ci.yml `knowledge-service` job keeps its current single-job, no-matrix shape. Re-verify against the GitHub Checks tab before applying, especially if TASK-DP-007 introduces an OS matrix (which would change the check-run name, e.g. to 'knowledge-service (ubuntu-latest)')."
+  },
+  "protection_payload": {
+    "required_status_checks": {
+      "strict": true,
+      "checks": [
+        { "context": "knowledge-service" }
+      ]
+    },
+    "enforce_admins": true,
+    "required_pull_request_reviews": {
+      "required_approving_review_count": 1,
+      "dismiss_stale_reviews": true,
+      "require_code_owner_reviews": false,
+      "require_last_push_approval": true
+    },
+    "restrictions": null,
+    "required_linear_history": false,
+    "allow_force_pushes": false,
+    "allow_deletions": false,
+    "required_conversation_resolution": true,
+    "lock_branch": false,
+    "allow_fork_syncing": true
+  }
+}

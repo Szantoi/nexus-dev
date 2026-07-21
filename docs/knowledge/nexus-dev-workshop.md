@@ -17,3 +17,9 @@ a service induláskor automatikusan indexeli a `**/*.md` fájlokat.
 - Konfiguráció: `src/config/env.ts` (zod-validált) + `src/config/paths.ts`.
 - Logolás: `src/core/logger.ts` (LOG_LEVEL / LOG_FORMAT env).
 - Minőségi elvárások: `QUALITY.md` a repo gyökerében.
+
+## Kapcsolódó tudásanyagok
+
+- `terminal-agent-sziget-mukodes-ertekeles.md` — a terminálalapú agentcsapatok
+  izolációjának, task ownershipjének, federationjének és hibatűrésének
+  architekturális értékelése.

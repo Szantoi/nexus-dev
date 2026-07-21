@@ -114,3 +114,140 @@ A háttér-agent a havi költségkeret-limitbe futott és félbehagyta; a részm
 - **TypeScript:** 0 hiba (`npm run typecheck`)
 - **Build:** sikeres
 - Legacy mcp.ts switch (109 case) fallback-ként megmarad — törlése future cleanup, nincs sürgősség
+
+---
+
+## 2026-07-18 — Garantált szigetüzem és többplatformos CLI runner program
+
+### Tartós architekturális tanulság
+
+A jelenlegi rendszer egy sziget, egy szerver és terminálonként egy runner mellett
+használható, de több izolált szigetet még nem garantál. A fő okok:
+
+- nincs első osztályú `island_id / terminal_id / runner_id` összetett identitás;
+- a mailbox és több állapotmodell globális terminálnevet használ;
+- nincs szerveroldali atomi claim/lease/fencing;
+- a legacy mailbox, TMB, registry és Epic Router párhuzamos igazságforrás;
+- a service watcher és a külső runner külön launch authority lehet;
+- a federation jelenleg tároló/API, nem teljes outbox/relay/ACK/DLQ transport;
+- a review, budget és dependency nem minden útvonalon kikényszerített.
+
+Részletes bizonyíték:
+`docs/knowledge/terminal-agent-sziget-mukodes-ertekeles.md`.
+
+### Elfogadott fejlesztési program
+
+Létrejött a `NEXUS-ISLAND-RUNTIME` program 5 mérföldkővel és 17 taskkal:
+`docs/tasks/island-runtime/`. Első kapu a `TASK-ISL-001` célarchitektúra és ADR;
+feature implementáció csak ennek elfogadása után indulhat.
+
+A végső platformkapu valós 3×2 mátrix:
+
+- Codex CLI: Windows + Linux;
+- Claude Code CLI: Windows támogatott út + Linux;
+- Antigravity CLI (`agy`): Windows támogatott út + Linux.
+
+Mock, emulált siker vagy GUI-makró nem helyettesíti a valós platformbizonyítékot.
+WSL Linuxnak számít, és nem címkézhető Windows-native PASS-nak.
+
+### Kötelező állapot- és memóriaprotokoll
+
+Minden TASK-ISL indításakor és nagyobb checkpointjánál szinkronizálni kell:
+
+1. task frontmatter és végrehajtási napló;
+2. `docs/projects/EPICS.yaml`;
+3. `terminals/root/state.md`;
+4. `terminals/root/todo.md`;
+5. tartós tanulság esetén `terminals/root/MEMORY.md`;
+6. kapcsolódó ADR/README/knowledge dokumentáció.
+
+Minden futás elején explicit goal, mérhető sikerkritérium, kilépési feltétel és
+erőforráskeret szükséges. `done` csak teljes Implementáció szekcióval, futtatott
+tesztbizonyítékkal és a készítőtől független review-val lehetséges.
+
+---
+
+## 2026-07-18 — Fejlesztési folyamat érettsége és kontrollprogram
+
+### Tartós folyamat-tanulság
+
+A Nexus dokumentált fejlesztési modellje erős, de a kész állapotot nem elég
+taskfrontmatterrel vagy zöld helyi teszttel kijelenteni. A bizonyítható
+változásegység minimális lánca:
+
+`goal → task → owner/base → branch/commit → required CI → független review →
+merge → artifact/release → state reconciliation`.
+
+A 2026-07-18-i felmérés négy rendszerszintű hibát bizonyított:
+
+- a nagy, kevert `main` munkafa miatt a done taskok nem köthetők egyértelmű
+  commit-/PR-egységhez;
+- az `EPICS.yaml`, a projects/checkpoint DB és az Epic Router egymással versengő
+  source-of-truth állítást használ;
+- a kézi task/EPICS/state/todo/memória többszörös írás már elsodródott;
+- a task-séma, review/archive és teljes provenance nincs CI-ben tranzakciósan
+  kikényszerítve.
+
+Javasolt tartós felelősséghatár: DB a tranzakciós runtime state/ownership
+számára; verziókezelt task/program dokumentum a goal, scope, acceptance és exit
+számára; generált/reconciliált `state.md` és `todo.md`; `MEMORY.md` csak tartós
+tanulság számára. A végleges döntést ADR-ben kell meghozni, tartós dual-write
+nélkül.
+
+### Elfogadott fejlesztési program
+
+Létrejött a `NEXUS-DEVELOPMENT-PROCESS` program 4 mérföldkővel és 11 taskkal:
+`docs/tasks/development-process/`. Első párhuzamos feladat a teljes munkafa
+veszteségmentes leltára (`TASK-DP-001`) és a kanonikus állapotmodell ADR
+(`TASK-DP-002`). A programot kizárólag a `TASK-DP-011` friss, független reviewer
+PASS auditja zárhatja.
+
+Részletes bizonyíték:
+`docs/knowledge/fejlesztesi-folyamat-erettsegi-ertekeles.md`.
+
+A 4 mérföldkő, 11 task, dependency kapuk, evidence manifest és független audit
+létrehozási indoklása:
+`docs/knowledge/fejlesztesi-folyamat-taskprogram-letrehozasa.md`.
+
+---
+
+## 2026-07-21 — Codex-elsődleges autonóm VPS runner
+
+### Tartós architekturális tanulság
+
+Headless Codex-autonómiánál három külön engedélyezési síkot kell kezelni:
+
+1. a CLI általános approval policyja;
+2. az MCP szerver/tool approval módja;
+3. a tényleges biztonsági enforcement: sandbox + helyi allowlist +
+   terminal-scoped token + szerveroldali autorizáció.
+
+Az `approval_policy="never"` önmagában nem engedélyezi a headless MCP toolokat;
+a lokális MCP szerverhez külön `default_tools_approval_mode="approve"` kell.
+Enélkül a Codex `user cancelled MCP tool call` eredménnyel áll le. Az automatikus
+MCP-approval csak akkor elfogadható, ha a child nem kap master tokent, a szerver
+minden hívásnál termináljogot ellenőriz, a provider/model/sandbox lokális
+allowlistből jön, és az endpoint helyi vagy kontrollált hálózaton érhető el.
+
+### Tartós lifecycle-tanulság
+
+- Az első indulás régi `UNREAD` backlogját fail-closed kell karanténba tenni;
+  részleges inbox-lekérés mellett tilos sessiont indítani.
+- Poll/SSE csak wake mechanizmus; a launch előtt szerveroldali claim és helyi
+  aktív marker is kell.
+- Process `exit 0` nem üzleti completion. Siker csak a tartós `complete_task`
+  eredménnyel együtt állítható.
+- Döntésre váró `blocked` állapotot az ütemezőnek tiszteletben kell tartania,
+  különben ugyanazt a drága felderítő sessiont végtelenül újraindítja. Célzott
+  új inbox-task ettől még folytathatja a rendszert.
+- Az autonóm agent helyes viselkedése nem a mindenáron történő kódírás: az első
+  Conductor-ciklus kanonikus prioritásütközést talált, tartósan eszkalált,
+  frissítette a task/state/todo/MEMORY láncot, és módosítás nélkül leállt.
+
+Linux + Codex (Debian 13, Codex 0.144.6) read-only és workspace-write canary
+PASS. Windows-native Codex 0.144.5 jelenleg BLOCKED a sandbox-helper access
+denied hibája miatt; WSL ezt nem helyettesíti. Claude/Antigravity valós 3×2
+platformevidence továbbra is kötelező.
+
+Részletes runbook és bizonyíték:
+`docs/knowledge/codex-autonom-runner-vps-uzemeltetes.md`.

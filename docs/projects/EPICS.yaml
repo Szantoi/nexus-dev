@@ -1,15 +1,255 @@
 # EPICS.yaml — Nexus-dev program állapot (QUALITY.md 1. pont: goal-fókusz)
 #
-# A knowledge-service modernizációs program epicjei.
-# Séma: knowledge-service/src/graph/types.ts (EpicsYaml / EpicDependency)
+# ─── KANONIKUS ÁLLAPOTFORRÁS ÉS SZINKRON-ELJÁRÁS (TASK-QC-001) ───────────────
+#
+# Kanonikus forrás szintenként:
+#   - program / mérföldkő / epic szint: EZ A FÁJL (docs/projects/EPICS.yaml)
+#   - task szint:                       a task-fájl frontmattere (`status` mező),
+#                                       pl. docs/tasks/quality-compliance/TASK-QC-*.md
+#   - emberi munkanapló (ledger):       terminals/root/todo.md
+#
+# Szinkron-eljárás (minden task zárásának része):
+#   1. A worker a task-fájl frontmatter `status` mezőjét állítja (ready → done /
+#      blocked), és a fájl végére Implementáció-szekciót ír bizonyítékokkal.
+#   2. Ha az epic MINDEN taskja done → az epic `status` mezője itt done-ra vált.
+#      Ha egy mérföldkő minden epicje done ÉS az `acceptance` feltétele
+#      bizonyított → a mérföldkő `status` mezője done-ra vált.
+#   3. A terminals/root/todo.md ledgerbe dátumozott Kész-sor kerül.
+#   4. Az `updated` mező frissül. Eltérés esetén a frissebb, bizonyítékkal
+#      alátámasztott forrás (task-fájl / ledger) nyer, és ezt a fájlt kell
+#      hozzáigazítani — nem fordítva.
+#
+# ─── SÉMA ────────────────────────────────────────────────────────────────────
+# TypeScript-séma: knowledge-service/src/graph/types.ts
+#   (EpicsYaml / ProgramDefinition / ProgramMilestone / EpicDependency)
+# Validátor: knowledge-service/src/pipeline/epicsValidator.ts — az ismeretlen
+#   mezőket nem hibáztatja, ezért a bővítés ADDITÍV: régi parser nem törik.
+#
+# Hierarchia (QUALITY.md 1. pont): program → projekt → mérföldkő → epic → task.
+#   programs[]:              program-szintű mérhető cél (goal) + leállási
+#                            feltétel (stopping_condition) + mérföldkövek
+#   programs[].milestones[]: mérhető elfogadási feltétellel (acceptance)
+#   epics[].program:         melyik programhoz tartozik az epic
+#   epics[].milestone:       melyik mérföldkőben ZÁRUL az epic
+#   epics[].tasks[]:         task-id + fájl (a task-állapot a frontmatterben él,
+#                            itt nem duplikáljuk — egy forrás szintenként)
+#   epics[].tasks_yaml:      task-index / ledger útvonala (kötelező mező, E10)
+#
 # Cél: a projekt állapota fájlban él, nem a beszélgetés-kontextusban.
 
-version: "1.0"
-updated: "2026-07-15"
+version: "1.1"
+updated: "2026-07-18"
+
+# ─── PROGRAMOK ───────────────────────────────────────────────────────────────
+
+programs:
+  - id: NEXUS-KS-MODERNIZATION
+    name: "Knowledge-service modernizáció (2026-07 audit nyomán)"
+    project: nexus/knowledge-service
+    status: active
+    goal: >
+      A knowledge-service kódbázis modernizálása: halott kód nulla, tooling-alap
+      (Biome + CI + zod-env + logger) él, a mcp.ts god-fájl ToolRegistry-re
+      bontva, a hermetikus tesztsuite zölden fut, az architektúra-döntés
+      (DDD-scaffolding sorsa) lezárva.
+    stopping_condition: >
+      Az 1–5. fázis bizonyítékkal lezárva (commit + zöld teszt), ÉS a 4. fázis
+      maradék refaktor-tételei (KS-M3 / EPIC-KS-ARCH-REFACTOR) elkészültek VAGY
+      Gábor explicit döntéssel backlogban tartja őket. A minőségi folytatás
+      (mcp.ts legacy fallback törlése, config-központosítás) a NEXUS-QUALITY
+      program QC-M3 mérföldkövében fut tovább.
+    milestones:
+      - id: KS-M1
+        name: "Alapozás — halott kód + tooling"
+        status: done
+        acceptance: >
+          ~4000 sor halott kód törölve, dependency-k rendezve (commit 0d9cba7);
+          Biome + CI workflow + zod-validált env-config + szintszűrős logger él
+          (commit c14dc14). Mérce: a hermetikus suite a tooling bevezetése után
+          is zöld.
+      - id: KS-M2
+        name: "Dekompozíció + teszt-megerősítés"
+        status: done
+        acceptance: >
+          103 MCP tool 14 modulba migrálva (ToolRegistry-minta); a hermetikus
+          suite 98 → 0 bukás, 49 fájl / 888+ teszt zöld (ledger: 2026-07-15).
+      - id: KS-M3
+        name: "Architektúra-rendezés"
+        status: active
+        acceptance: >
+          A DDD-döntés dokumentálva és végrehajtva (scaffolding törölve,
+          commit 046b8bb) — KÉSZ. Hátralévő mérce: src/routes/ maradék
+          átmozgatva, pipeline/ alfolderezve, memoryStore-duplikáció rendezve,
+          DomainError-hierarchia kiterjesztve (a terminals/root/todo.md
+          „4. fázis — Architektúra" backlog-tételei pipálva) + typecheck és
+          hermetikus suite zöld.
+
+  - id: NEXUS-QUALITY
+    name: "QUALITY.md megfelelőségi program"
+    project: nexus/knowledge-service
+    status: done
+    goal: >
+      A knowledge-service bizonyíthatóan feleljen meg a QUALITY.md célkezelési,
+      tervezési, kódminőségi, tesztelési, dokumentációs, stabilitási és
+      biztonsági követelményeinek. Taskbontás és baseline:
+      docs/tasks/quality-compliance/README.md (felmérés: 2026-07-18).
+    stopping_condition: >
+      Mind a 10 QC-task done; a hermetikus teszt-, typecheck-, lint-, coverage-
+      és dependency-audit kapu CI-ben zöld; nincs verziókezelt runtime .env vagy
+      titok; az éles deploy teszthibánál megáll, health-check hibánál
+      automatikusan visszaáll; az ADR-hivatkozások érvényes dokumentumra
+      mutatnak; a runtime-konfigurációban nincs közvetlen /opt/... vagy fix
+      szolgáltatás-URL literal; a projektállapot és az elvégzett munka ugyanazt
+      mutatja; és egy friss kontextusú reviewer a TASK-QC-010 szerint
+      bizonyítékokkal elfogadja az eredményt.
+    milestones:
+      - id: QC-M1
+        name: "Irányítás és tervezési nyomvonal"
+        status: done
+        acceptance: >
+          Az EPICS.yaml nem mond ellent a task-ledgernek; az ötszintű hierarchia
+          (program→projekt→mérföldkő→epic→task) visszakövethető; minden
+          ADR-hivatkozás létező dokumentumra mutat; TASK-QC-001 és TASK-QC-002
+          done, bizonyítékkal.
+      - id: QC-M2
+        name: "Biztonság és stabilitás"
+        status: done
+        acceptance: >
+          Nincs verziókezelt runtime .env/titok; a deploy teszthibánál megáll és
+          health-hibánál automatikusan visszaáll; a CI teszt/typecheck/lint/
+          coverage/audit kapuja zöld; TASK-QC-003, -004, -005 és -006 done.
+      - id: QC-M3
+        name: "Karbantarthatóság"
+        status: done
+        acceptance: >
+          A runtime-configban nincs közvetlen /opt/... vagy fix URL-literal;
+          a mcp.ts legacy fallback törölve és a legnagyobb forrásfájl mérete
+          igazoltan csökkent (baseline: 5561 sor); TASK-QC-007 és TASK-QC-008
+          done.
+      - id: QC-M4
+        name: "Dokumentáció és független igazolás"
+        status: done
+        acceptance: >
+          A README-k és modul-dokumentációk aktuálisak (TASK-QC-009 done);
+          független, friss kontextusú reviewer a TASK-QC-010 szerint
+          bizonyítékokkal elfogadja a programot.
+
+  - id: NEXUS-ISLAND-RUNTIME
+    name: "Garantált szigetüzem és többplatformos CLI runner"
+    project: nexus/knowledge-service
+    status: active
+    goal: >
+      A Nexus terminálalapú agentcsapatai egymástól biztonságosan izolált
+      szigetekben működjenek; a task ownership atomi, tartós és hibatűrő legyen;
+      ugyanaz a runner-architektúra pedig valós Windows és Linux környezetben
+      igazoltan futtassa a Codex, Claude Code és Antigravity CLI agenteket.
+    stopping_condition: >
+      Mind a 17 TASK-ISL task done; az összetett identitás, autorizáció, kanonikus
+      state machine, atomi lease, runner registry, egyetlen launch authority és
+      federation transport bizonyított; a 3 CLI × 2 OS valós E2E/chaos mátrix
+      minden cellája PASS; nincs nyitott kritikus vagy magas eltérés; a task,
+      EPICS, state, todo és memória állapota egyezik; és a TASK-ISL-017 friss
+      kontextusú independent reviewer jelentése PASS.
+    milestones:
+      - id: ISL-M1
+        name: "Architektúra, identitás és izoláció"
+        status: active
+        acceptance: >
+          A célarchitektúra és ADR-ek elfogadva; minden erőforrás összetett
+          island/terminal identitást használ; a REST, MCP, TMB és federation
+          autorizáció negatív cross-island tesztjei zöldek; TASK-ISL-001…003 done.
+      - id: ISL-M2
+        name: "Kanonikus állapot, ownership és runner control plane"
+        status: pending
+        acceptance: >
+          Egyetlen tranzakciós task/message igazságforrás működik; a claim/lease,
+          fencing és idempotencia konkurenciatesztekkel bizonyított; a tartós
+          runner registry heartbeat és capability alapján route-ol;
+          TASK-ISL-004…006 done.
+      - id: ISL-M3
+        name: "Többplatformos, több-CLI-s végrehajtás"
+        status: active
+        acceptance: >
+          A platformfüggetlen adaptercontract elkészült; Codex, Claude és
+          Antigravity adapter valós Windows és Linux környezetben PASS; a Windows
+          service és Linux systemd runner reboot/crash után helyreáll;
+          TASK-ISL-007…012 done.
+      - id: ISL-M4
+        name: "Workflow, federation és operability"
+        status: pending
+        acceptance: >
+          Egyetlen launch authority és kikényszerített review/budget/dependency
+          workflow működik; külön service-ek között tartós federation transport
+          van; observability, backup/restore és recovery bizonyított;
+          TASK-ISL-013…015 done.
+      - id: ISL-M5
+        name: "Dokumentáció és független bizonyítás"
+        status: pending
+        acceptance: >
+          A migrációs, fejlesztői és operátori dokumentáció clean-room setupból
+          reprodukált; a 3×2 E2E/chaos mátrix teljes; nincs kritikus/magas finding;
+          TASK-ISL-016 és TASK-ISL-017 done.
+
+  - id: NEXUS-DEVELOPMENT-PROCESS
+    name: "Bizonyítható és kikényszerített fejlesztési folyamat"
+    project: nexus/knowledge-service
+    status: active
+    goal: >
+      Minden Nexus-változás a pontos programcéltól és tasktól taskhoz kötött
+      branchen/commiton, reprodukálható Linux/Windows CI-n, független review-n,
+      védett merge-en és kontrollált release-en keresztül jusson el a
+      konzisztens állapot- és memóriaprojekciókig, teljes auditálható
+      bizonyítéklánccal.
+    stopping_condition: >
+      Mind a 11 TASK-DP task done; nincs nyitott kritikus vagy magas
+      folyamateltérés; a source-of-truth modell, task-lifecycle, task discovery,
+      branch/PR, CI, review/archive és release kontrolljai kikényszerítettek; a
+      required Linux és Windows ellenőrzések ugyanarra a commitra zöldek; egy
+      reprezentatív változás teljes bizonyítéklánca reprodukált; és a
+      TASK-DP-011 független auditjelentése PASS.
+    milestones:
+      - id: DP-M1
+        name: "Kontrollált baseline és állapotdöntés"
+        status: active
+        acceptance: >
+          A teljes munkafa veszteségmentesen taskhoz és ownerhez rendelt,
+          ellenőrizhető baseline-nal; az autoritatív projekt- és taskállapot,
+          projekciók, migráció és reconciliation elfogadott ADR-ben rögzített;
+          TASK-DP-001 és TASK-DP-002 done.
+      - id: DP-M2
+        name: "Géppel kikényszerített task-életciklus"
+        status: pending
+        acceptance: >
+          A task-séma, dependency DAG, EPICS-tagság és archiválás CI-ben
+          validált; a lifecycle konkurencia- és crash-biztos; a CLI, MCP, HTTP
+          és CI ugyanazt a programalapú task repositoryt használja;
+          TASK-DP-003…005 done.
+      - id: DP-M3
+        name: "Változásintegráció, CI és független review"
+        status: pending
+        acceptance: >
+          Minden változás task/commit/PR provenance-szal bír; a védett főágat
+          Linux és Windows required CI, valamint külön reviewer védi; önreview,
+          stale review és bizonyíték nélküli archive blokkolt;
+          TASK-DP-006…008 done.
+      - id: DP-M4
+        name: "Release-bizonyíték, dokumentáció és audit"
+        status: pending
+        acceptance: >
+          Az immutable artifact, manifest, smoke/canary és rollback egy
+          auditált release-lánc; Windows és Linux clean-room dokumentáció PASS;
+          nincs kritikus/magas finding, a TASK-DP-011 audit PASS;
+          TASK-DP-009…011 done.
+
+# ─── EPICEK ──────────────────────────────────────────────────────────────────
 
 epics:
+  # ── NEXUS-KS-MODERNIZATION ─────────────────────────────────────────────────
+
   - id: EPIC-KS-CLEANUP
     name: "1. fázis — Halott kód törlése + dependency-rendezés"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M1
     project: nexus/knowledge-service
     depends_on: []
     status: done
@@ -21,6 +261,8 @@ epics:
 
   - id: EPIC-KS-TOOLING
     name: "2. fázis — Tooling-alap (Biome, CI, zod-config, logger)"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M1
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-CLEANUP
@@ -33,28 +275,58 @@ epics:
 
   - id: EPIC-KS-MCP-SPLIT
     name: "3. fázis — mcp.ts god-fájl dekompozíció"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M2
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-TOOLING
-    status: active
+    # 2026-07-15 ledger: 103 tool migrálva 14 modulba (ToolRegistry), 889 teszt
+    # zöld — active → done szinkron: TASK-QC-001 (2026-07-18).
+    status: done
     tasks_yaml: ../../terminals/root/todo.md
     description: >
       ~102 MCP tool kiszervezése a base-tool absztrakcióra,
-      tool-csoportonként, unit-tesztekkel.
+      tool-csoportonként, unit-tesztekkel. Lezárva 2026-07-15:
+      103 tool / 14 modul, 889 teszt zöld.
 
   - id: EPIC-KS-ARCH-DECISION
     name: "4. fázis — Architektúra-döntés (DDD-scaffolding sorsa)"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M3
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-MCP-SPLIT
+    # 2026-07-15 ledger: DDD-döntés lezárva („A opció", scaffolding törölve,
+    # commit 046b8bb) — pending → done szinkron: TASK-QC-001 (2026-07-18).
+    # A maradék refaktor-scope külön epicbe került: EPIC-KS-ARCH-REFACTOR.
+    status: done
+    tasks_yaml: ../../terminals/root/todo.md
+    description: >
+      DDD-réteg bekötése VAGY törlése (Gábor döntött): scaffolding törölve
+      (chat-root review, „A opció", 046b8bb). A routes/pipeline/memoryStore
+      maradék-rendezés az EPIC-KS-ARCH-REFACTOR epicben folytatódik.
+
+  - id: EPIC-KS-ARCH-REFACTOR
+    name: "4b. fázis — Architektúra-maradék refaktor (backlog)"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - EPIC-KS-ARCH-DECISION
+    # Backlog-epic (nincs sürgősség) — a tételek a terminals/root/todo.md
+    # „4. fázis — Architektúra" szakaszában élnek. Részben átfed a
+    # NEXUS-QUALITY QC-M3-mal (TASK-QC-007 config, TASK-QC-008 nagy fájlok).
     status: pending
     tasks_yaml: ../../terminals/root/todo.md
     description: >
-      DDD-réteg bekötése VAGY törlése (Gábor dönt); routes/ maradék
-      átmozgatása; pipeline/ alfolderezés; memoryStore-duplikáció rendezése.
+      src/routes/ maradék 2 fájl átmozgatása interfaces/http/routes/ alá;
+      pipeline/ alfolderezés; a két memoryStore.ts egyeztetése;
+      DomainError-hierarchia kiterjesztése (72 nyers throw cseréje).
 
   - id: EPIC-KS-TEST-HARDENING
     name: "5. fázis — Teszt-megerősítés"
+    program: NEXUS-KS-MODERNIZATION
+    milestone: KS-M2
     project: nexus/knowledge-service
     depends_on:
       - EPIC-KS-TOOLING
@@ -66,3 +338,591 @@ epics:
       Környezetfüggő tesztek hermetizálása (EPICS fixture, /opt/spaceos
       függések kivezetése), smoke-suite külön configban.
       Eredmény: 98 → 0 bukás, 49 fájl / 888 teszt zöld (2026-07-15).
+
+  # ── NEXUS-QUALITY (QUALITY.md megfelelőségi program, 2026-07-18) ───────────
+  # Epic-azonosítók = a task-frontmatterek `epic` mezője (1:1 visszakövethető).
+  # Task-szintű állapot a task-fájlok frontmatterében él (kanonikus forrás).
+
+  - id: QC-GOVERNANCE
+    name: "QC — Projektállapot és célhierarchia irányítása"
+    program: NEXUS-QUALITY
+    milestone: QC-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    parallel_with:
+      - QC-ARCHITECTURE
+      - QC-SECURITY
+      - QC-VERIFICATION
+      - QC-MAINTAINABILITY
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-001
+        file: ../tasks/quality-compliance/archive/TASK-QC-001-project-state.md
+    description: >
+      Egyetlen géppel feldolgozható állapotforrás: program → projekt →
+      mérföldkő → epic → task hierarchia, mérhető cél és leállási feltétel
+      (QUALITY.md 1. és 4. pont).
+
+  - id: QC-ARCHITECTURE
+    name: "QC — ADR-ek és design intent helyreállítása"
+    program: NEXUS-QUALITY
+    milestone: QC-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-002
+        file: ../tasks/quality-compliance/archive/TASK-QC-002-adr-recovery.md
+    description: >
+      Hiányzó ADR-ek pótlása, érvénytelen ADR-hivatkozások javítása,
+      design intent rögzítése (QUALITY.md 2. pont).
+
+  - id: QC-SECURITY
+    name: "QC — .env és titokhigiénia"
+    program: NEXUS-QUALITY
+    milestone: QC-M2
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-003
+        file: ../tasks/quality-compliance/archive/TASK-QC-003-env-hygiene.md
+    description: >
+      Verziókezelt runtime .env-ek és titkok kivezetése, secret-higiénia
+      (QUALITY.md 7. pont).
+
+  - id: QC-STABILITY
+    name: "QC — Biztonságos deploy és automatikus rollback"
+    program: NEXUS-QUALITY
+    milestone: QC-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - QC-SECURITY
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-004
+        file: ../tasks/quality-compliance/archive/TASK-QC-004-safe-deploy.md
+    description: >
+      A deploy teszthibánál álljon meg, health-check hibánál automatikusan
+      álljon vissza; a deploy-to-prod.sh veszélyeinek kivezetése
+      (QUALITY.md 7. pont). 2. hullám: TASK-QC-003 után indul.
+
+  - id: QC-VERIFICATION
+    name: "QC — CI-kapuk, tesztlefedettség és független ellenőrzés"
+    program: NEXUS-QUALITY
+    milestone: QC-M4
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-005
+        file: ../tasks/quality-compliance/archive/TASK-QC-005-ci-quality-gates.md
+      - id: TASK-QC-006
+        file: ../tasks/quality-compliance/archive/TASK-QC-006-critical-coverage.md
+      - id: TASK-QC-010
+        file: ../tasks/quality-compliance/archive/TASK-QC-010-independent-verification.md
+      - id: TASK-QC-011
+        file: ../tasks/quality-compliance/TASK-QC-011-workflowdb-history-bug.md
+      - id: TASK-QC-012
+        file: ../tasks/quality-compliance/TASK-QC-012-goalstore-id-collision.md
+      - id: TASK-QC-013
+        file: ../tasks/quality-compliance/TASK-QC-013-inbox-watcher-env-flag.md
+    description: >
+      CI minőségi kapuk (QC-005, QC-M2-mérce) + kritikus lefedettség (QC-006,
+      QC-M2-mérce) + független megfelelőségi ellenőrzés (QC-010, QC-M4,
+      2 kör után PASS). Task-szintű függés: QC-006 ← QC-005; QC-010 ← minden
+      más QC-task — ezért az epic csak a QC-M4 mérföldkőben zárulhat
+      (QUALITY.md 4. és 8. pont). QC-010 1. köre FAIL-t adott (ledger-szinkron
+      hiánya, javítva); a QC-006/QC-010 munka közben 3, nem blokkoló, de
+      trackelt follow-up bug került elő — QC-011 (workflowDb history-bug),
+      QC-012 (goalStore ID-ütközés), QC-013 (ENABLE_INBOX_WATCHER hatástalan
+      env) — mind `ready`, owner: backend, a program leállási feltételének
+      nem részei.
+
+  - id: QC-MAINTAINABILITY
+    name: "QC — Konfiguráció-központosítás és nagy fájlok bontása"
+    program: NEXUS-QUALITY
+    milestone: QC-M3
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-007
+        file: ../tasks/quality-compliance/archive/TASK-QC-007-config-centralization.md
+      - id: TASK-QC-008
+        file: ../tasks/quality-compliance/archive/TASK-QC-008-large-file-decomposition.md
+      - id: TASK-QC-008A
+        file: ../tasks/quality-compliance/TASK-QC-008A-sessionstarter-decomposition.md
+      - id: TASK-QC-008B
+        file: ../tasks/quality-compliance/TASK-QC-008B-messageregistry-decomposition.md
+      - id: TASK-QC-008C
+        file: ../tasks/quality-compliance/TASK-QC-008C-pipeline-reviewer-decomposition.md
+      - id: TASK-QC-008D
+        file: ../tasks/quality-compliance/TASK-QC-008D-terminalreviewer-decomposition.md
+      - id: TASK-QC-008E
+        file: ../tasks/quality-compliance/TASK-QC-008E-remaining-large-files.md
+    description: >
+      Runtime-konfiguráció központosítása, /opt/... és fix URL-literalok
+      kivezetése (QC-007); mcp.ts legacy fallback törlése (5561 → 417 sor) és
+      méretkapu CI-ben (QC-008). A maradék god-fájlok bontása külön follow-up
+      taskokban él (TASK-QC-008A…E, ready — a NEXUS-QUALITY leállási
+      feltételének nem része, az EPIC-KS-ARCH-REFACTOR backloggal átfed).
+
+  - id: QC-DOCUMENTATION
+    name: "QC — README- és modul-dokumentáció aktualizálása"
+    program: NEXUS-QUALITY
+    milestone: QC-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - QC-GOVERNANCE
+      - QC-ARCHITECTURE
+      - QC-SECURITY
+      - QC-STABILITY
+      - QC-MAINTAINABILITY
+    status: done
+    tasks_yaml: ../tasks/quality-compliance/README.md
+    tasks:
+      - id: TASK-QC-009
+        file: ../tasks/quality-compliance/archive/TASK-QC-009-documentation.md
+    description: >
+      README-k és modul-dokumentáció frissítése a program eredményei alapján
+      (QUALITY.md 3. pont). Task-szinten emellett a TASK-QC-005-től is függ
+      (a QC-VERIFICATION epicen belül) — epic-szinten ez nem jelölhető,
+      mert QC-010 ← QC-009 miatt kört okozna.
+
+  # ── NEXUS-ISLAND-RUNTIME ───────────────────────────────────────────────────
+
+  - id: ISL-ARCHITECTURE
+    name: "Szigetüzemi célarchitektúra és design intent"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-001
+        file: ../tasks/island-runtime/TASK-ISL-001-target-architecture.md
+    description: >
+      Az identitás, kanonikus store, lease, autorizáció, CLI adapter, federation,
+      migráció, rollback és bizonyítási stratégia ADR-szintű lezárása a feature
+      implementáció előtt. DONE (2026-07-21): a 2026-07-18-i blokk feloldva —
+      Gábor tulajdonosi döntése (hívásgráf-alapú audit-módszertan; a
+      subscriptionManager checkpoint-launch az egyetlen launch authority mögé
+      kapuzva). A TASK-ISL-001 6 review-kör után zárult (a hívásgráf-audit
+      további 5 korábban nem dokumentált launch-utat tárt fel, köztük az
+      MCP complete_task → checkpoint-launch fő élt). Az ADR-081 végleges
+      launch-leltára: 22 élő + 1 fájlrendszeri kategória + 1 holt + 1 alvó
+      út — ez az ISL-013 (launch authority) pontos munkalistája. A
+      TASK-ISL-002…017 implementációs taskok innen indíthatók (a közvetlen
+      függőségeik felszabadultak).
+
+  - id: ISL-IDENTITY-ISOLATION
+    name: "Összetett identitás és teljes interfészizoláció"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M1
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-ARCHITECTURE
+    status: active
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-002
+        file: ../tasks/island-runtime/TASK-ISL-002-compound-identity.md
+      - id: TASK-ISL-003
+        file: ../tasks/island-runtime/TASK-ISL-003-authorization-isolation.md
+    description: >
+      Island/terminal/runner compound identity, egyetlen terminálconfig,
+      névterezett pathok és közös REST/MCP/TMB/federation authorization policy.
+
+  - id: ISL-CANONICAL-STATE
+    name: "Kanonikus task- és message-állapot"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-ARCHITECTURE
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-004
+        file: ../tasks/island-runtime/TASK-ISL-004-canonical-store.md
+    description: >
+      A legacy mailbox, TMB, registry és Epic Router eltérő állapotforrásainak
+      összevonása egy tranzakciós, szigetnévteres igazságforrásba. A pontos
+      task-függés TASK-ISL-004 ← TASK-ISL-002.
+
+  - id: ISL-OWNERSHIP
+    name: "Atomi ownership, lease és idempotencia"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-CANONICAL-STATE
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-005
+        file: ../tasks/island-runtime/TASK-ISL-005-claim-lease-idempotency.md
+    description: >
+      Atomi claim, lejáró lease, fencing token, attempt budget, idempotency key és
+      dead-letter átmenet több runner versenye és crash esetére.
+
+  - id: ISL-RUNNER-CONTROL
+    name: "Tartós runner registry és capability routing"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-IDENTITY-ISOLATION
+      - ISL-OWNERSHIP
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-006
+        file: ../tasks/island-runtime/TASK-ISL-006-runner-registry.md
+    description: >
+      Hitelesített, tartós runner inventory, heartbeat, drain/offline állapot és
+      OS/CLI/workspace capability alapján történő task routing.
+
+  - id: ISL-CLI-ADAPTERS
+    name: "Platformfüggetlen Codex, Claude és Antigravity adapterek"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-ARCHITECTURE
+    status: active
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-007
+        file: ../tasks/island-runtime/TASK-ISL-007-cli-adapter-contract.md
+      - id: TASK-ISL-008
+        file: ../tasks/island-runtime/TASK-ISL-008-codex-adapter.md
+      - id: TASK-ISL-009
+        file: ../tasks/island-runtime/TASK-ISL-009-claude-adapter.md
+      - id: TASK-ISL-010
+        file: ../tasks/island-runtime/TASK-ISL-010-antigravity-adapter.md
+    description: >
+      Egységes process- és eventszerződés headless/PTY CLI-khez, majd valós
+      Codex, Claude Code és Antigravity adapter Windows/Linux bizonyítékkal.
+
+  - id: ISL-CROSS-PLATFORM-HOSTS
+    name: "Windows és Linux runner hostok"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-RUNNER-CONTROL
+      - ISL-CLI-ADAPTERS
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-011
+        file: ../tasks/island-runtime/TASK-ISL-011-windows-runner.md
+      - id: TASK-ISL-012
+        file: ../tasks/island-runtime/TASK-ISL-012-linux-runner.md
+    description: >
+      Least-privilege Windows service és Linux systemd runner, reboot/crash
+      recoveryvel, process-tree cleanup-pal és mindhárom CLI valós futtatásával.
+
+  - id: ISL-WORKFLOW
+    name: "Egyetlen launch authority és kanonikus workflow"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-IDENTITY-ISOLATION
+      - ISL-CANONICAL-STATE
+      - ISL-OWNERSHIP
+      - ISL-RUNNER-CONTROL
+      - ISL-CLI-ADAPTERS
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-013
+        file: ../tasks/island-runtime/TASK-ISL-013-workflow-launch-authority.md
+    description: >
+      A kettős watcher/runner launch megszüntetése és a completion, review,
+      budget, dependency, eszkaláció egyetlen kikényszerített állapotgépe.
+
+  - id: ISL-FEDERATION
+    name: "Tartós és hitelesített federation transport"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-IDENTITY-ISOLATION
+      - ISL-CANONICAL-STATE
+      - ISL-OWNERSHIP
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-014
+        file: ../tasks/island-runtime/TASK-ISL-014-federation-transport.md
+    description: >
+      Külön service-példányok közötti tranzakciós outbox, hitelesített relay,
+      idempotens inbox, ACK/retry és operátori dead-letter folyamat.
+
+  - id: ISL-OPERABILITY
+    name: "Observability, recovery és backup"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-OWNERSHIP
+      - ISL-RUNNER-CONTROL
+      - ISL-WORKFLOW
+      - ISL-FEDERATION
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-015
+        file: ../tasks/island-runtime/TASK-ISL-015-operability-recovery.md
+    description: >
+      Szigetszintű metrikák, trace, riasztás, DLQ/stale lease operáció,
+      backup/restore és bizonyított RPO/RTO.
+
+  - id: ISL-DOCUMENTATION
+    name: "Migrációs, fejlesztői és operátori dokumentáció"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M5
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-CROSS-PLATFORM-HOSTS
+      - ISL-WORKFLOW
+      - ISL-FEDERATION
+      - ISL-OPERABILITY
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-016
+        file: ../tasks/island-runtime/TASK-ISL-016-documentation-migration.md
+    description: >
+      Clean-room setupból reprodukálható migrációs, CLI-adapter, Windows/Linux
+      runner, federation, recovery és rollback dokumentáció.
+
+  - id: ISL-INDEPENDENT-VERIFICATION
+    name: "Független 3×2 E2E és chaos bizonyítás"
+    program: NEXUS-ISLAND-RUNTIME
+    milestone: ISL-M5
+    project: nexus/knowledge-service
+    depends_on:
+      - ISL-DOCUMENTATION
+    status: pending
+    tasks_yaml: ../tasks/island-runtime/README.md
+    tasks:
+      - id: TASK-ISL-017
+        file: ../tasks/island-runtime/TASK-ISL-017-independent-verification.md
+    description: >
+      A kivitelezéstől független reviewer izolációs, ownership-, federation-,
+      reboot-, recovery- és Codex/Claude/Antigravity × Windows/Linux tesztmátrixa.
+
+  # ── NEXUS-DEVELOPMENT-PROCESS ─────────────────────────────────────────────
+
+  - id: DP-WORKTREE-BASELINE
+    name: "Munkafa-leltár és kontrollált baseline"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-001
+        file: ../tasks/development-process/archive/TASK-DP-001-worktree-baseline.md
+    description: >
+      A staged, unstaged és untracked változások veszteségmentes leltározása,
+      task/owner/teszt hozzárendelése és reprodukálható baseline rögzítése.
+      2 review-kör (1. kör: REQUEST_CHANGES, a manifest nem fedte a
+      párhuzamosan futó DP-002/ISL-001 új ADR-jeit; 2. kör: PASS, 258/258
+      bit-pontos egyezés). Nyitott, emberi jóváhagyásra váró tétel: a
+      SECURITY-HARDENING csoport (session előtti, nem dokumentált eredetű)
+      push előtt Gábor döntésére vár.
+
+  - id: DP-STATE-ARCHITECTURE
+    name: "Kanonikus projekt- és taskállapot"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-002
+        file: ../tasks/development-process/archive/TASK-DP-002-canonical-state-adr.md
+    description: >
+      Az EPICS/task dokumentumok, projects DB, checkpoint/goal store és emberi
+      projekciók autoritatív határának ADR-szintű eldöntése és migrációja
+      (ADR-068, accepted, 3 review-kör után PASS). Nyitott, emberi döntésre
+      váró tétel: a `create_project` MCP tool saját, önálló TASKS.yaml
+      task-trackere ugyanabban a szülőkönyvtárban él, mint az EPICS.yaml —
+      DP-003/004 implementálása előtt tisztázandó.
+
+  - id: DP-TASK-CONTROLS
+    name: "Task-séma és konzisztencia CI-kapu"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-STATE-ARCHITECTURE
+    status: done
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-003
+        file: ../tasks/development-process/archive/TASK-DP-003-task-schema-gate.md
+    description: >
+      Rekurzív task discovery, frontmatter-séma, dependency DAG, EPICS-tagság,
+      archive/evidence/reviewer invariánsok és cross-platform CI-kapu
+      (`scripts/check-tasks.mjs`, 87 teszt, 3 review-kör után PASS). Nyitott,
+      más taskok hatáskörébe tartozó tétel: a valós repo 25 hibával fut (23
+      ISL-task hiányzó `blocked_reason`-je + 2 archívum `execution_evidence`-
+      hiány) — a kapu ezt szándékosan élesen jelzi, nem eltussolva.
+
+  - id: DP-TASK-LIFECYCLE
+    name: "Tranzakciós task-lifecycle és projekciók"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-STATE-ARCHITECTURE
+      - DP-TASK-CONTROLS
+    status: active
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-004
+        file: ../tasks/development-process/TASK-DP-004-task-lifecycle.md
+    description: >
+      Start/checkpoint/finish/review/archive state machine CAS/lock, journal,
+      crash-recovery és újraépíthető EPICS/state/todo projekciókkal.
+
+  - id: DP-TASK-API
+    name: "Egységes task discovery és státusz API"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-TASK-LIFECYCLE
+    status: pending
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-005
+        file: ../tasks/development-process/TASK-DP-005-task-discovery-api.md
+    description: >
+      A legacy new/active/archive scanner kiváltása közös, programalapú task
+      repositoryval a CLI, MCP, HTTP, mailbox és CI számára.
+
+  - id: DP-CHANGE-CONTROL
+    name: "Branch, commit és PR provenance"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-WORKTREE-BASELINE
+    status: done
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-006
+        file: ../tasks/development-process/archive/TASK-DP-006-change-provenance.md
+    description: >
+      Taskhoz kötött változásegységek, védett főág, required PR-kapuk, revert és
+      hotfix auditút a felhasználói munka elvesztése nélkül. ADR-086 elkészült
+      (branch/commit-névadás, PR-sablon, TERVEZETT — nem alkalmazott —
+      branch-protection konfiguráció, provenance-validátor script), 2 review-kör
+      után PASS (1. kör eljárási REQUEST_CHANGES, 2. kör megerősítés). Nyitott,
+      emberi jóváhagyásra váró tétel: a branch-protection JSON tényleges
+      alkalmazása GitHubon.
+
+  - id: DP-CI-CONTROLS
+    name: "CI-paritás és Windows/Linux mátrix"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-TASK-CONTROLS
+      - DP-CHANGE-CONTROL
+    status: active
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-007
+        file: ../tasks/development-process/TASK-DP-007-ci-platform-parity.md
+    description: >
+      Lokális/távoli gate-paritás, required Linux/Windows build és teszt,
+      hermetikus tesztadat, link/task/security és minőségi ratchet kontrollok.
+
+  - id: DP-REVIEW-GOVERNANCE
+    name: "Független review és archiválási kapu"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-TASK-LIFECYCLE
+      - DP-CHANGE-CONTROL
+      - DP-CI-CONTROLS
+    status: pending
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-008
+        file: ../tasks/development-process/TASK-DP-008-review-archive-gate.md
+    description: >
+      Implementáló–reviewer szétválasztás, commit/CI-kötött döntés, stale review
+      és evidence nélküli done/archive fail-closed blokkolása.
+
+  - id: DP-RELEASE-CONTROLS
+    name: "Release provenance, smoke és rollback"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-CHANGE-CONTROL
+      - DP-CI-CONTROLS
+      - DP-REVIEW-GOVERNANCE
+    status: pending
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-009
+        file: ../tasks/development-process/TASK-DP-009-release-provenance.md
+    description: >
+      Immutable artifact, release manifest, preflight, smoke/canary, health,
+      migration és automatikus vagy kontrollált rollback egy bizonyítékláncban.
+
+  - id: DP-PROCESS-DOCUMENTATION
+    name: "Fejlesztői és operátori folyamatdokumentáció"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-TASK-API
+      - DP-CI-CONTROLS
+      - DP-REVIEW-GOVERNANCE
+      - DP-RELEASE-CONTROLS
+    status: pending
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-010
+        file: ../tasks/development-process/TASK-DP-010-process-documentation.md
+    description: >
+      Windows/Linux clean-room quickstart, lifecycle, state, PR/review, CI,
+      release, recovery és troubleshooting rejtett chatkontekstus nélkül.
+
+  - id: DP-INDEPENDENT-VERIFICATION
+    name: "Független végponttól végpontig folyamat-audit"
+    program: NEXUS-DEVELOPMENT-PROCESS
+    milestone: DP-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - DP-PROCESS-DOCUMENTATION
+    status: pending
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-011
+        file: ../tasks/development-process/TASK-DP-011-independent-audit.md
+    description: >
+      Friss, független reviewer happy-path és megkerülési tesztje a goaltól a
+      non-production release-en és rollbacken át az archivált, szinkron állapotig.
