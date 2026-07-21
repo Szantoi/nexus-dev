@@ -1,50 +1,78 @@
-# runner.yaml — Local runner configuration (TEMPLATE)
+# runner.yaml — provider-neutral autonomous runner template
 #
-# Copy to config/runner.yaml and fill in. runner.yaml is GITIGNORED
-# (it may carry the token) — only this .example is committed.
-#
-# The runner is the local counterpart of the server-side InboxWatcher:
-# it polls the central knowledge-service (VPS) for UNREAD tasks addressed
-# to the terminals listed below, and starts a local headless Claude Code
-# session (`claude -p`) for each. Pull model: this machine only opens
-# OUTBOUND connections — the server never connects in.
+# Copy to runner.yaml (gitignored). Prefer RUNNER_TOKEN for the secret.
+# The runner opens outbound connections only and is the sole CLI launch point.
 
-# Central knowledge-service. DEV: http://localhost:3466
-# VPS via Tailscale: http://<tailnet-name>:3456
 server_url: http://localhost:3466
+# token: "set RUNNER_TOKEN instead"
 
-# Identity token for this machine (one token per device, revocable —
-# see config/agents.yaml on the server). Prefer the RUNNER_TOKEN env var;
-# this field is the fallback.
-# token: "<generate: node -e \"console.log(require('crypto').randomBytes(24).toString('hex'))\">"
-
-# Poll cadence — the safety net; with SSE on, wake-up is near-instant anyway.
 poll_interval_ms: 5000
-
-# Second-level wake-up via the server's SSE stream
-# (/api/mailbox/:terminal/subscribe). Poll stays on as fallback either way.
 sse_enabled: true
-
-# When the server is unreachable, polls back off exponentially up to this cap.
 max_backoff_ms: 300000
-
-# A task that stays UNREAD (session died before ack) is retried at most
-# max_attempts times, waiting retry_cooldown_ms between attempts.
 max_attempts: 3
 retry_cooldown_ms: 600000
+# On a missing or corrupt state file, record every current UNREAD task as a
+# non-launchable baseline before polling. Keep true for production.
+quarantine_existing_on_first_start: true
 
-# Claude CLI binary and extra args appended to every session
-# (args are validated: no whitespace or shell metacharacters).
-claude_bin: claude
-extra_args: []
+# Lifecycle/resource guards.
+session_timeout_ms: 3600000
+max_output_bytes: 10485760
+shutdown_grace_ms: 10000
 
-# Session logs + runner state land here (relative to knowledge-service/).
+# Name used in generated MCP tool names: mcp__<name>__fetch_task, etc.
+mcp_server_name: spaceos-knowledge
+
+# Codex is the recommended primary provider for autonomous execution.
+default_provider: codex
+providers:
+  codex:
+    # Use an absolute binary path in systemd when Codex is outside its PATH.
+    binary: codex
+    # Environment variable referenced by the Codex MCP config. Each child gets
+    # a terminal-specific value copied from its credential_env source.
+    auth_env_var: NEXUS_AGENT_TOKEN
+    sandbox: workspace-write
+    ephemeral: true
+    skip_git_repo_check: true
+    # Headless MCP calls cannot open an approval prompt. The sandbox and
+    # terminal-scoped server authorization remain the enforcement boundary.
+    extra_args:
+      - '-c'
+      - 'approval_policy="never"'
+      - '-c'
+      - 'mcp_servers.spaceos-knowledge.default_tools_approval_mode="approve"'
+  claude:
+    binary: claude
+    sandbox: workspace-write
+    ephemeral: true
+    extra_args: []
+    max_turns: 40
+    max_budget_usd: 10
+  antigravity:
+    binary: agy
+    sandbox: workspace-write
+    ephemeral: true
+    extra_args: []
+
 log_dir: logs/runner
 
-# Terminals THIS machine serves — the whitelist. Tasks addressed to any
-# other terminal are invisible to this runner.
+# Only listed terminals can execute on this host. Network task metadata can
+# request a model only from that terminal's local allowlist.
 terminals:
+  conductor:
+    workdir: /opt/nexus/terminals/conductor
+    provider: codex
+    models: [gpt-5.6-terra]
+    default_model: gpt-5.6-terra
+    credential_env: NEXUS_AGENT_TOKEN_CONDUCTOR
+    additional_write_dirs:
+      - /opt/nexus/src/nexus-core
   backend:
-    workdir: C:\Users\szant\Documents\Development\nexus-dev\terminals\backend
-    models: [haiku, sonnet, opus]   # models this terminal may request
-    default_model: sonnet
+    workdir: /opt/nexus/terminals/backend
+    provider: codex
+    models: [gpt-5.6-terra]
+    default_model: gpt-5.6-terra
+    credential_env: NEXUS_AGENT_TOKEN_BACKEND
+    additional_write_dirs:
+      - /opt/nexus/src/nexus-core
