@@ -1,0 +1,19 @@
+[Unit]
+Description=Queue one JoineryTech autonomous Conductor cycle
+After=spaceos-knowledge.service joinerytech-codex-runner.service
+Requires=spaceos-knowledge.service joinerytech-codex-runner.service
+
+[Service]
+Type=oneshot
+User=gabor
+Group=gabor
+WorkingDirectory=/opt/joinerytech/src/joinerytech-nexus/knowledge-service
+Environment=HOME=/home/gabor
+EnvironmentFile=/opt/joinerytech/src/joinerytech-nexus/knowledge-service/.env.runner
+ExecStart=/usr/bin/node /opt/joinerytech/src/joinerytech-nexus/knowledge-service/scripts/autonomous-enqueue.mjs
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/joinerytech
+StandardOutput=append:/var/log/spaceos/codex-autonomy.log
+StandardError=append:/var/log/spaceos/codex-autonomy.log

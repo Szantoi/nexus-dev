@@ -26,10 +26,12 @@ Thumbs.db
 *.swp
 *.swo
 
-# Environment
+# Environment — every runtime env variant is ignored; only *.example templates
+# (e.g. .env.example, .env.dev.example) are version-controlled
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
 
 # Test coverage
 coverage/

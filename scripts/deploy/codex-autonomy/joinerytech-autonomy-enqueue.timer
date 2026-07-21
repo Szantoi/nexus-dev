@@ -1,0 +1,12 @@
+[Unit]
+Description=Schedule JoineryTech autonomous Conductor cycles
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+RandomizedDelaySec=60
+Persistent=true
+Unit=joinerytech-autonomy-enqueue.service
+
+[Install]
+WantedBy=timers.target

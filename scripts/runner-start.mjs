@@ -20,6 +20,7 @@ const serviceDir = join(repoRoot, 'knowledge-service');
 
 const env = { ...process.env };
 
+let envLoaded = false;
 for (const candidate of ['.env.runner', '.env.dev']) {
   const envFile = join(serviceDir, candidate);
   if (!existsSync(envFile)) continue;
@@ -33,7 +34,21 @@ for (const candidate of ['.env.runner', '.env.dev']) {
     if (!(key in process.env) && !(key in env)) env[key] = value;
   }
   console.log(`[runner-start] Loaded ${envFile}`);
+  envLoaded = true;
   break;
+}
+
+// Env files are local runtime files (git-ignored). The runner can still run on
+// real environment variables alone, so a missing file is a warning, not a
+// hard error — but the fix command is printed for clarity.
+if (!envLoaded) {
+  console.warn('[runner-start] WARNING: no .env.runner or .env.dev found in knowledge-service/.');
+  console.warn('[runner-start] Using process environment only. To create the dev env file:');
+  console.warn(
+    process.platform === 'win32'
+      ? '[runner-start]   Copy-Item knowledge-service\\.env.dev.example knowledge-service\\.env.dev'
+      : '[runner-start]   cp knowledge-service/.env.dev.example knowledge-service/.env.dev'
+  );
 }
 
 console.log('[runner-start] Starting local runner');

@@ -15,7 +15,15 @@ fi
 # Dev data mappa
 mkdir -p data
 
-# Dev env betöltése
+# Dev env betöltése — a .env.dev lokális runtime fájl (gitre nem kerül).
+# Ha hiányzik, a verziókezelt sablonból kell létrehozni.
+if [ ! -f .env.dev ]; then
+    echo "HIBA: .env.dev nem található ebben a mappában: $(pwd)" >&2
+    echo "Hozd létre a verziókezelt sablonból:" >&2
+    echo "    cp .env.dev.example .env.dev" >&2
+    echo "majd igazítsd a lokális értékeket, és indítsd újra." >&2
+    exit 1
+fi
 export $(grep -v '^#' .env.dev | xargs)
 
 echo "🔧 DEV mód indítása..."

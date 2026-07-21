@@ -1,0 +1,35 @@
+# Pozitív fixture EPICS.yaml (TASK-DP-003 check-tasks.mjs teszteléséhez).
+# Szándékosan minimális, de a séma minden ellenőrzött ágát lefedi:
+# egy program, egy epic, egy aktív ÉS egy archivált task, helyes file-utalással.
+
+version: "1.0"
+updated: "2026-07-18"
+
+programs:
+  - id: NEXUS-DEMO
+    name: "Demo program (fixture)"
+    project: demo/project
+    status: active
+    goal: "Fixture-cél."
+    stopping_condition: "Fixture-leállási feltétel."
+    milestones:
+      - id: DEMO-M1
+        name: "Demo mérföldkő"
+        status: active
+        acceptance: "Fixture-elfogadás."
+
+epics:
+  - id: DEMO-EPIC
+    name: "Demo epic"
+    program: NEXUS-DEMO
+    milestone: DEMO-M1
+    project: demo/project
+    depends_on: []
+    status: active
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-099
+        file: ../tasks/development-process/archive/TASK-DP-099-demo-archived.md
+      - id: TASK-DP-100
+        file: ../tasks/development-process/TASK-DP-100-demo.md
+    description: "Fixture epic egy archivált és egy aktív taskkal."

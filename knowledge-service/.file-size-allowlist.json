@@ -1,0 +1,62 @@
+{
+  "note": "File-size gate allowlist (TASK-QC-008). Every entry needs owner + expires + task. Expired entries FAIL CI: split the file or renew with documented justification. Gate: scripts/check-file-size.mjs (npm run check:size).",
+  "defaultMaxLines": 800,
+  "entries": [
+    {
+      "file": "src/sessionStarter.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008A",
+      "reason": "1431 lines — parallel/raw worker session starter; decomposition scheduled in TASK-QC-008A."
+    },
+    {
+      "file": "src/messageRegistry.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008B",
+      "reason": "1119 lines — message registry mixes storage, indexing and lifecycle; decomposition scheduled in TASK-QC-008B."
+    },
+    {
+      "file": "src/pipeline/reviewer.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008C",
+      "reason": "1054 lines — pipeline reviewer; decomposition scheduled in TASK-QC-008C."
+    },
+    {
+      "file": "src/pipeline/terminalReviewer.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008D",
+      "reason": "1017 lines — terminal reviewer; decomposition scheduled in TASK-QC-008D."
+    },
+    {
+      "file": "src/mailbox.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008E",
+      "reason": "943 lines — mailbox storage + task lifecycle; decomposition scheduled in TASK-QC-008E."
+    },
+    {
+      "file": "src/task-message-box/store.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008E",
+      "reason": "866 lines — task-message-box store; decomposition scheduled in TASK-QC-008E."
+    },
+    {
+      "file": "src/pipeline/telegramBot.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008E",
+      "reason": "835 lines — telegram bot pipeline; decomposition scheduled in TASK-QC-008E."
+    },
+    {
+      "file": "src/interfaces/http/routes/epic-router.routes.ts",
+      "owner": "backend",
+      "expires": "2026-10-18",
+      "task": "TASK-QC-008E",
+      "reason": "821 lines — epic router REST routes; decomposition scheduled in TASK-QC-008E (coordinate with the in-flight security hardening changes)."
+    }
+  ]
+}

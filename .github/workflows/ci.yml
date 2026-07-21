@@ -1,8 +1,33 @@
-# CI — knowledge-service quality gate
+# CI — knowledge-service quality gates (TASK-QC-005)
 #
-# Runs on every push/PR: typecheck + lint (errors only) + hermetic tests.
-# Live-server smoke tests (npm run test:smoke) are NOT run here — they need
-# a booted service + ChromaDB and are run manually against dev/prod.
+# Every gate is a package script, so CI and local runs are identical.
+# To reproduce ANY failing gate locally, run the same script from
+# knowledge-service/ (see the per-step comments below).
+#
+#   Gate            | Local reproduction (cd knowledge-service)
+#   ----------------|-------------------------------------------------------
+#   Typecheck       | npm run typecheck
+#   Lint ratchet    | npm run lint:ratchet   (details: npm run lint)
+#   File size gate  | npm run check:size     (= node ../scripts/check-file-size.mjs)
+#   Tests+coverage  | npm run test:coverage
+#   Prod dep audit  | npm run audit:prod
+#   Secret scan     | npm run secret-scan    (= node ../scripts/secret-scan.mjs)
+#   Doc link check  | npm run check:links    (= node ../scripts/check-doc-links.mjs)
+#   Task schema gate| npm run check:tasks    (= node ../scripts/check-tasks.mjs, TASK-DP-003)
+#
+# Gate semantics:
+#   - Lint ratchet: Biome errors always fail; the warning count may not exceed
+#     the baseline in knowledge-service/.lint-baseline.json (ratchet: it may
+#     only go down — lower it with `node scripts/lint-ratchet.mjs --update`).
+#   - Coverage: global thresholds live in knowledge-service/vitest.config.ts
+#     (coverage.thresholds). They are a floor: raising them is TASK-QC-006's
+#     job; lowering requires a documented ADR.
+#   - Audit: production dependencies only; high/critical advisories block.
+#
+# RELEASE GATE (not run here): live-server smoke tests — `npm run test:smoke`
+# (vitest.smoke.config.ts). They need a booted knowledge-service + ChromaDB +
+# a real terminal file tree, so they are a MANDATORY manual release gate run
+# against dev/prod before deploying, not a hermetic CI job.
 
 name: ci
 
@@ -11,6 +36,15 @@ on:
     branches: [main]
   pull_request:
 
+# Least-privilege token: every gate only reads the checkout.
+permissions:
+  contents: read
+
+# One run per ref; superseded runs are cancelled to save minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   knowledge-service:
     runs-on: ubuntu-latest
@@ -18,7 +52,20 @@ jobs:
       run:
         working-directory: knowledge-service
     steps:
+      # fetch-depth: 2 (not the default shallow depth-1 clone) — the task
+      # schema gate's status-transition check (TASK-DP-003, check-tasks.mjs
+      # `resolveDefaultDiffBase`) auto-diffs the checked-out commit against
+      # its immediate parent (`HEAD~1`) with zero flags required; a
+      # depth-1 clone has no parent commit to diff against, and the gate
+      # would silently skip the transition check (fail open, not closed).
+      # KNOWN, UNVERIFIED RESIDUAL RISK (documented, not yet exercised in a
+      # real Actions run): for `pull_request`-triggered jobs, `HEAD` may be
+      # a synthetic merge commit rather than the PR's own head commit,
+      # depending on GitHub's checkout semantics — the exact interaction
+      # with `HEAD~1` there has not been validated against a live run.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       - uses: actions/setup-node@v4
         with:
@@ -29,11 +76,39 @@ jobs:
       - name: Install
         run: npm ci --prefer-offline
 
+      # Local repro: npm run typecheck
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
-      - name: Lint (errors fail, warnings reported)
-        run: npx biome check src --diagnostic-level=error
+      # Local repro: npm run lint:ratchet (rule details: npm run lint)
+      - name: Lint ratchet (errors fail, warning count may not grow)
+        run: npm run lint:ratchet
 
-      - name: Hermetic tests
-        run: npx vitest run --reporter=dot
+      # Local repro: npm run check:size (= node ../scripts/check-file-size.mjs)
+      # Production TS files max 800 lines; documented exceptions with expiry +
+      # owner live in knowledge-service/.file-size-allowlist.json (TASK-QC-008).
+      - name: File size gate (800-line limit, dated allowlist)
+        run: npm run check:size
+
+      # Local repro: npm run test:coverage
+      # Hermetic suite + global coverage thresholds (vitest.config.ts).
+      - name: Hermetic tests + coverage floor
+        run: npm run test:coverage
+
+      # Local repro: npm run audit:prod
+      - name: Audit production dependencies (high/critical block)
+        run: npm run audit:prod
+
+      # Local repro: npm run secret-scan (config: .secret-scan.json, repo root)
+      - name: Secret scan (tracked files)
+        run: npm run secret-scan
+
+      # Local repro: npm run check:links
+      - name: Documentation link check
+        run: npm run check:links
+
+      # Local repro: npm run check:tasks (= node ../scripts/check-tasks.mjs)
+      # Task-frontmatter schema, DAG, EPICS.yaml membership and archive-
+      # invariant gate (TASK-DP-003, docs/tasks/task-schema.json).
+      - name: Task schema and consistency gate
+        run: npm run check:tasks

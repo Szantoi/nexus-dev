@@ -1,0 +1,27 @@
+version: "1.0"
+updated: "2026-07-18"
+programs:
+  - id: NEXUS-DEMO
+    name: "Demo"
+    project: demo/project
+    status: active
+    goal: "x"
+    stopping_condition: "x"
+    milestones:
+      - id: DEMO-M1
+        name: "Demo"
+        status: active
+        acceptance: "x"
+epics:
+  - id: DEMO-EPIC
+    name: "Demo epic"
+    program: NEXUS-DEMO
+    milestone: DEMO-M1
+    project: demo/project
+    depends_on: []
+    status: active
+    tasks_yaml: ../tasks/development-process/README.md
+    tasks:
+      - id: TASK-DP-098
+        file: ../tasks/development-process/archive/TASK-DP-098-no-evidence.md
+    description: "x"

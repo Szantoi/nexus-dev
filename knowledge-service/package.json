@@ -17,6 +17,14 @@
     "validate": "./scripts/validate-imports.sh",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",
+    "lint:ratchet": "node ../scripts/lint-ratchet.mjs",
+    "audit:prod": "npm audit --omit=dev --audit-level=high",
+    "secret-scan": "node ../scripts/secret-scan.mjs",
+    "secret-scan:all": "node ../scripts/secret-scan.mjs --include-untracked",
+    "check:size": "node ../scripts/check-file-size.mjs",
+    "check:links": "node ../scripts/check-doc-links.mjs",
+    "check:tasks": "node ../scripts/check-tasks.mjs",
+    "test:tasks": "node --test ../scripts/__tests__/check-tasks.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose",
     "test:parallel": "vitest run --pool=threads --reporter=dot",
@@ -54,5 +62,8 @@
     "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "protobufjs": "^7.6.3"
   }
 }

@@ -1,0 +1,4 @@
+{
+  "maxWarnings": 786,
+  "note": "Biome warning ratchet baseline (TASK-QC-005, 2026-07-18). Measured with: npx biome check src --max-diagnostics=none --reporter=summary. New warnings fail CI; lower this only via scripts/lint-ratchet.mjs --update. Raising requires a documented ADR."
+}

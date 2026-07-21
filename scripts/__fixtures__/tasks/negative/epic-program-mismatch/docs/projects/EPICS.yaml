@@ -1,0 +1,43 @@
+# Fixture: task frontmatter `program:` diverges from its own, correctly
+# registered epic's `program:` — a genuine, no-known-exception inconsistency
+# (unlike milestone-crossing, which IS legitimate — see the sibling
+# `docs/tasks/task-schema.json` field description and the QC-VERIFICATION
+# precedent in the real repo).
+version: "1.0"
+updated: "2026-07-18"
+programs:
+  - id: NEXUS-DEMO
+    name: "Demo"
+    project: demo/project
+    status: active
+    goal: "x"
+    stopping_condition: "x"
+    milestones:
+      - id: DEMO-M1
+        name: "Demo"
+        status: active
+        acceptance: "x"
+  - id: NEXUS-OTHER-DEMO
+    name: "Other demo"
+    project: demo/project
+    status: active
+    goal: "x"
+    stopping_condition: "x"
+    milestones:
+      - id: OTHER-M1
+        name: "Other demo"
+        status: active
+        acceptance: "x"
+epics:
+  - id: DEMO-EPIC
+    name: "Demo epic"
+    program: NEXUS-DEMO
+    milestone: DEMO-M1
+    project: demo/project
+    depends_on: []
+    status: active
+    tasks_yaml: ../tasks/demo-program/README.md
+    tasks:
+      - id: TASK-DM-013
+        file: ../tasks/demo-program/TASK-DM-013.md
+    description: "x"

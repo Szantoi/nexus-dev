@@ -17,23 +17,34 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const serviceDir = join(repoRoot, 'knowledge-service');
 const envFile = join(serviceDir, '.env.dev');
+const envTemplate = join(serviceDir, '.env.dev.example');
 
 const env = { ...process.env };
 
-if (existsSync(envFile)) {
-  for (const line of readFileSync(envFile, 'utf8').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (!(key in process.env)) env[key] = value; // real env wins over .env.dev
-  }
-  console.log(`[dev-start] Loaded ${envFile}`);
-} else {
-  console.warn(`[dev-start] WARNING: ${envFile} not found, using process env only`);
+// .env.dev is a local runtime file (git-ignored). If it is missing, fail fast
+// with the exact command that creates it from the tracked template.
+if (!existsSync(envFile)) {
+  console.error(`[dev-start] ERROR: ${envFile} not found.`);
+  console.error('[dev-start] Create it from the version-controlled template:');
+  console.error(
+    process.platform === 'win32'
+      ? `[dev-start]   Copy-Item "${envTemplate}" "${envFile}"`
+      : `[dev-start]   cp "${envTemplate}" "${envFile}"`
+  );
+  console.error('[dev-start] Then adjust local values if needed and re-run.');
+  process.exit(1);
 }
+
+for (const line of readFileSync(envFile, 'utf8').split('\n')) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith('#')) continue;
+  const eq = trimmed.indexOf('=');
+  if (eq === -1) continue;
+  const key = trimmed.slice(0, eq).trim();
+  const value = trimmed.slice(eq + 1).trim();
+  if (!(key in process.env)) env[key] = value; // real env wins over .env.dev
+}
+console.log(`[dev-start] Loaded ${envFile}`);
 
 env.PORT = env.PORT || '3466';
 env.NODE_ENV = env.NODE_ENV || 'development';

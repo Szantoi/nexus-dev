@@ -1,0 +1,27 @@
+version: "1.0"
+updated: "2026-07-18"
+programs:
+  - id: NEXUS-DEMO
+    name: "Demo"
+    project: demo/project
+    status: active
+    goal: "x"
+    stopping_condition: "x"
+    milestones:
+      - id: DEMO-M1
+        name: "Demo"
+        status: active
+        acceptance: "x"
+epics:
+  - id: DEMO-EPIC
+    name: "Demo epic"
+    program: NEXUS-DEMO
+    milestone: DEMO-M1
+    project: demo/project
+    depends_on: []
+    status: active
+    tasks_yaml: ../tasks/demo-program/README.md
+    tasks:
+      - id: TASK-DM-001
+        file: ../tasks/demo-program/TASK-DM-001-broken.md
+    description: "x"
