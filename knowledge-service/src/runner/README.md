@@ -1,0 +1,71 @@
+# src/runner — lokális session-runner (tmux-mentes terminál-futtatás)
+
+## Felelősség
+
+Önálló kliens-processz, amely a knowledge-service mailboxát figyeli, és a
+kiosztott terminálokhoz **lokálisan indít Codex, Claude Code vagy Antigravity
+CLI-sessionöket** Windows és Linux alatt. A poll-hurok az egyetlen indítási
+autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít önállóan.
+
+## Publikus belépési pontok
+
+- Indítás a repo gyökeréből: **`node scripts/runner-start.mjs`** →
+  [`main.ts`](main.ts).
+- Belső modulok: [`runnerConfig.ts`](runnerConfig.ts) (zod-validált
+  YAML-konfig betöltés), [`pollLoop.ts`](pollLoop.ts),
+  [`sseListener.ts`](sseListener.ts) (terminálonként egy stream, backoffal),
+  [`serverClient.ts`](serverClient.ts) (HTTP-hívások Bearer-tokennel),
+  [`sessionLauncher.ts`](sessionLauncher.ts) (process supervisor,
+  busy-követés), [`processedStore.ts`](processedStore.ts) (feldolgozott
+  üzenetek perzisztens nyilvántartása — duplaindítás ellen),
+  [`taskPrompt.ts`](taskPrompt.ts), valamint a provider-adapterek:
+  [`cliAdapter.ts`](cliAdapter.ts), [`codexAdapter.ts`](codexAdapter.ts),
+  [`claudeAdapter.ts`](claudeAdapter.ts),
+  [`antigravityAdapter.ts`](antigravityAdapter.ts).
+
+## Függőségi irány
+
+A runner a szolgáltatás **kliense**: csak a `core/logger`-t és a saját
+moduljait használja, a szerver-oldali feature-modulokból nem importál —
+minden adat a HTTP API-n át jön.
+
+## Konfiguráció
+
+- **`config/runner.yaml`** (sablon: [`runner.yaml.example`](../../config/runner.yaml.example)):
+  `server_url`, kiszolgált `terminals` térkép, `poll_interval_ms`,
+  `sse_enabled`, `max_backoff_ms`, `log_dir`, `quarantine_existing_on_first_start`,
+  provider/model allowlistek,
+  sandbox, timeout és kimeneti limit. Codexnél az automatizálási út
+  `codex exec --json --ephemeral`; a prompt stdinre kerül.
+- Env: `RUNNER_TOKEN` (a runner Bearer-tokenje — kötelező), `RUNNER_CONFIG_PATH`
+  (default: `<knowledge-service>/config/runner.yaml`). A `runnerConfig.ts`
+  saját zod-loader — dokumentált kivétel a config-rétegszabály alól
+  (TASK-QC-007).
+- Indító script: `scripts/runner-start.mjs` — `.env.runner`, ennek híján
+  `.env.dev` betöltése; ha egyik sincs, figyelmeztetéssel tisztán
+  process-env-ből fut.
+
+## Logok
+
+`[Runner]` prefixű sorok (CLI preflight, poll-döntések, launch, SSE-állapot);
+állapotfájl: `<log_dir>/runner-state.json`, normalizált session-események:
+`<log_dir>/<terminal>/<message-id>.jsonl`. Titok nem kerülhet a logba.
+Hiányzó vagy sérült állapotfájlnál az első indulás az összes már meglévő
+UNREAD taskot tartós karanténba veszi. Ha bármelyik inbox nem olvasható, a
+runner fail-closed leáll, és egyetlen sessiont sem indít.
+
+## Tesztek
+
+`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
+
+## Ismert korlátok
+
+- Terminálonként egyszerre egy session (busy-gate); a poll-intervallum a
+  reakcióidő alsó korlátja, ha az SSE nem elérhető.
+- A runner nem ellenőrzi a task tartalmát — a kiosztás helyessége a
+  szerver-oldali routing felelőssége.
+- Antigravity strukturált event-streamet nem dokumentál; az adapter plain-text
+  normalizálást használ, és csak sikeres valós `agy --version` preflight után
+  indulhat.
+- Windowson natív `.exe` CLI ajánlott. `.cmd` shim miatt a runner nem kapcsol
+  `shell:true` módra; ez szándékos shell-injection elleni fail-closed viselkedés.

@@ -62,8 +62,24 @@ Every legacy value maps cleanly to the canonical model (no data debt): see
   validated transition), never by parsing `.md` text. The `.md` render is best-effort.
 - **Traceable** — every status change is logged (`[TaskMessageBox] id: from → to (by)`)
   and recorded in `status_history`. Integrity is verifiable via the hash functions.
-- **Provably working** — 36 unit/HTTP tests cover the model, transitions, mappings,
+- **Provably working** — unit/HTTP tests cover the model, transitions, mappings,
   audit trail, hash verification, and the federation API. Nothing here ships unproven.
+
+## Tests
+
+```bash
+npx vitest run src/__tests__/messageModel.test.ts \
+  src/__tests__/messageStatusHistory.test.ts \
+  src/__tests__/federationStore.test.ts \
+  src/__tests__/federationRoutes.test.ts
+```
+
+## Known limits
+
+- `store.ts` is above the 800-line size gate (allowlisted until 2026-10-18,
+  decomposition tracked in TASK-QC-008E).
+- The `messageRegistry.ts` consumer migration (step 3 below) is still open —
+  until then the two systems coexist.
 
 ## Status: additive foundation done (2026-07-12)
 
