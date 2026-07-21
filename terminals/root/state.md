@@ -3,9 +3,55 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-16
+**Utolsó frissítés:** 2026-07-21
 
 ## Aktuális fókusz
+
+**NEXUS-QUALITY program LEZÁRVA** (2026-07-18): mind a 10 QC-task `done`,
+archiválva (`docs/tasks/quality-compliance/archive/`). A QC-010 független
+review 2 körben futott (1. kör FAIL — ledger-szinkron hiánya, javítva; 2. kör
+PASS). Coverage 24,5%→41%, mcp.ts 5561→417 sor (legacy fallback törölve,
+registry-only, 121 tool), CI-kapuk élnek (typecheck/lint-ratchet/teszt+
+coverage/audit/secret-scan/linkcheck), biztonságos deploy+rollback kész, 12
+ADR helyreállítva. 3 nem blokkoló follow-up bug (QC-011 workflowDb history,
+QC-012 goalStore ID-ütközés, QC-013 ENABLE_INBOX_WATCHER hatástalan env) +
+5 nagyfájl-bontás (QC-008A…E) `ready` állapotban, owner: backend.
+
+**NEXUS-DEVELOPMENT-PROCESS program halad, 4 task kész:** `TASK-DP-001`
+(munkafa-leltár, 2 kör), `TASK-DP-002` (kanonikus állapot-ADR, ADR-068, 3
+kör — talált egy harmadik, önálló task-tracker rendszert is: `create_project`
+MCP tool + saját TASKS.yaml, nyitott kérdésként DP-004 elé), `TASK-DP-003`
+(task-séma CI-kapu, 3 kör — js-yaml Date-koercíciós bug + 2 hiányzó
+cross-check javítva, `npm run check:tasks` most **exit 0** a teljes
+repóra) és `TASK-DP-006` (branch/commit/PR provenance, ADR-086, 2 kör)
+**mind `done`, archiválva**. A `check:tasks` kapu bevezetése 21 elavult
+ledger-hibát is felszínre hozott (ISL-tasokban és DP-tasokban hiányzó
+`blocked_reason`, 3 archívumban hiányos `execution_evidence`) — mindet
+javítottam. Fontos felfedezés eközben: `TASK-DP-004` és `TASK-DP-007`
+függőségei (DP-002/003, ill. DP-003/006) már teljesültek — `blocked`→
+`ready`-re állítva, mindkettő INDÍTHATÓ. `TASK-DP-005` csak DP-004 után.
+
+**NEXUS-ISLAND-RUNTIME program FELOLDVA** (2026-07-21): Gábor meghozta a
+két blokkolt döntést — (1) a launch-authority audit módszertana
+**hívásgráf-elemzés** (a regex 3 körben bizonyítottan elbukott; a felderítés
+a `sessionStarter`/`sessionManager` exportjainak KIMENETI oldaláról, minden
+hívó bejárásával fut), (2) a `subscriptionManager` automatikus
+checkpoint-launch **kapuzva az egyetlen launch authority mögé** (megmarad a
+mechanizmus, de csak kérést adhat fel; lease/review/budget kapukon át megy).
+A kapuzás ELVE a 3. döntési pontra is irányadó (`spawn_work_session`,
+`taskEscalation` restart-ág, `requestReview` — besorolást a 4. kör ADR-081
+kiegészítése rögzíti). `TASK-ISL-001` `blocked → in_progress` (ADR-068
+legális él, döntési napló a taskfájlban, `check:tasks` PASS). **Hátra van: a
+4. review-kör végrehajtása az új módszertannal** — architect-session viszi;
+ISL-002…017 továbbra is ISL-001 `done`-jára vár.
+
+**Aktuális fejlesztésifolyamat-baseline:** a helyi `main` munkafa 250+
+staged/unstaged/untracked bejegyzést tartalmaz (a QC-program teljes
+végterméke, commit-kész, emberi jóváhagyásra vár push előtt — lásd a DP-001
+manifest 16 lépéses commit-tervét). A 2026-07-18-i helyi ellenőrzésben
+typecheck, 76 tesztfájl / 1307 teszt (+1 skipped), coverage 40,75%,
+lint-ratchet, dependency audit, secret scan és file-size gate mind PASS.
+Részletes bizonyíték: `docs/knowledge/fejlesztesi-folyamat-erettsegi-ertekeles.md`.
 
 VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpontig igazolva**. A teljes lánc: token-auth (`36a4dad`) → lokális runner MVP (`src/runner/`, zárt parancskészletű `claude -p`, Windows-first) → SSE-ébresztés (~90 ms) → Tailscale-hálózat → VPS-deploy. Élő E2E: feladat a VPS-agyba → SSE-ébresztés a tailneten át → lokális runner elindítja a sessiont.
 
@@ -15,7 +61,11 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 
 **PROD RELEASE KÉSZ** (`dda0bcc`, nexus-core `release/vps`): a mai javítások élesben a 3456-on. Gábor döntése alapján NEM a "beolvasztás" (egy service mindenkinek) irányba mentünk — az RAM-nyeresége (~600 MB / 15 GB) nem indokolt nagy refaktort; a valódi fájdalom a négy elsodródott kódverzió volt. Rendrakás is megtörtént: a prod `src/`-je ÜRES volt (csak júl. 15-i `dist/`-ből futott), most a saját forrásából épül; nohup → **systemd `nexus-ks.service`**. Igazolva: mailbox-hasadás gyógyult, auth `open` módban = változatlan viselkedés, 0 restart/0 hiba. Backup: `/opt/nexus/backups/pre-release-20260716-2253`. A `deploy-to-prod.sh` VESZÉLYES, ne használd (lásd [[vps-uzemeltetes]] release-recept).
 
-**Következő:** (1) döntés az árva mailbox-fáról (17 elnyelt agent-üzenet, lásd todo Aktív); (2) terjesztés befejezése: joinerytech (3458) + doorstar (3460) még a régi, buggos kódot futtatja; (3) runner-regisztráció + heartbeat; (4) runner mint auto-induló Windows-szolgáltatás. Gábor iránya: központi szerver sziget-saját tudással (kiszolgáló réteg KÉSZ), agent-management lokálisan (= runner, KÉSZ).
+**TERJESZTÉS — sebészi mailbox-fix KÉSZ** (2026-07-21): a joinerytech (3458) és doorstar (3460) sziget-service-ek a modernizáció ELŐTTI kódot futtatják (régi 5700+ soros mcp.ts, nincs auth/runner), de a valódi adatvesztő bug a mailbox-hasadás volt. Ground truth igazolva: a régi `mailbox.ts` a saját `REPO_ROOT`-jából számolt (árva fákra írt), miközben mindkét `.env` már helyesen adta a `TERMINALS_PATH`-t a kanonikus (CLAUDE.md-vel bizonyított) fára. Fix: 1 sor / 4 fájl (`TERMINALS_ROOT = process.env.TERMINALS_PATH || …`), `.bak-mailboxfix` backup, restart, health OK, **nincs spawn-vihar** (nightwatch `inbox:0`). A szigetek NEM publikusak (ufw default-deny) → auth nem sürgős. Feltárt mellékletek (todo): joinerytech pre-existens registry CHECK-constraint bug, testvér path-bugok (`task-message-box/store.ts`, `indexer.ts`), doorstar-ks felügyelet-hiány (nohup, nem systemd), joinerytech árva-fa (`/opt/joinerytech/src/terminals`).
+
+**Árva mailbox-fák LEZÁRVA** (2026-07-21, Gábor A-döntése után): mindkét fa (prod 18 + joinerytech 74 fájl) teljesen átnézve — **nulla nyitott teendő**, minden lezárt DONE/nyugta/elavult Fázis-0 task. Archiválva: `terminals.orphan-archive-20260721` + README, service-ek egészségesek. Figyelem: a joinerytech árvából 25 fájl git-követett volt → 25 `D` a forkjuk git status-ában, commit a csapatuk döntése.
+
+**Következő:** (1) runner-regisztráció + heartbeat; (2) runner mint auto-induló Windows-szolgáltatás; (3) opcionális: szigetek teljes kódfrissítése vagy központi service-re állítása (a mailbox-drift megszűnt, a kód-drift marad). Gábor iránya: központi szerver sziget-saját tudással (kiszolgáló réteg KÉSZ), agent-management lokálisan (= runner, KÉSZ).
 
 ## Állapot
 
@@ -31,8 +81,10 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 - ✅ 5. fázis (teszt-megerősítés) KÉSZ: 98 → 0 tesztbukás. Hermetikus suite: 49 fájl / 888 teszt zöld. A háttér-agent részmunkáját (EPICS_PATH/SPACEOS_ROOT env-varratok, temp-fixture-ök) verifikáltam és befejeztem: graphRoutes fixture séma-kiegészítés, mcp-tools pattern-elvárások igazítása a stub-viselkedéshez, epic-router terminál-kontextus reset a concurrent teszthez, hookTimeout 30s (terhelés alatti import-lassulás).
 - ✅ 4. fázis (DDD-döntés) LEZÁRVA: a nappali chat-root review "A opció" döntése alapján a bekötetlen `domain/` + `infrastructure/` scaffolding (2300 LOC) TÖRÖLVE — commit `046b8bb`. (Megjegyzés: ez felülírta a korábbi "Bekötés" választ ebben a chatben.)
 - ✅ 3. fázis TELJES: 103 tool migrálva 14 modulba — commit `72b953c`; tmux Enter-variánsok centralizálva — commit `d22edbd`
-- ✅ Minden commit pusholva GitHubra (origin/main)
-- ✅ Teszt-állapot: 57 fájl / 952 teszt zöld (2026-07-16), typecheck + biome tiszta
+- 🕘 2026-07-16-i történeti baseline: az akkor létező commitok pusholva voltak
+  GitHubra; ez nem állítás a jelenlegi, 2026-07-18-i munkafáról.
+- 🕘 2026-07-16-i történeti tesztbaseline: 57 fájl / 952 teszt zöld. Az aktuális
+  2026-07-18-i eredmény az Aktuális fókusz szakaszban szerepel.
 
 ## Környezet
 
@@ -44,6 +96,8 @@ VPS-deploy + lokális ébresztés (pull-modell) **ÉLESBEN, végponttól végpon
 
 ## Nyitott kérdések
 
-- **Árva mailbox-fa a prodon** (`/opt/nexus/src/terminals`, 17 üzenet): Gábor döntésére vár — lásd todo Aktív.
+- ~~ISL-001 architektúra-döntés~~ **ELDŐLT 2026-07-21** (hívásgráf + kapuzás) — a 4. review-kör végrehajtása van hátra.
+- ~~Árva mailbox-fa a prodon~~ **LEZÁRVA 2026-07-21** (átnézve: nulla nyitott teendő; archiválva `terminals.orphan-archive-20260721`).
 - A prod `AUTH_MODE=required`-re kapcsolása: a réteg készen áll, de token-osztás kell hozzá a kliensekhez. Ma `open` módban fut (= régi viselkedés).
-- Megjegyzés: a Claude havi költségkeret elfogyott a háttér-agenteknél — a további munkát inline érdemes végezni
+- **A DP-001 manifest "SECURITY-HARDENING" csoportja** (CORS/CSP/AUTH_MODE default-váltás, epic-router token-egyesítés — session kezdete előtti, nem dokumentált eredetű): Gábor jóváhagyására vár push előtt.
+- Megjegyzés: a Claude havi költségkeret ismétlődően elfogyott a háttér-agenteknél ezen a napon — a keret rendszeresen újraindul, a megszakadt agenteket a taskfájl állapotának ellenőrzése után folytatni kell (van rá eset, hogy a munka ténylegesen elkészült a megszakadás előtt).
