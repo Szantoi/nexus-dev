@@ -16,6 +16,7 @@ import { promisify } from 'util';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import { logger } from '../core/logger';
+import { DATAHAVEN_CLIENT_DIR, KNOWLEDGE_SERVICE_ROOT } from '../config/paths';
 
 const execAsync = promisify(exec);
 
@@ -108,7 +109,7 @@ async function checkESLint(): Promise<PreReviewCheck> {
   const name = 'ESLint';
 
   try {
-    const cwd = '/opt/spaceos/datahaven-web/client';
+    const cwd = DATAHAVEN_CLIENT_DIR;
 
     // Check if node_modules exists
     try {
@@ -157,7 +158,7 @@ async function checkTypeScript(): Promise<PreReviewCheck> {
   const name = 'TypeScript';
 
   try {
-    const cwd = '/opt/spaceos/datahaven-web/client';
+    const cwd = DATAHAVEN_CLIENT_DIR;
 
     // Check if node_modules exists
     try {
@@ -209,7 +210,7 @@ async function checkBundleSize(): Promise<PreReviewCheck> {
   const name = 'Bundle Size';
 
   try {
-    const cwd = '/opt/spaceos/datahaven-web/client';
+    const cwd = DATAHAVEN_CLIENT_DIR;
 
     // Check dist folder size (if exists from previous build)
     try {
@@ -255,7 +256,7 @@ async function checkSecurityAudit(): Promise<PreReviewCheck> {
   const name = 'Security Audit';
 
   try {
-    const cwd = '/opt/spaceos/datahaven-web/client';
+    const cwd = DATAHAVEN_CLIENT_DIR;
 
     // Check if node_modules exists
     try {
@@ -336,7 +337,7 @@ async function checkTypeScriptBackend(): Promise<PreReviewCheck> {
   const name = 'TypeScript (Backend)';
 
   try {
-    const cwd = '/opt/spaceos/spaceos-nexus/knowledge-service';
+    const cwd = KNOWLEDGE_SERVICE_ROOT;
 
     const { stdout, stderr } = await execAsync('npx tsc --noEmit --pretty false', {
       cwd,
@@ -371,7 +372,7 @@ async function checkUnitTests(): Promise<PreReviewCheck> {
   const name = 'Unit Tests';
 
   try {
-    const cwd = '/opt/spaceos/spaceos-nexus/knowledge-service';
+    const cwd = KNOWLEDGE_SERVICE_ROOT;
 
     // Run tests (skip integration tests for speed)
     // Using vitest CLI syntax for filtering
@@ -411,7 +412,7 @@ async function checkSecurityAuditBackend(): Promise<PreReviewCheck> {
   const name = 'Security Audit (Backend)';
 
   try {
-    const cwd = '/opt/spaceos/spaceos-nexus/knowledge-service';
+    const cwd = KNOWLEDGE_SERVICE_ROOT;
 
     const { stdout } = await execAsync('npm audit --audit-level=high --json', {
       cwd,

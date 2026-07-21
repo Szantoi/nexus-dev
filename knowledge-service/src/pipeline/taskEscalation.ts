@@ -15,17 +15,15 @@
 import { randomUUID } from 'crypto';
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { type Subscription, subscriptionManager } from './subscriptionManager';
 import { sendNotification } from '../telegram/telegramService';
 import { capturePane, sendKeys, sendEnter, hasSession } from './common';
 import { getMessage, getUnreadMessages } from '../messageRegistry';
-import { startWorkSession } from '../sessionStarter';
+import { createTask } from '../mailbox';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
 import { logger } from '../core/logger';
-
-const execAsync = promisify(exec);
+import { SELF_BASE_URL } from '../config/env';
+import { getTerminalsPath } from '../config/paths';
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 // NWT-based configuration: TASK_RETRY = 15 NWT ≈ 30 minutes
@@ -181,23 +179,29 @@ export class TaskEscalationManager {
         // Strategy: Session restart + inbox re-inject
         const sessionName = `spaceos-${escalation.terminal}`;
 
-        // Capture before kill
+        // Capture legacy tmux context for evidence, but do not kill or restart
+        // outside the launch authority.
         if (await hasSession(sessionName)) {
           attempt.session_log = await capturePane(sessionName, 50);
-          // Kill session
-          try {
-            await execAsync(`tmux kill-session -t ${sessionName}`);
-            logger.info(`[TaskEscalation] Killed session ${sessionName}`);
-          } catch {
-            // Session already dead
-          }
         }
 
-        // Restart session with task prompt
+        // Queue a fenced retry request. The runner decides when a new process
+        // may start; this module no longer launches a session directly.
         const taskDetails = getMessage(escalation.task_id);
         const prompt = `[RETRY - Task Escalation]\n\nYour inbox message ${escalation.task_id} timed out. Please process it now.\n\nTask: ${taskDetails?.messageId || 'Unknown'}`;
-
-        const result = await startWorkSession(escalation.terminal, prompt, 'sonnet');
+        const result = await createTask({
+          from: 'root',
+          to: escalation.terminal,
+          title: `Retry timed out task ${escalation.task_id}`,
+          description: prompt,
+          acceptance_criteria: [
+            'Re-read the original task before modifying files.',
+            'Complete the task or report a concrete blocker.',
+          ],
+          priority: 'critical',
+          model: 'sonnet',
+          ref: escalation.task_id,
+        });
 
         await sendNotification(
           `⚠️ Task Timeout Retry 2/2\n` +
@@ -208,9 +212,9 @@ export class TaskEscalationManager {
 
         attempt.success = result.success;
         if (!result.success) {
-          attempt.error = result.message;
+          attempt.error = result.error;
         }
-        logger.info(`[TaskEscalation] Session restart: ${result.message}`);
+        logger.info(`[TaskEscalation] Retry request: ${result.id || result.error}`);
       }
     } catch (error: any) {
       attempt.success = false;
@@ -324,16 +328,16 @@ ${sessionLog}
 
 \`\`\`bash
 # Mark as resolved (terminal responded)
-curl -X POST http://localhost:3456/api/escalation/${escalation.id}/resolve
+curl -X POST ${SELF_BASE_URL}/api/escalation/${escalation.id}/resolve
 
 # Cancel task (no longer needed)
-curl -X POST http://localhost:3456/api/escalation/${escalation.id}/cancel
+curl -X POST ${SELF_BASE_URL}/api/escalation/${escalation.id}/cancel
 \`\`\`
 `;
 
     // Write escalation inbox (to configured target terminal)
     const targetTerminal = currentConfig.escalateTo;
-    const inboxPath = path.join(`/opt/spaceos/terminals/${targetTerminal}/inbox`, `escalation_${escalation.id}.md`);
+    const inboxPath = path.join(getTerminalsPath(), targetTerminal, 'inbox', `escalation_${escalation.id}.md`);
     await fs.writeFile(inboxPath, escalationContent, 'utf-8');
 
     // Send alert

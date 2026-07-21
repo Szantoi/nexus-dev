@@ -36,7 +36,7 @@ export interface SkillCreationResult {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const getSpaceOSRoot = () => process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { getSpaceosRoot as getSpaceOSRoot } from '../config/paths';
 const getSkillsPath = () => path.join(getSpaceOSRoot(), '.claude/skills');
 
 // ─── Skill Name Validation ───────────────────────────────────────────────────

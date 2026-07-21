@@ -110,7 +110,9 @@ export interface CostConfigDto {
 /**
  * Daily budget in USD (configurable, defaults to $50)
  */
-let DAILY_BUDGET = parseFloat(process.env.DAILY_COST_BUDGET || '50');
+import { env } from '../../config/env';
+
+let DAILY_BUDGET = env.DAILY_COST_BUDGET;
 
 /**
  * In-memory cost history (last 7 days)

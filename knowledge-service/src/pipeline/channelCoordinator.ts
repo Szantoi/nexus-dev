@@ -14,6 +14,7 @@
 
 import { log, telegram, getState, setState } from './common';
 import { logger } from '../core/logger';
+import { env, secrets } from '../config/env';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ export interface IncomingEvent {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: CoordinatorConfig = {
-  enabled: process.env.ENABLE_TELEGRAM_COORDINATOR === 'true',
+  enabled: env.ENABLE_TELEGRAM_COORDINATOR,
   tickMs: 5000,
   downDebounce: 2,
   longPollTimeout: 30,
@@ -76,8 +77,8 @@ let nativeConfirmedUpUntil = 0;
 
 // ─── Telegram API ────────────────────────────────────────────────────────────
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+const TELEGRAM_TOKEN = secrets.telegramBotToken || undefined;
+const TELEGRAM_CHAT_ID = secrets.telegramChatId || undefined;
 
 /**
  * Get updates from Telegram API

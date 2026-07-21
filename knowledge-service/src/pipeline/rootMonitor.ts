@@ -19,6 +19,8 @@
 
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
+import { env } from '../config/env';
+import { SPACEOS_ROOT } from '../config/paths';
 import {
   SESSIONS,
   hasSession,
@@ -80,8 +82,8 @@ export interface MonitoringReport {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: RootMonitorConfig = {
-  enabled: process.env.ENABLE_ROOT_MONITOR === 'true',
-  intervalMinutes: parseInt(process.env.ROOT_MONITOR_INTERVAL_MINUTES || '60', 10),
+  enabled: env.ENABLE_ROOT_MONITOR,
+  intervalMinutes: env.ROOT_MONITOR_INTERVAL_MINUTES,
   stuckThresholdMinutes: 30,
   minPlanQueueSize: 2,
   notifyOnIssues: true,
@@ -97,7 +99,7 @@ let lastReport: MonitoringReport | null = null;
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
 
-const projectRoot = process.env.SPACEOS_ROOT || '/opt/spaceos';
+const projectRoot = SPACEOS_ROOT;
 
 async function countFilesInDir(dirPath: string): Promise<number> {
   try {

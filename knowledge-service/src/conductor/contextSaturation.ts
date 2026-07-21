@@ -13,8 +13,7 @@ import * as terminalsConfig from '../config/terminals';
 import { logger } from '../core/logger';
 
 const TMUX_SOCKET = terminalsConfig.getTmuxSocket();
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const STATE_DIR = process.env.CONDUCTOR_STATE_DIR || `${SPACEOS_ROOT}/terminals/conductor`;
+import { CONDUCTOR_STATE_DIR as STATE_DIR } from '../config/paths';
 const TURN_COUNT_FILE = path.join(STATE_DIR, '.turn-count');
 
 // Thresholds

@@ -18,6 +18,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { matchDoneToTask } from './projectMatcher';
+import { secrets } from '../config/env';
 import { updateProjectStatus } from './statusUpdater';
 import {
   getNextTaskForTerminal,
@@ -98,12 +99,12 @@ export interface TaskChain {
 
 // ─── Default Configuration ──────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { PROJECTS_DIR, TERMINALS_PATH, GENERATORS_DIR } from '../config/paths';
 const DEFAULT_CONFIG: DispatcherConfig = {
   checkInterval: 60_000,  // 1 minute fallback
-  projectsDir: process.env.PROJECTS_DIR || `${SPACEOS_ROOT}/docs/projects`,
-  terminalsDir: process.env.TERMINALS_DIR || `${SPACEOS_ROOT}/terminals`,
-  generatorsDir: process.env.GENERATORS_DIR || `${SPACEOS_ROOT}/spaceos-nexus/knowledge-service/src/generators`,
+  projectsDir: PROJECTS_DIR,
+  terminalsDir: TERMINALS_PATH,
+  generatorsDir: GENERATORS_DIR,
   notifyTelegram: true,
   retryOnBlocked: 3,
   enabled: true,
@@ -675,7 +676,7 @@ ${task.auto_generate ? `
     try {
       // Import telegramBot from pipeline
       const { sendTelegramMessage } = await import('./telegramBot');
-      const chatId = process.env.TELEGRAM_CHAT_ID || '';
+      const chatId = secrets.telegramChatId;
       if (!chatId) {
         logger.info('[ProjectDispatcher] Telegram notification skipped: no TELEGRAM_CHAT_ID');
         return;

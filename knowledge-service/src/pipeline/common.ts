@@ -10,8 +10,11 @@ import { logger } from '../core/logger';
 
 const execAsync = promisify(exec);
 
-// Environment
-export const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+// Environment — config-driven root (re-exported for the many pipeline
+// modules that import it from here).
+import { SPACEOS_ROOT } from '../config/paths';
+import { secrets } from '../config/env';
+export { SPACEOS_ROOT };
 export const LOG_DIR = path.join(SPACEOS_ROOT, 'logs/dispatcher');
 export const STATE_FILE = path.join(SPACEOS_ROOT, 'scripts/.nightwatch-state');
 
@@ -191,8 +194,8 @@ export async function newSession(sessionName: string, workdir: string): Promise<
 
 // Telegram notification
 export async function telegram(message: string): Promise<void> {
-  const token = process.env.TELEGRAM_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const token = secrets.telegramBotToken;
+  const chatId = secrets.telegramChatId;
 
   if (!token || !chatId) return;
 

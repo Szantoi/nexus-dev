@@ -18,7 +18,7 @@ import { sha256File } from '../pipeline/hashUtils';
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 const CREATION_LOG_PATH = path.join(SPACEOS_ROOT, 'logs/tasks/creation.jsonl');
 const MAX_CONTENT_LENGTH = 50000; // 50KB
 

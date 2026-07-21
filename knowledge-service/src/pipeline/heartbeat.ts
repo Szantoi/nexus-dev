@@ -20,6 +20,7 @@ import {
 } from './common';
 import { detectPaneState, PaneState, stateDescription } from './paneState';
 import { logger } from '../core/logger';
+import { env } from '../config/env';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -72,8 +73,8 @@ export interface HeartbeatConfig {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: HeartbeatConfig = {
-  enabled: process.env.ENABLE_HEARTBEAT === 'true',
-  intervalMs: parseInt(process.env.HEARTBEAT_INTERVAL || '3600000', 10), // 1 hour
+  enabled: env.ENABLE_HEARTBEAT,
+  intervalMs: env.HEARTBEAT_INTERVAL, // default: 1 hour
   alertOnError: true,
   alertOnStuck: true,
   alertOnUnread: true,

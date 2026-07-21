@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import { logger } from './core/logger';
 import { DATA_DIR } from './config/paths';
 
-const DB_PATH = process.env.WORKFLOW_DB || path.join(DATA_DIR, 'workflow.db');
+import { WORKFLOW_DB as DB_PATH } from './config/paths';
 
 // Ensure data directory exists
 if (!fs.existsSync(path.dirname(DB_PATH))) {
@@ -388,7 +388,18 @@ export function addHistory(entry: {
   task_file?: string;
   notes?: string;
 }): void {
-  stmts.insertHistory.run(entry);
+  // The optional fields are nullable columns; better-sqlite3 requires every
+  // named param of the prepared INSERT to be present, so bind missing ones
+  // as NULL explicitly (TASK-QC-011: omitting them threw RangeError and the
+  // history row was silently lost).
+  stmts.insertHistory.run({
+    workflow_id: entry.workflow_id,
+    step_id: entry.step_id,
+    terminal: entry.terminal ?? null,
+    island: entry.island ?? null,
+    task_file: entry.task_file ?? null,
+    notes: entry.notes ?? null,
+  });
 }
 
 export function completeHistoryStep(workflowId: string, stepId: string): void {

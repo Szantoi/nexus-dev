@@ -7,7 +7,7 @@
  *   MCP_AUTH_TOKEN=xxx       master token (grants 'root')
  *   MCP_TOKEN_<NAME>=xxx     per-agent token (MCP_TOKEN_CONDUCTOR -> conductor)
  *
- * AUTH_MODE (env, default 'open'):
+ * AUTH_MODE (env, default 'required'):
  *   open     — local-dev behavior: with no tokens configured every caller is
  *              'root'; default_agent fallback applies when no header is sent.
  *   required — fail closed (VPS/exposed deployments): a valid Bearer token is
@@ -17,7 +17,7 @@
  * The agents.yaml file auto-reloads every 30 seconds without restart.
  */
 
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { AGENTS_CONFIG_PATH, ISLAND_ID } from '../config/paths';
@@ -259,13 +259,38 @@ export function apiAuthGate(req: Request, res: Response, next: () => void): void
   next();
 }
 
+/** Root-only authorization for administrative operations. */
+export function requireRoot(req: Request, res: Response, next: NextFunction): void {
+  const authorize = (): void => {
+    if (req.mcpTerminal !== 'root') {
+      logger.warn(`[Auth] DENY 403 ${req.method} ${req.originalUrl} (root required)`);
+      res.status(403).json({ error: 'Forbidden: root access required' });
+      return;
+    }
+    next();
+  };
+
+  // In required mode apiAuthGate has already attached the identity. In the
+  // explicit local open mode, resolve it here so this middleware still works.
+  if (!req.mcpTerminal) {
+    authenticateRest(req, res, authorize);
+    return;
+  }
+  authorize();
+}
+
+/** Allow reads, but require root identity for state-changing HTTP methods. */
+export function requireRootForMutations(req: Request, res: Response, next: NextFunction): void {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    next();
+    return;
+  }
+  requireRoot(req, res, next);
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 loadAgentTokens();
-
-if (authMode === 'required' && !process.env.TERMINAL_TOKEN_SECRET) {
-  logger.warn('[Auth] ⚠️ AUTH_MODE=required but TERMINAL_TOKEN_SECRET is unset — epic-router tokens use a hardcoded default secret');
-}
 
 // Auto-reload every 30 seconds; unref so the timer never keeps a test runner alive
 setInterval(loadAgentTokens, 30_000).unref();

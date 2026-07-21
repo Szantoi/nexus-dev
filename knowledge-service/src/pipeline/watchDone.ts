@@ -22,7 +22,8 @@ import { filterDoneOutput } from '../conductor/outputFiltering';
 
 // Use terminal-based review by default (no API key needed)
 // Set REVIEW_MODE=api to use old Anthropic API based review
-const USE_TERMINAL_REVIEW = process.env.REVIEW_MODE !== 'api';
+import { env } from '../config/env';
+const USE_TERMINAL_REVIEW = env.REVIEW_MODE !== 'api';
 import { queryMessages } from '../messageRegistry';
 import { logger } from '../core/logger';
 

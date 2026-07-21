@@ -144,6 +144,77 @@ export interface WorkflowGraph {
 // ─── Epic Specific Types ────────────────────────────────────────────────────
 
 /**
+ * Milestone definition inside a program (EPICS.yaml `programs[].milestones[]`)
+ *
+ * QUALITY.md §1: every milestone has a MEASURABLE acceptance criterion —
+ * "done" only counts with proof (green tests, commit hash, ledger entry).
+ *
+ * Additive schema extension (TASK-QC-001, 2026-07-18): older parsers that
+ * only read `epics` ignore this structure.
+ */
+export interface ProgramMilestone {
+  /** Milestone identifier (e.g., QC-M1, KS-M2) */
+  id: string;
+
+  /** Human-readable name */
+  name: string;
+
+  /** Measurable acceptance criteria — what proof closes this milestone */
+  acceptance: string;
+
+  /** Current status */
+  status?: NodeStatus;
+
+  /** Target completion date (YYYY-MM-DD) */
+  target_date?: string;
+}
+
+/**
+ * Program definition (EPICS.yaml `programs[]`)
+ *
+ * Top level of the QUALITY.md §1 work hierarchy:
+ * program → project → milestone → epic → task.
+ *
+ * Additive schema extension (TASK-QC-001, 2026-07-18).
+ */
+export interface ProgramDefinition {
+  /** Program identifier (e.g., NEXUS-QUALITY) */
+  id: string;
+
+  /** Human-readable name */
+  name: string;
+
+  /** Project slug (e.g., nexus/knowledge-service) */
+  project: string;
+
+  /** Measurable program goal */
+  goal: string;
+
+  /** Explicit stopping condition — when do we stop (QUALITY.md §1) */
+  stopping_condition: string;
+
+  /** Current status */
+  status?: NodeStatus;
+
+  /** Milestones with measurable acceptance criteria */
+  milestones?: ProgramMilestone[];
+}
+
+/**
+ * Reference from an epic to a task file (EPICS.yaml `epics[].tasks[]`)
+ *
+ * Deliberately carries NO status: the canonical task-level status lives in
+ * the task file's frontmatter (`status` field) — one source per level.
+ */
+export interface EpicTaskRef {
+  /** Task identifier, matches the task file frontmatter `id` (e.g., TASK-QC-001) */
+  id: string;
+
+  /** Path to the task file, relative to EPICS.yaml */
+  file: string;
+}
+
+/**
  * Epic dependency entry (from EPICS.yaml)
  */
 export interface EpicDependency {
@@ -155,6 +226,12 @@ export interface EpicDependency {
 
   /** Project slug (e.g., spaceos/cutting) */
   project: string;
+
+  /** Program this epic belongs to (references programs[].id) — additive, optional */
+  program?: string;
+
+  /** Milestone in which this epic CLOSES (references programs[].milestones[].id) — additive, optional */
+  milestone?: string;
 
   /** Epic IDs this depends on */
   depends_on: string[];
@@ -171,12 +248,20 @@ export interface EpicDependency {
   /** Relative path to TASKS.yaml */
   tasks_yaml: string;
 
+  /** Task file references (status lives in the task frontmatter) — additive, optional */
+  tasks?: EpicTaskRef[];
+
   /** Description */
   description?: string;
 }
 
 /**
  * EPICS.yaml schema
+ *
+ * Canonical state source at program/milestone/epic level
+ * (docs/projects/EPICS.yaml). Task-level status is canonical in the task
+ * files' frontmatter; the human ledger is terminals/root/todo.md.
+ * Sync procedure: see the header comment of docs/projects/EPICS.yaml.
  */
 export interface EpicsYaml {
   /** Schema version */
@@ -184,6 +269,9 @@ export interface EpicsYaml {
 
   /** Last update date (YYYY-MM-DD) */
   updated: string;
+
+  /** Programs with goals, stopping conditions and milestones — additive, optional */
+  programs?: ProgramDefinition[];
 
   /** All epics */
   epics: EpicDependency[];

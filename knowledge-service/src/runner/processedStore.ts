@@ -16,6 +16,8 @@ export interface ProcessedEntry {
   terminal: string;
   attempts: number;
   lastLaunchAt: string; // ISO timestamp
+  /** Existing unread work captured before this runner became launch authority. */
+  disposition?: 'launch' | 'quarantine';
 }
 
 const PRUNE_AFTER_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
@@ -25,13 +27,19 @@ export class ProcessedStore {
 
   constructor(private readonly filePath: string) {}
 
-  load(): void {
+  load(): 'loaded' | 'missing' | 'corrupt' {
     try {
       const raw = fs.readFileSync(this.filePath, 'utf-8');
       const parsed = JSON.parse(raw);
-      this.entries = typeof parsed === 'object' && parsed !== null ? parsed : {};
-    } catch {
-      this.entries = {}; // Missing or corrupt state file → start clean
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        this.entries = {};
+        return 'corrupt';
+      }
+      this.entries = parsed;
+      return 'loaded';
+    } catch (error) {
+      this.entries = {};
+      return (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'corrupt';
     }
   }
 
@@ -41,7 +49,10 @@ export class ProcessedStore {
    */
   save(now: Date = new Date()): void {
     for (const [id, entry] of Object.entries(this.entries)) {
-      if (now.getTime() - new Date(entry.lastLaunchAt).getTime() > PRUNE_AFTER_MS) {
+      if (
+        entry.disposition !== 'quarantine' &&
+        now.getTime() - new Date(entry.lastLaunchAt).getTime() > PRUNE_AFTER_MS
+      ) {
         delete this.entries[id];
       }
     }
@@ -78,6 +89,7 @@ export class ProcessedStore {
   ): boolean {
     const entry = this.entries[messageId];
     if (!entry) return true;
+    if (entry.disposition === 'quarantine') return false;
     if (entry.attempts >= opts.maxAttempts) return false;
     const now = opts.now ?? new Date();
     const elapsed = now.getTime() - new Date(entry.lastLaunchAt).getTime();
@@ -90,6 +102,17 @@ export class ProcessedStore {
       terminal,
       attempts: (prev?.attempts ?? 0) + 1,
       lastLaunchAt: now.toISOString(),
+      disposition: 'launch',
+    };
+  }
+
+  /** Permanently excludes unread work that predates first safe startup. */
+  recordQuarantine(messageId: string, terminal: string, now: Date = new Date()): void {
+    this.entries[messageId] = {
+      terminal,
+      attempts: 0,
+      lastLaunchAt: now.toISOString(),
+      disposition: 'quarantine',
     };
   }
 }

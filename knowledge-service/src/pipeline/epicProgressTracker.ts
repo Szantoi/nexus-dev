@@ -47,7 +47,7 @@ export interface TaskStatus {
 
 // ─── Configuration ───────────────────────────────────────────────────────────
 
-const getSpaceOSRoot = () => process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { getSpaceosRoot as getSpaceOSRoot } from '../config/paths';
 const getEpicsPath = () => path.join(getSpaceOSRoot(), 'docs/projects/EPICS.yaml');
 
 // ─── EPICS.yaml Loading ──────────────────────────────────────────────────────

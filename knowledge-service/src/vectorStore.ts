@@ -143,7 +143,7 @@ export async function initVectorStore(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     logger.warn(`⚠️  [VDB] ChromaDB unavailable: ${msg}`);
     logger.warn('    Falling back to in-memory store (data lost on restart).');
-    logger.warn('    Start ChromaDB: cd /opt/spaceos/spaceos-nexus && docker compose up -d');
+    logger.warn('    Start ChromaDB: docker compose up -d (from the knowledge-service repo root)');
     isChromaConnected = false;
   }
 }

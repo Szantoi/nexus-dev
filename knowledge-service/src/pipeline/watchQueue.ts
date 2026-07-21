@@ -16,6 +16,7 @@ import {
 } from './common';
 import { getStatus } from '../terminalStatus';
 import { logger } from '../core/logger';
+import { SELF_BASE_URL } from '../config/env';
 
 const QUEUE_CHECK_COOLDOWN = 300; // 5 perc cooldown ugyanarra a task-ra
 
@@ -38,7 +39,7 @@ interface FocusQueueResponse {
 
 async function getFocusQueue(): Promise<FocusQueueResponse | null> {
   try {
-    const response = await fetch('http://localhost:3456/api/focus-queue');
+    const response = await fetch(`${SELF_BASE_URL}/api/focus-queue`);
     if (!response.ok) return null;
     return await response.json() as FocusQueueResponse;
   } catch {

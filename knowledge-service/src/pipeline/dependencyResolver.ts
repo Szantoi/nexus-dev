@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { logger } from '../core/logger';
+import { getEpicsPath } from '../config/paths';
 
 export interface EpicInfo {
   epic: string;
@@ -43,7 +44,7 @@ function loadEpics(): Record<string, EpicYaml> {
   }
 
   try {
-    const epicsPath = process.env.EPICS_PATH || path.join(__dirname, '../../..', 'docs', 'projects', 'EPICS.yaml');
+    const epicsPath = getEpicsPath();
     const content = fs.readFileSync(epicsPath, 'utf-8');
     const doc = yaml.load(content) as { epics: EpicYaml[] };
     epicsCache = {};

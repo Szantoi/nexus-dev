@@ -40,8 +40,7 @@ interface EpicsData {
 
 // ─── Epic Status Tracking ──────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+import { SPACEOS_ROOT, EPICS_PATH } from '../config/paths';
 
 /**
  * Load EPICS.yaml data

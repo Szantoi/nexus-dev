@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { spawn } from 'child_process';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 const DATAHAVEN_CLIENT = path.join(SPACEOS_ROOT, 'datahaven-web/client');
 const API_DOCS_DIR = path.join(SPACEOS_ROOT, 'docs/api');
 

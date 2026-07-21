@@ -5,8 +5,7 @@ import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+import { EPICS_PATH } from '../config/paths';
 
 export interface Checkpoint {
   id: string;

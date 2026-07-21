@@ -9,7 +9,7 @@
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 const DATAHAVEN_CLIENT = path.join(SPACEOS_ROOT, 'datahaven-web/client');
 const PATTERNS_DOC = path.join(
   SPACEOS_ROOT,

@@ -23,7 +23,7 @@ import { emitOutboxEvent } from './eventBus';
 
 // ─── Database Setup ─────────────────────────────────────────────────────────
 
-import { DATA_DIR } from '../config/paths';
+import { DATA_DIR, getEpicsPath } from '../config/paths';
 const DB_PATH = path.join(DATA_DIR, 'epic_router.db');
 
 // Ensure data directory exists
@@ -531,7 +531,7 @@ export function handleTaskCompletion(
  * Checks if the completed messageId matches any checkpoint condition
  */
 function updateCheckpointStatus(epicId: string, messageId: string): void {
-  const epicsPath = process.env.EPICS_PATH || `${process.env.SPACEOS_ROOT || '/opt/spaceos'}/docs/projects/EPICS.yaml`;
+  const epicsPath = getEpicsPath();
 
   try {
     const content = fs.readFileSync(epicsPath, 'utf-8');

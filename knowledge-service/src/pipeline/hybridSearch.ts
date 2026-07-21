@@ -13,6 +13,7 @@
 import { hybridSearch as memoryHybridSearch, SearchResult as MemorySearchResult, Memory } from './memoryStore';
 import { log as pipelineLog } from './common';
 import { COLLECTION_NAME } from '../config/paths';
+import { CHROMA_EFFECTIVE_URL, secrets } from '../config/env';
 
 const log = (prefix: string, message: string) => pipelineLog(`[${prefix}] ${message}`);
 
@@ -44,7 +45,8 @@ export interface SearchOptions {
 
 // ─── ChromaDB Integration ────────────────────────────────────────────────────
 
-const CHROMADB_URL = process.env.CHROMADB_URL || 'http://localhost:8001';
+// Effective ChromaDB URL (legacy CHROMADB_URL alias handled centrally).
+const CHROMADB_URL = CHROMA_EFFECTIVE_URL;
 
 async function searchChromaDB(query: string, limit: number = 5): Promise<KnowledgeResult[]> {
   try {
@@ -103,7 +105,7 @@ async function searchChromaDB(query: string, limit: number = 5): Promise<Knowled
 
 async function getQueryEmbedding(query: string): Promise<number[] | null> {
   // Try Voyage AI first (same as knowledge-service)
-  const voyageKey = process.env.VOYAGE_API_KEY;
+  const voyageKey = secrets.voyageApiKey;
   if (voyageKey) {
     try {
       const response = await fetch('https://api.voyageai.com/v1/embeddings', {
@@ -128,7 +130,7 @@ async function getQueryEmbedding(query: string): Promise<number[] | null> {
   }
 
   // Try Google Gemini
-  const geminiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+  const geminiKey = secrets.googleApiKey;
   if (geminiKey) {
     try {
       const response = await fetch(

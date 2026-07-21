@@ -31,6 +31,8 @@ import {
 } from './common';
 import { detectPaneState } from './paneState';
 import { logger } from '../core/logger';
+import { env } from '../config/env';
+import { SPACEOS_ROOT } from '../config/paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +61,7 @@ export interface RestartResult {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: AutoRestartConfig = {
-  enabled: process.env.ENABLE_AUTO_RESTART === 'true',
+  enabled: env.ENABLE_AUTO_RESTART,
   schedule: { type: 'daily', hour: 3, minute: 0 },
   mode: 'fresh',
   skipIfBusy: true,
@@ -130,7 +132,7 @@ async function intervalElapsed(session: string, hours: number): Promise<boolean>
  * Perform a fresh restart (kill and recreate session)
  */
 async function freshRestart(session: string): Promise<void> {
-  const workdir = SESSION_WORKDIR[session] || (process.env.SPACEOS_ROOT || '/opt/spaceos');
+  const workdir = SESSION_WORKDIR[session] || SPACEOS_ROOT;
   const terminal = SESSIONS[session];
 
   await log(`[AutoRestart] Fresh restart: ${session}`);

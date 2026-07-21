@@ -91,9 +91,12 @@ export interface WebhookConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || '';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
-const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'spaceos-webhook-secret-2026';
+import { secrets, SELF_BASE_URL } from '../config/env';
+import { QUEUE_DIR, getTerminalsPath } from '../config/paths';
+
+const TELEGRAM_TOKEN = secrets.telegramBotToken;
+const TELEGRAM_CHAT_ID = secrets.telegramChatId;
+const WEBHOOK_SECRET = secrets.telegramWebhookSecret;
 
 // Allowed chat IDs (add more as needed)
 const ALLOWED_CHAT_IDS = TELEGRAM_CHAT_ID ? [parseInt(TELEGRAM_CHAT_ID, 10)] : [];
@@ -361,7 +364,7 @@ async function handleQueueCommand(_message: TelegramMessage): Promise<string> {
     const fs = await import('fs/promises');
     const path = await import('path');
 
-    const queueDir = process.env.QUEUE_DIR || `${process.env.SPACEOS_ROOT || '/opt/spaceos'}/docs/planning/queue`;
+    const queueDir = QUEUE_DIR;
     const files = await fs.readdir(queueDir).catch(() => [] as string[]);
     const mdFiles = files.filter(f => f.endsWith('.md'));
 
@@ -388,7 +391,7 @@ async function handleQueueCommand(_message: TelegramMessage): Promise<string> {
  */
 async function handleHealthCommand(_message: TelegramMessage): Promise<string> {
   try {
-    const response = await fetch('http://localhost:3456/health');
+    const response = await fetch(`${SELF_BASE_URL}/health`);
     const data = await response.json() as Record<string, unknown>;
 
     return [
@@ -579,7 +582,7 @@ async function saveToInboxForOfflineTerminals(
 
   for (const terminal of terminals) {
     try {
-      const inboxDir = `/opt/spaceos/terminals/${terminal}/inbox`;
+      const inboxDir = path.join(getTerminalsPath(), terminal, 'inbox');
 
       // Find next message number
       const files = await fs.readdir(inboxDir).catch(() => [] as string[]);

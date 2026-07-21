@@ -18,9 +18,10 @@ import { generateEndpoint, GenerateEndpointParams } from './generators/generateE
 import { TaskChain } from './pipeline/projectDispatcher';
 import { exportStatusJSON } from './pipeline/statusUpdater';
 
-// Helper functions to get directory paths (allows runtime env override)
-const getProjectsDir = () => process.env.PROJECTS_DIR || '/opt/spaceos/docs/projects';
-const getTerminalsDir = () => process.env.TERMINALS_DIR || '/opt/spaceos/terminals';
+// Directory paths come from the central config layer (lazy getters keep
+// runtime env overrides working for tests).
+import { getProjectsDir, getTerminalsPath } from './config/paths';
+const getTerminalsDir = getTerminalsPath;
 
 // ─── Tool 1: create_project ─────────────────────────────────────────────────
 

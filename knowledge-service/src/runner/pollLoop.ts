@@ -15,6 +15,8 @@ import type { UnreadTask } from './serverClient';
 
 export interface PollDeps {
   fetchUnread(terminal: string): Promise<UnreadTask[]>;
+  claimTask(terminal: string, messageId: string): Promise<void>;
+  releaseTask(terminal: string, messageId: string): Promise<void>;
   launch(req: LaunchRequest): LaunchResult;
   isBusy(terminal: string): boolean;
   store: ProcessedStore;
@@ -63,6 +65,16 @@ export async function pollOnce(
         continue;
       }
 
+      try {
+        await deps.claimTask(terminal, task.id);
+      } catch (err) {
+        logger.warn(
+          `[Runner] Claim refused (${terminal}/${task.id}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        result.skipped++;
+        continue;
+      }
+
       const launch = deps.launch({ terminal, messageId: task.id, model: task.model });
       if (launch.started) {
         deps.store.recordLaunch(task.id, terminal, now);
@@ -70,6 +82,13 @@ export async function pollOnce(
         result.launched++;
       } else {
         logger.warn(`[Runner] Launch refused (${terminal}/${task.id}): ${launch.reason}`);
+        try {
+          await deps.releaseTask(terminal, task.id);
+        } catch (err) {
+          logger.error(
+            `[Runner] Claim release failed (${terminal}/${task.id}): ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
         result.skipped++;
       }
     }

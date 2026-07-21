@@ -11,12 +11,10 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { log } from './pipeline/common';
-import { TERMINALS_PATH } from './config/paths';
+import { TERMINALS_PATH, SPACEOS_ROOT, GOALS_DIR, getEpicsPath, getTerminalsPath } from './config/paths';
 import { logger } from './core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const GOALS_DIR = process.env.GOALS_DIR || `${SPACEOS_ROOT}/store/goals`;
-const GOALS_LOG = `${SPACEOS_ROOT}/logs/dispatcher/goals.log`;
+const GOALS_LOG = path.join(SPACEOS_ROOT, 'logs', 'dispatcher', 'goals.log');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -94,10 +92,47 @@ export interface CreateGoalParams {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function generateGoalId(): string {
+/** Max attempts to claim a unique goal ID before giving up (cross-process EEXIST races). */
+const MAX_ID_ALLOCATION_ATTEMPTS = 5;
+
+/**
+ * In-process serialization of ID allocation (TASK-QC-012): concurrent
+ * createGoal() calls must not observe the same on-disk state and pick the
+ * same sequence number. The queue chains allocations one after another.
+ */
+let idAllocationQueue: Promise<unknown> = Promise.resolve();
+
+function withIdAllocationLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = idAllocationQueue.then(fn, fn);
+  // Keep the chain alive even if this allocation fails.
+  idAllocationQueue = run.catch(() => undefined);
+  return run;
+}
+
+/**
+ * Next collision-free goal ID for today: a monotonic counter derived from the
+ * files already present in GOALS_DIR (the store's persistent layer), replacing
+ * the old `Date.now().slice(-3)` suffix that repeated every 1000 ms.
+ * Format is preserved: GOAL-YYYY-MM-DD-NNN (NNN grows past 999 if needed).
+ */
+async function nextGoalId(): Promise<string> {
   const date = new Date().toISOString().split('T')[0];
-  const seq = Date.now().toString().slice(-3);
-  return `GOAL-${date}-${seq}`;
+  const prefix = `GOAL-${date}-`;
+
+  let maxSeq = -1;
+  try {
+    const files = await fs.readdir(GOALS_DIR);
+    for (const file of files) {
+      if (!file.startsWith(prefix) || !file.endsWith('.yaml')) continue;
+      const seq = Number.parseInt(file.slice(prefix.length, -'.yaml'.length), 10);
+      if (Number.isInteger(seq) && seq > maxSeq) maxSeq = seq;
+    }
+  } catch (err) {
+    // Directory not created yet — this is the store's first goal.
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+  }
+
+  return `${prefix}${String(maxSeq + 1).padStart(3, '0')}`;
 }
 
 async function logGoalEvent(event: string, goalId: string, details?: string): Promise<void> {
@@ -120,11 +155,10 @@ async function logGoalEvent(event: string, goalId: string, details?: string): Pr
  * Create a new goal
  */
 export async function createGoal(params: CreateGoalParams): Promise<Goal> {
-  const id = generateGoalId();
   const now = new Date().toISOString();
 
   const goal: Goal = {
-    id,
+    id: '', // allocated below, under the ID-allocation lock
     created: now,
     created_by: params.created_by,
     epic_id: params.epic_id,
@@ -150,14 +184,29 @@ export async function createGoal(params: CreateGoalParams): Promise<Goal> {
     goal.expires_at = expiresAt.toISOString();
   }
 
-  // Write YAML file
-  const filename = `${id}.yaml`;
-  const filepath = path.join(GOALS_DIR, filename);
-
   await fs.mkdir(GOALS_DIR, { recursive: true });
-  await fs.writeFile(filepath, yaml.dump(goal), 'utf-8');
 
-  await logGoalEvent('CREATED', id, `by ${params.created_by}: ${params.description}`);
+  // Allocate the ID and create the YAML file atomically: 'wx' fails with
+  // EEXIST instead of silently overwriting an existing goal, and the lock
+  // serializes concurrent in-process allocations (TASK-QC-012).
+  await withIdAllocationLock(async () => {
+    for (let attempt = 0; attempt < MAX_ID_ALLOCATION_ATTEMPTS; attempt++) {
+      goal.id = await nextGoalId();
+      const filepath = path.join(GOALS_DIR, `${goal.id}.yaml`);
+      try {
+        await fs.writeFile(filepath, yaml.dump(goal), { encoding: 'utf-8', flag: 'wx' });
+        return;
+      } catch (err) {
+        // EEXIST: another process claimed this ID between readdir and write — retry.
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      }
+    }
+    throw new Error(
+      `[GoalStore] Could not allocate a unique goal ID after ${MAX_ID_ALLOCATION_ATTEMPTS} attempts`
+    );
+  });
+
+  await logGoalEvent('CREATED', goal.id, `by ${params.created_by}: ${params.description}`);
 
   return goal;
 }
@@ -316,7 +365,7 @@ async function checkCheckpointStatus(
   checkpointId: string,
   expectedStatus: string
 ): Promise<{ met: boolean; details: string }> {
-  const epicsPath = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+  const epicsPath = getEpicsPath();
 
   try {
     const content = await fs.readFile(epicsPath, 'utf-8');
@@ -350,7 +399,7 @@ async function checkMessageStatus(
   expectedStatus: string
 ): Promise<{ met: boolean; details: string }> {
   // Search in all terminal inboxes and outboxes
-  const terminalsPath = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
+  const terminalsPath = getTerminalsPath();
 
   try {
     const terminals = await fs.readdir(terminalsPath);

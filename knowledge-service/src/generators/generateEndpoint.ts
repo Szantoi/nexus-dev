@@ -15,8 +15,7 @@ import { toPascalCase, toCamelCase } from './utils/casing';
 import { GeneratedFile, Property } from './types';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const BACKEND_DIR = process.env.BACKEND_DIR || `${SPACEOS_ROOT}/backend`;
+import { BACKEND_DIR } from '../config/paths';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

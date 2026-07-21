@@ -28,8 +28,7 @@ import {
 } from './workflowDb';
 import { logger } from './core/logger';
 
-const WORKFLOW_DIR = '/opt/spaceos/config/workflows';
-const EPICS_FILE = '/opt/spaceos/docs/projects/EPICS.yaml';
+import { WORKFLOWS_DIR as WORKFLOW_DIR, EPICS_PATH as EPICS_FILE } from './config/paths';
 
 // Types
 export interface WorkflowStep {
@@ -197,6 +196,12 @@ export function getWorkflowState(workflowId: string): WorkflowState | null {
   return null;
 }
 
+/** Result of a state write — on failure the error is propagated, not swallowed (TASK-QC-011) */
+export interface SetWorkflowStateResult {
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Set workflow state (file + DB)
  */
@@ -204,7 +209,7 @@ export function setWorkflowState(
   workflowId: string,
   step: string,
   saveHistory: boolean = false
-): boolean {
+): SetWorkflowStateResult {
   const stateFile = getStateFilePath(workflowId);
 
   try {
@@ -245,10 +250,15 @@ export function setWorkflowState(
       fs.writeFileSync(stateFile, step);
     }
 
-    return true;
+    return { success: true };
   } catch (error) {
-    logger.error('Failed to set workflow state:', error);
-    return false;
+    // Distinguish a programming (logic) error — e.g. a bad named param in a
+    // prepared statement — from runtime I/O failures (DB lock, fs write), and
+    // propagate the message instead of a bare false (TASK-QC-011).
+    const kind = error instanceof RangeError || error instanceof TypeError ? 'logic' : 'io';
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    logger.error(`Failed to set workflow state (${kind} error):`, error);
+    return { success: false, error: message };
   }
 }
 
@@ -280,13 +290,14 @@ export function advanceWorkflow(workflowId: string): {
     return { success: false, error: 'No next step defined' };
   }
 
-  // Set new state
-  const success = setWorkflowState(workflowId, nextStepId, true);
+  // Set new state (propagates the write error, if any — TASK-QC-011)
+  const result = setWorkflowState(workflowId, nextStepId, true);
 
   return {
-    success,
+    success: result.success,
     previous_step: currentStep,
     current_step: nextStepId,
+    ...(result.error !== undefined ? { error: result.error } : {}),
   };
 }
 
@@ -625,13 +636,12 @@ export function handleWorkflowTool(
       ));
 
     case 'set_workflow_step':
-      return mcpResponse({
-        success: setWorkflowState(
-          args.workflow_id as string,
-          args.step_id as string,
-          true
-        ),
-      });
+      // { success, error? } — the write error is surfaced to the MCP caller
+      return mcpResponse(setWorkflowState(
+        args.workflow_id as string,
+        args.step_id as string,
+        true
+      ));
 
     case 'list_epics': {
       const epics = listEpics();

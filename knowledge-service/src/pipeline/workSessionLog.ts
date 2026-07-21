@@ -8,7 +8,7 @@ import * as path from 'path';
 import { logger } from '../core/logger';
 
 // Use environment variable for testability
-const getSpaceOSRoot = () => process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { getSpaceosRoot as getSpaceOSRoot } from '../config/paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

@@ -20,7 +20,7 @@ import {
 import { emitOutboxEvent } from './pipeline/eventBus';
 import { logger } from './core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from './config/paths';
 // New terminal structure (2026-06-21)
 const TERMINALS_PATH = path.join(SPACEOS_ROOT, 'terminals');
 // Legacy path for backward compatibility (symlink)

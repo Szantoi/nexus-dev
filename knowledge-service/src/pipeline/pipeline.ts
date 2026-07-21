@@ -6,6 +6,7 @@ import * as path from 'path';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { SPACEOS_ROOT, log, telegram } from './common';
+import { SELF_BASE_URL } from '../config/env';
 import { runPipelineDocs } from './pipelineDocs';
 import { logger } from '../core/logger';
 
@@ -101,7 +102,13 @@ async function triggerReindexIfNeeded(terminal: string): Promise<boolean> {
 
   try {
     await log('[Pipeline] Knowledge reindex trigger (librarian DONE)');
-    await execAsync('curl -s -X POST http://localhost:3456/api/knowledge/index -H "Content-Type: application/json" -d "{}"');
+    // Typed self-call via the configured base URL (was: shelled-out curl to a
+    // hardcoded localhost:3456).
+    await fetch(`${SELF_BASE_URL}/api/knowledge/index`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
     return true;
   } catch {
     return false;

@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { secrets } from '../config/env';
 import {
   SPACEOS_ROOT,
   log,
@@ -377,7 +378,7 @@ export async function runPlanDebate(): Promise<DebateResult> {
   const consensusPrompt = await loadPrompt(config, 'consensus');
 
   const date = new Date().toISOString().split('T')[0];
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: secrets.anthropicApiKey });
 
   try {
     // Phase 1: Parallel independent plans

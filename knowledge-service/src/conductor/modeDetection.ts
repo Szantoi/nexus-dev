@@ -8,8 +8,8 @@ import { logger } from '../core/logger';
 
 export type OperationMode = 'manual' | 'planning_pipeline' | 'structured_program';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+import { SPACEOS_ROOT, EPICS_PATH } from '../config/paths';
+import { getSpaceosMode } from '../config/env';
 
 /**
  * Detect current SpaceOS operation mode
@@ -24,7 +24,7 @@ const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPIC
  */
 export function detectOperationMode(): OperationMode {
   // 1. Explicit env var override (for testing)
-  const envMode = process.env.SPACEOS_MODE;
+  const envMode = getSpaceosMode();
   if (envMode === 'manual' || envMode === 'planning_pipeline' || envMode === 'structured_program') {
     return envMode;
   }

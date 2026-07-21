@@ -19,7 +19,7 @@ import {
 } from './terminalConfig';
 
 // Base paths
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from './config/paths';
 
 // ─── Exports for backward compatibility ──────────────────────────────────────
 

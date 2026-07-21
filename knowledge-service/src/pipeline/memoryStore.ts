@@ -79,7 +79,8 @@ export interface SearchResult {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 import { DATA_DIR, MEMORY_DB } from '../config/paths';
-const DB_PATH = process.env.MEMORY_DB_PATH || MEMORY_DB;
+// MEMORY_DB already honors the MEMORY_DB_PATH legacy alias (config/paths.ts)
+const DB_PATH = MEMORY_DB;
 
 const SALIENCE_DECAY_RATE = 0.05; // 5% decay per day (default)
 const MIN_SALIENCE = 0.1; // Minimum salience before archival consideration

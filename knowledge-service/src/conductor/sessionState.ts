@@ -9,8 +9,7 @@ import * as path from 'path';
 import { loadActiveEpic, getEpicProgress, getNextCheckpoint, Epic } from './epicManager';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const STATE_DIR = process.env.CONDUCTOR_STATE_DIR || `${SPACEOS_ROOT}/terminals/conductor`;
+import { CONDUCTOR_STATE_DIR as STATE_DIR } from '../config/paths';
 const STATE_FILE = path.join(STATE_DIR, '.session-state.json');
 
 export interface GoalState {

@@ -69,8 +69,7 @@ interface BotInstance {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const CONFIG_PATH = process.env.TELEGRAM_BOTS_CONFIG || `${SPACEOS_ROOT}/config/telegram-bots.yaml`;
+import { TELEGRAM_BOTS_CONFIG_PATH as CONFIG_PATH } from '../config/paths';
 const POLL_INTERVAL = 2000; // 2 seconds
 
 // ─── State ───────────────────────────────────────────────────────────────────

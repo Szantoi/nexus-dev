@@ -7,6 +7,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { Router } from 'express';
+import { env } from '../config/env';
 import {
   SPACEOS_ROOT,
   log,
@@ -62,8 +63,8 @@ interface TasksYaml {
 
 function getConfig(): PhaseConfig {
   return {
-    enabled: process.env.ENABLE_PHASE_COORDINATOR === 'true',
-    intervalMinutes: parseInt(process.env.PHASE_COORDINATOR_INTERVAL_MINUTES || '30', 10),
+    enabled: env.ENABLE_PHASE_COORDINATOR,
+    intervalMinutes: env.PHASE_COORDINATOR_INTERVAL_MINUTES,
     projectsDir: path.join(SPACEOS_ROOT, 'docs', 'projects'),
     planningDir: path.join(SPACEOS_ROOT, 'docs', 'planning'),
     conductorInbox: path.join(SPACEOS_ROOT, 'terminals', 'conductor', 'inbox'),

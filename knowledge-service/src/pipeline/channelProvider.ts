@@ -17,6 +17,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { log } from './common';
+import { secrets } from '../config/env';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -443,19 +444,19 @@ let multiChannelConfig: MultiChannelConfig = {};
 export function initMultiChannel(): void {
   multiChannelConfig = {
     telegram: {
-      token: process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '',
-      chatId: process.env.TELEGRAM_CHAT_ID || '',
-      enabled: !!(process.env.TELEGRAM_TOKEN || process.env.TELEGRAM_BOT_TOKEN) && !!process.env.TELEGRAM_CHAT_ID,
+      token: secrets.telegramBotToken,
+      chatId: secrets.telegramChatId,
+      enabled: !!secrets.telegramBotToken && !!secrets.telegramChatId,
     },
     slack: {
-      token: process.env.SLACK_BOT_TOKEN || '',
-      chatId: process.env.SLACK_CHANNEL_ID || '',
-      enabled: !!process.env.SLACK_BOT_TOKEN && !!process.env.SLACK_CHANNEL_ID,
+      token: secrets.slackBotToken,
+      chatId: secrets.slackChannelId,
+      enabled: !!secrets.slackBotToken && !!secrets.slackChannelId,
     },
     discord: {
-      token: process.env.DISCORD_BOT_TOKEN || '',
-      chatId: process.env.DISCORD_CHANNEL_ID || '',
-      enabled: !!process.env.DISCORD_BOT_TOKEN && !!process.env.DISCORD_CHANNEL_ID,
+      token: secrets.discordBotToken,
+      chatId: secrets.discordChannelId,
+      enabled: !!secrets.discordBotToken && !!secrets.discordChannelId,
     },
   };
 

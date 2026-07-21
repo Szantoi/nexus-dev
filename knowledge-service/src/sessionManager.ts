@@ -27,7 +27,7 @@ import { TMUX_ENTER_VARIANTS } from './pipeline/common';
 import { logger } from './core/logger';
 
 const TMUX_SOCKET = terminalsConfig.getTmuxSocket();
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from './config/paths';
 const SESSION_LOG_PATH = `${SPACEOS_ROOT}/logs/sessions`;
 
 // Model mapping

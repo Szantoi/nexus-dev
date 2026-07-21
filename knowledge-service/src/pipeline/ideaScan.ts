@@ -19,7 +19,9 @@
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import Anthropic from '@anthropic-ai/sdk';
-import { SPACEOS_ROOT, log, telegram } from './common';
+import { log, telegram } from './common';
+import { env } from '../config/env';
+import { IDEA_SCAN_PROJECT_PATH, IDEAS_DIR } from '../config/paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -55,13 +57,12 @@ interface IdeaOutput {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: IdeaScanConfig = {
-  enabled: process.env.ENABLE_IDEA_SCAN === 'true',
-  intervalMinutes: parseInt(process.env.IDEA_SCAN_INTERVAL_MINUTES || '30', 10),
-  minIntervalMinutes: parseInt(process.env.IDEA_SCAN_MIN_INTERVAL || '5', 10),   // Fastest: 5 min when 0 ideas
-  maxIntervalMinutes: parseInt(process.env.IDEA_SCAN_MAX_INTERVAL || '120', 10), // Slowest: 2h when over threshold
-  projectPath: process.env.IDEA_SCAN_PROJECT_PATH ||
-    `${SPACEOS_ROOT}/docs/tasks/new`,
-  ideasDir: process.env.IDEAS_DIR || `${SPACEOS_ROOT}/docs/planning/ideas`,
+  enabled: env.ENABLE_IDEA_SCAN,
+  intervalMinutes: env.IDEA_SCAN_INTERVAL_MINUTES,
+  minIntervalMinutes: env.IDEA_SCAN_MIN_INTERVAL,   // Fastest: 5 min when 0 ideas
+  maxIntervalMinutes: env.IDEA_SCAN_MAX_INTERVAL, // Slowest: 2h when over threshold
+  projectPath: IDEA_SCAN_PROJECT_PATH,
+  ideasDir: IDEAS_DIR,
   maxIdeasPerRun: 3,
   ideasThreshold: 5,
   model: 'claude-haiku-4-5',

@@ -25,8 +25,10 @@ import { TMUX_ENTER_VARIANTS } from '../pipeline/common';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || '';
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '';
+import { secrets } from '../config/env';
+
+const TELEGRAM_TOKEN = secrets.telegramBotToken;
+const TELEGRAM_CHAT_ID = secrets.telegramChatId;
 // Don't use any socket - let tmux use default socket which actually has the sessions
 
 // Terminal name → tmux session name mapping

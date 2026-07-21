@@ -10,8 +10,7 @@ import * as path from 'path';
 import { toSlug } from './utils/casing';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
+import { TERMINALS_PATH as TERMINALS_DIR } from '../config/paths';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

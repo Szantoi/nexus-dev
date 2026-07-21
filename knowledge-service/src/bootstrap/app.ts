@@ -31,7 +31,7 @@ import {
 
 // Import existing routers (not yet migrated)
 import mcpRouter, { authorizeMailboxRest } from '../mcp';
-import { authenticateRest, apiAuthGate } from '../auth/tokenAuth';
+import { authenticateRest, apiAuthGate, requireRootForMutations } from '../auth/tokenAuth';
 import graphRoutes from '../api/graphRoutes';
 import { createPlanningRouter } from '../api/planningRoutes';
 import subscriptionRoutes from '../routes/subscriptionRoutes';
@@ -47,6 +47,7 @@ import {
   createPhaseCoordinatorRouter,
 } from '../pipeline';
 import { logger } from '../core/logger';
+import { env } from '../config/env';
 
 // ─── Rate Limiting ───────────────────────────────────────────────────────────
 
@@ -74,11 +75,9 @@ export function rateLimit(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
-  const ip = (req.headers['x-real-ip'] as string) ||
-              (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-              req.ip ||
-              req.socket.remoteAddress ||
-              'unknown';
+  // req.ip only trusts forwarding headers when Express has an explicit
+  // trusted proxy-hop count configured below.
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
 
   const now = Date.now();
   const entry = rateLimitStore.get(ip);
@@ -120,15 +119,37 @@ export interface AppConfig {
 
 export function createApp(config: AppConfig = {}): Express {
   const app = express();
+  app.disable('x-powered-by');
+  if (env.TRUST_PROXY_HOPS > 0) {
+    app.set('trust proxy', env.TRUST_PROXY_HOPS);
+  }
+
+  const allowedOrigins = new Set(
+    env.CORS_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean),
+  );
 
   // ─── CORS ──────────────────────────────────────────────────────────────────
 
   app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.has(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'");
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+
     if (req.method === 'OPTIONS') {
+      if (origin && !allowedOrigins.has(origin)) {
+        res.status(403).json({ error: 'Origin not allowed' });
+        return;
+      }
       res.sendStatus(204);
       return;
     }
@@ -136,6 +157,25 @@ export function createApp(config: AppConfig = {}): Express {
   });
 
   // ─── Body Parser & Rate Limiting ───────────────────────────────────────────
+
+  // Route handlers historically returned raw exception messages themselves,
+  // bypassing the global error handler. Redact every internal-error JSON body
+  // at the application boundary while preserving safe 4xx/503 diagnostics.
+  app.use((_req, res, next) => {
+    const sendJson = res.json.bind(res);
+    res.json = ((body: unknown) => {
+      if (res.statusCode === 500 && body && typeof body === 'object' && !Array.isArray(body)) {
+        const safeBody: Record<string, unknown> = {
+          ...(body as Record<string, unknown>),
+          error: 'Internal server error',
+        };
+        delete safeBody.details;
+        return sendJson(safeBody);
+      }
+      return sendJson(body);
+    }) as Response['json'];
+    next();
+  });
 
   app.use(express.json());
   app.use(rateLimit);
@@ -152,23 +192,23 @@ export function createApp(config: AppConfig = {}): Express {
 
   app.use('/api/telegram', createTelegramRouter());
   app.use('/api/metrics', createMetricsRouter());
-  app.use('/api/autonomous', createAutonomousDevRouter());
-  app.use('/api/monitor', createRootMonitorRouter());
-  app.use('/api/ideas', createIdeaScanRouter());
+  app.use('/api/autonomous', requireRootForMutations, createAutonomousDevRouter());
+  app.use('/api/monitor', requireRootForMutations, createRootMonitorRouter());
+  app.use('/api/ideas', requireRootForMutations, createIdeaScanRouter());
   app.use('/api/graph', graphRoutes);
   app.use('/api/planning', createPlanningRouter());
-  app.use('/api/phase', createPhaseCoordinatorRouter());
+  app.use('/api/phase', requireRootForMutations, createPhaseCoordinatorRouter());
   app.use('/api/federation', createFederationApiRouter());   // ADR-066 cross-island API
-  app.use('/api/eval', createEvalApiRouter());                // agent-eval: golden paths + trajectory scoring
+  app.use('/api/eval', requireRootForMutations, createEvalApiRouter()); // agent-eval: golden paths + trajectory scoring
 
   // ─── Refactored Routes ─────────────────────────────────────────────────────
 
   // Health & Pipeline
   app.use('/', healthRoutes);
-  app.use('/api/pipeline', pipelineRoutes);
+  app.use('/api/pipeline', requireRootForMutations, pipelineRoutes);
 
   // Dispatch Control
-  app.use('/api/control', controlRoutes);
+  app.use('/api/control', requireRootForMutations, controlRoutes);
 
   // Task Management
   app.use('/api/task', taskRoutes);
@@ -183,15 +223,15 @@ export function createApp(config: AppConfig = {}): Express {
   });
 
   // Sessions
-  app.use('/api/session', sessionRoutes);
-  app.use('/api/sessions', sessionRoutes);
+  app.use('/api/session', requireRootForMutations, sessionRoutes);
+  app.use('/api/sessions', requireRootForMutations, sessionRoutes);
 
   // Terminal Status
   app.use('/api/terminal', terminalRoutes);
   app.use('/api/terminals', terminalRoutes);
 
   // Knowledge Service
-  app.use('/api/knowledge', knowledgeRoutes);
+  app.use('/api/knowledge', requireRootForMutations, knowledgeRoutes);
 
   // Memory Tiers (ADR-046)
   app.use('/api/memories', memoryRoutes);
@@ -200,7 +240,7 @@ export function createApp(config: AppConfig = {}): Express {
   app.use('/api/digest', digestRoutes);
 
   // Subscriptions (ADR-052)
-  app.use('/api/subscriptions', subscriptionRoutes);
+  app.use('/api/subscriptions', requireRootForMutations, subscriptionRoutes);
 
   // Task Escalation (ADR-052 Phase 2)
   app.use('/api/escalation', escalationRoutes);
@@ -230,13 +270,13 @@ export function createApp(config: AppConfig = {}): Express {
   app.use('/api/epic-router', epicRouterRoutes);
 
   // Cost Monitoring (2026-07-04 - MSG-BACKEND-126)
-  app.use('/api/monitoring/cost', costMonitoringRoutes);
+  app.use('/api/monitoring/cost', requireRootForMutations, costMonitoringRoutes);
 
   // ─── Error Handler ─────────────────────────────────────────────────────────
 
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    logger.error('[ERROR]', err.message);
-    res.status(500).json({ error: err.message });
+    logger.error('[ERROR]', err.stack || err.message);
+    res.status(500).json({ error: 'Internal server error' });
   });
 
   // ─── Static Files (React Dashboard) ────────────────────────────────────────

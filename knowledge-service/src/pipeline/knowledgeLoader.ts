@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../core/logger';
 
-const TERMINALS_DIR = process.env.TERMINALS_DIR || '/opt/spaceos/terminals';
+import { TERMINALS_PATH as TERMINALS_DIR } from '../config/paths';
 
 // Domain detection patterns - BACKEND
 const BACKEND_DOMAIN_PATTERNS: Record<string, RegExp[]> = {

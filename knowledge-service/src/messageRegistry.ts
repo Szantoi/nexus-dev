@@ -15,7 +15,7 @@ import Database from 'better-sqlite3';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
-import { DATA_DIR, MESSAGE_REGISTRY_DB } from './config/paths';
+import { DATA_DIR, MESSAGE_REGISTRY_DB, getTerminalsPath } from './config/paths';
 import { logger } from './core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -96,8 +96,9 @@ export interface MessageQuery {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const DB_PATH = process.env.REGISTRY_DB_PATH || MESSAGE_REGISTRY_DB;
+// MESSAGE_REGISTRY_DB already honors the REGISTRY_DB_PATH legacy alias
+// (config/paths.ts).
+const DB_PATH = MESSAGE_REGISTRY_DB;
 
 // Priority ordering for sorting
 const PRIORITY_ORDER: Record<MessagePriority, number> = {
@@ -999,7 +1000,7 @@ export function closeMessageRegistry(): void {
  * Scans all terminal inboxes/outboxes and registers any missing messages
  */
 export async function syncWithFilesystem(): Promise<{ registered: number; updated: number }> {
-  const terminalsRoot = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
+  const terminalsRoot = getTerminalsPath();
   let registered = 0;
   let updated = 0;
 

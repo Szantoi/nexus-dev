@@ -16,13 +16,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { join } from 'path';
-import { DATA_DIR } from '../config/paths';
+import { GOLDEN_PATHS_DIR } from '../config/paths';
 import { getMessage, getStatusHistory } from '../task-message-box/store';
 import { StatusHistoryEntry } from '../task-message-box/types';
 import { logger } from '../core/logger';
 
 // Config-driven storage location (default under the island's DATA_DIR).
-export const GOLDEN_PATHS_DIR = process.env.GOLDEN_PATHS_DIR || join(DATA_DIR, 'golden-paths');
+export { GOLDEN_PATHS_DIR };
 
 const log = (msg: string) => logger.info(`[GoldenPath] ${msg}`);
 

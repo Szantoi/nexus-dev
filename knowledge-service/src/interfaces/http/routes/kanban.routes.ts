@@ -6,7 +6,7 @@
 import { Router, Request, Response } from 'express';
 import { getStatus, getAllStatus } from '../../../terminalStatus';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../../../config/paths';
 
 const router = Router();
 

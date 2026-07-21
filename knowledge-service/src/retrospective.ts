@@ -11,6 +11,7 @@
 
 import Database from 'better-sqlite3';
 import * as path from 'path';
+import * as os from 'node:os';
 import { promises as fs } from 'node:fs';
 import { saveTieredMemory, promoteMemory, type MemoryTier } from './pipeline/memoryStore';
 import { log as pipelineLog } from './pipeline/common';
@@ -64,9 +65,7 @@ export interface ApplyRetrospectiveResult {
 
 // ─── Database Path ───────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const DATA_DIR = process.env.DATA_DIR || `${SPACEOS_ROOT}/spaceos-nexus/knowledge-service/data`;
-const DB_PATH = path.join(DATA_DIR, 'memory.db');
+import { MEMORY_DB as DB_PATH } from './config/paths';
 
 let db: Database.Database | null = null;
 
@@ -367,7 +366,7 @@ function generateWorkflowProposals(
 }
 
 async function executeSkillCreate(proposal: Record<string, unknown>): Promise<void> {
-  const skillDir = `/home/${process.env.USER}/.claude/skills/${proposal.target}`;
+  const skillDir = path.join(os.homedir(), '.claude', 'skills', String(proposal.target));
   await fs.mkdir(skillDir, { recursive: true });
 
   const skillContent = (proposal.content as string) || '# New Skill\n\nTODO: Add skill content';

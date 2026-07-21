@@ -12,6 +12,7 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as terminalsConfig from './config/terminals';
+import { secrets } from './config/env';
 import { getSessionMode, type SessionMode } from './config/terminals';
 // ADR-046 Track B - session lifecycle hooks integrated
 import { buildStartContext, handleSessionEnd } from './sessionHooks';
@@ -401,8 +402,8 @@ ${summary}
     }
 
     // 5. Send Telegram notification
-    const telegramToken = process.env.TELEGRAM_TOKEN;
-    const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+    const telegramToken = secrets.telegramBotToken;
+    const telegramChatId = secrets.telegramChatId;
 
     if (telegramToken && telegramChatId) {
       const emoji = endReason === 'done' ? '✅' : '🚫';
@@ -1080,8 +1081,8 @@ A token az MCP regisztrációdban van, automatikusan autentikált.`;
     logger.info(`[SessionStarter] ✓ ${sessionName} started`);
 
     // Send Telegram notification
-    const telegramToken = process.env.TELEGRAM_TOKEN;
-    const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+    const telegramToken = secrets.telegramBotToken;
+    const telegramChatId = secrets.telegramChatId;
 
     if (telegramToken && telegramChatId) {
       const message = `🚀 *${terminal.toUpperCase()} wake-on-inbox*\nModell: \`${model}\`\nInbox: \`${messageId}\``;
@@ -1209,8 +1210,8 @@ Dolgozd fel a feladatot. Ha kész vagy, írd: "DONE: [összefoglaló]"`;
     logger.info(`[SessionStarter] ✓ Work session ${sessionName} started`);
 
     // Telegram notification
-    const telegramToken = process.env.TELEGRAM_TOKEN;
-    const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+    const telegramToken = secrets.telegramBotToken;
+    const telegramChatId = secrets.telegramChatId;
 
     if (telegramToken && telegramChatId) {
       const message = `🔧 *${terminal.toUpperCase()} work session started*\nModell: \`${model}\`\nFeladat: \`${task.slice(0, 100)}...\``;

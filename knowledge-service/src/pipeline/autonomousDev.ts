@@ -5,7 +5,7 @@
  *
  * Működés:
  * 1. Minden N percben (alapértelmezett: 20) új fejlesztési ciklust indít
- * 2. Conductor hideg indítással indul (tiszta context)
+ * 2. Tartós feladat kerül a Conductor inboxába
  * 3. Conductor a docs/planning/ vagy design dokumentumok alapján kiválaszt egy feladatot
  * 4. Terminálnak inbox üzenetet küld
  * 5. Csak akkor kér döntést, ha a dokumentumokban nincs elegendő információ
@@ -19,18 +19,14 @@
 import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 import {
-  SPACEOS_ROOT,
-  SESSIONS,
-  SESSION_WORKDIR,
   hasSession,
-  killSession,
-  newSession,
-  sendKeys,
-  sendEnter,
   log,
   telegram,
 } from './common';
 import { detectPaneState } from './paneState';
+import { env } from '../config/env';
+import { AUTONOMOUS_DEV_FOCUS_FILE, TERMINALS_PATH } from '../config/paths';
+import { createTask } from '../mailbox';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +64,7 @@ export interface DevCycleResult {
   taskDispatched: boolean;
   targetTerminal?: string;
   taskSummary?: string;
+  launchRequestId?: string;
   skipped?: string;
   error?: string;
 
@@ -88,22 +85,21 @@ interface PromptContext {
 // ─── Default Config ──────────────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: AutonomousDevConfig = {
-  enabled: process.env.ENABLE_AUTONOMOUS_DEV === 'true',
-  intervalMinutes: parseInt(process.env.AUTONOMOUS_DEV_INTERVAL_MINUTES || '20', 10),
-  focusFile: process.env.AUTONOMOUS_DEV_FOCUS_FILE ||
-    `${SPACEOS_ROOT}/docs/tasks/new/PROJECT_STATUS.md`,
+  enabled: env.ENABLE_AUTONOMOUS_DEV,
+  intervalMinutes: env.AUTONOMOUS_DEV_INTERVAL_MINUTES,
+  focusFile: AUTONOMOUS_DEV_FOCUS_FILE,
   coldStart: true,
   skipIfBusy: true,
   maxConcurrentTasks: 2,
   conductorModel: 'sonnet',
-  controlMode: (process.env.AUTONOMOUS_DEV_CONTROL_MODE as ControlMode) || 'autonomous',
+  controlMode: env.AUTONOMOUS_DEV_CONTROL_MODE,
 
   // Token optimization defaults
-  tokenBudget: parseInt(process.env.AUTONOMOUS_DEV_TOKEN_BUDGET || '300', 10),
-  includeArchitectGuidance: (process.env.AUTONOMOUS_DEV_INCLUDE_ARCHITECT_GUIDANCE as any) || 'auto',
-  includeMcpExamples: (process.env.AUTONOMOUS_DEV_INCLUDE_MCP_EXAMPLES as any) || 'first-3',
-  includeQueueGuidance: (process.env.AUTONOMOUS_DEV_INCLUDE_QUEUE_GUIDANCE as any) || 'auto',
-  promptTemplate: (process.env.AUTONOMOUS_DEV_PROMPT_TEMPLATE as any) || 'base',
+  tokenBudget: env.AUTONOMOUS_DEV_TOKEN_BUDGET,
+  includeArchitectGuidance: env.AUTONOMOUS_DEV_INCLUDE_ARCHITECT_GUIDANCE,
+  includeMcpExamples: env.AUTONOMOUS_DEV_INCLUDE_MCP_EXAMPLES,
+  includeQueueGuidance: env.AUTONOMOUS_DEV_INCLUDE_QUEUE_GUIDANCE,
+  promptTemplate: env.AUTONOMOUS_DEV_PROMPT_TEMPLATE,
 };
 
 // ─── State ───────────────────────────────────────────────────────────────────
@@ -252,7 +248,7 @@ async function hasUnreadInbox(): Promise<boolean> {
   const terminals = ['root', 'conductor', 'architect', 'librarian', 'explorer', 'backend', 'frontend', 'designer', 'monitor'];
 
   for (const terminal of terminals) {
-    const inboxPath = path.join(SPACEOS_ROOT, 'terminals', terminal, 'inbox');
+    const inboxPath = path.join(TERMINALS_PATH, terminal, 'inbox');
 
     try {
       const files = await fs.readdir(inboxPath);
@@ -277,42 +273,41 @@ async function hasUnreadInbox(): Promise<boolean> {
 }
 
 /**
- * Cold start Conductor with autonomous development prompt
+ * Submit a durable Conductor task. The mailbox watcher emits SSE only; the
+ * outbound runner owns the actual CLI process launch and deduplication.
  */
-async function coldStartConductor(
+async function enqueueConductorTask(
   config: AutonomousDevConfig,
   cycleId: number,
   prompt: string,
   tokenCount: number
-): Promise<boolean> {
-  const session = 'spaceos-conductor';
-  const workdir = SESSION_WORKDIR[session] || `${SPACEOS_ROOT}/terminals/conductor`;
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  await log(`[AutonomousDev] Cycle ${cycleId}: Queueing Conductor task (prompt tokens: ${tokenCount})`);
+  const legacyModel = ['haiku', 'sonnet', 'opus'].includes(config.conductorModel)
+    ? (config.conductorModel as 'haiku' | 'sonnet' | 'opus')
+    : undefined;
+  const result = await createTask({
+    from: 'root',
+    to: 'conductor',
+    title: `Autonomous development cycle ${cycleId}`,
+    description: prompt,
+    acceptance_criteria: [
+      'Set one precise goal and measurable success criteria before implementation.',
+      'Stop on completion, a documented blocker, or exhausted retry/budget limits.',
+      'Run the relevant quality gates and record their evidence.',
+      'Update task execution notes, state.md, todo.md and MEMORY.md before completion.',
+    ],
+    priority: 'high',
+    model: legacyModel,
+    context: 'System-generated request. The runner is the only component allowed to launch the CLI process.',
+  });
 
-  await log(`[AutonomousDev] Cycle ${cycleId}: Cold starting Conductor (prompt tokens: ${tokenCount})`);
-
-  // Kill existing session for clean start
-  if (await hasSession(session)) {
-    await killSession(session);
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  if (result.success) {
+    await log(`[AutonomousDev] Cycle ${cycleId}: Launch request queued as ${result.id}`);
+  } else {
+    await log(`[AutonomousDev] Cycle ${cycleId}: Queue failed: ${result.error || 'unknown error'}`);
   }
-
-  // Create new session
-  await newSession(session, workdir);
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Start Claude with model
-  await sendKeys(session, `claude --model ${config.conductorModel}`);
-  await sendEnter(session);
-
-  // Wait for Claude to initialize
-  await new Promise(resolve => setTimeout(resolve, 5000));
-
-  // Send autonomous development prompt
-  await sendKeys(session, prompt);
-  await sendEnter(session);
-
-  await log(`[AutonomousDev] Cycle ${cycleId}: Conductor started with optimized prompt`);
-  return true;
+  return result;
 }
 
 /**
@@ -394,17 +389,18 @@ export async function runAutonomousCycle(
       );
     }
 
-    // Cold start Conductor
-    const started = await coldStartConductor(config, cycleId, prompt, promptTokenCount);
+    const queued = await enqueueConductorTask(config, cycleId, prompt, promptTokenCount);
+    if (!queued.success) throw new Error(queued.error || 'failed to queue conductor task');
 
     lastCycleAt = timestamp;
 
     return {
       timestamp,
       cycleId,
-      conductorStarted: started,
-      taskDispatched: true, // Conductor will dispatch
-      taskSummary: 'Conductor started with optimized prompt',
+      conductorStarted: false,
+      taskDispatched: true,
+      taskSummary: 'Conductor launch request queued for the autonomous runner',
+      launchRequestId: queued.id,
       promptTokenCount,
       tokenBudget: config.tokenBudget,
       templatesUsed: promptContext.templatesUsed,
@@ -449,10 +445,10 @@ export function startAutonomousDevScheduler(config: AutonomousDevConfig = DEFAUL
   setTimeout(async () => {
     try {
       const result = await runAutonomousCycle(config);
-      logger.info(`[AutonomousDev] Initial cycle: ${result.conductorStarted ? 'started' : 'skipped'}`);
+      logger.info(`[AutonomousDev] Initial cycle: ${result.taskDispatched ? 'queued' : 'skipped'}`);
 
-      if (result.conductorStarted) {
-        await telegram(`🤖 Autonóm fejlesztés #${result.cycleId} indult`);
+      if (result.taskDispatched) {
+        await telegram(`🤖 Autonóm fejlesztés #${result.cycleId} sorba állítva (${result.launchRequestId})`);
       }
     } catch (err) {
       logger.error('[AutonomousDev] Initial cycle error:', err);
@@ -464,8 +460,8 @@ export function startAutonomousDevScheduler(config: AutonomousDevConfig = DEFAUL
     try {
       const result = await runAutonomousCycle(config);
 
-      if (result.conductorStarted) {
-        logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Conductor started`);
+      if (result.taskDispatched) {
+        logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Launch request queued (${result.launchRequestId})`);
       } else if (result.skipped) {
         logger.info(`[AutonomousDev] Cycle ${result.cycleId}: Skipped - ${result.skipped}`);
       } else if (result.error) {

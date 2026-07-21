@@ -9,6 +9,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { toolRegistry, success, error, type ToolContext } from './base-tool';
+import { getTerminalsPath } from '../../../config/paths';
 import { TERMINALS } from '../../../identity';
 import { logger } from '../../../core/logger';
 import {
@@ -94,7 +95,7 @@ ${suggestedTerminal || 'Let Conductor decide based on task type.'}
 Requested by ${callerTerminal || 'unknown'} chat session.
 `;
 
-      const TERMINALS_ROOT = process.env.TERMINALS_PATH || `${process.env.SPACEOS_ROOT || '/opt/spaceos'}/terminals`;
+      const TERMINALS_ROOT = getTerminalsPath();
       const inboxPath = path.join(TERMINALS_ROOT, 'conductor', 'inbox');
       const filename = `${timestamp.split('T')[0]}_${messageId.toLowerCase()}.md`;
 
@@ -150,7 +151,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
     {
       name: 'spawn_work_session',
       description:
-        'CONDUCTOR ONLY: Directly spawn a work session for a terminal. Regular terminals should use request_work_session instead.',
+        'CONDUCTOR/ROOT ONLY: Queue an audited work request for the autonomous runner. Regular terminals should use request_work_session instead.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -179,7 +180,7 @@ Requested by ${callerTerminal || 'unknown'} chat session.
       }
 
       if (callerTerminal !== 'root' && callerTerminal !== 'conductor') {
-        return error(`Only Conductor and Root can spawn work sessions directly. Use request_work_session instead.`);
+        return error(`Only Conductor and Root can queue work sessions. Use request_work_session instead.`);
       }
 
       const terminal = String(args.terminal || '');
@@ -190,11 +191,39 @@ Requested by ${callerTerminal || 'unknown'} chat session.
       if (!terminal || !task) {
         return error('Terminal and task are required');
       }
+      if (!TERMINALS.includes(terminal as (typeof TERMINALS)[number])) {
+        return error(`Unknown terminal: ${terminal}`);
+      }
+      if (!['haiku', 'sonnet', 'opus'].includes(model)) {
+        return error('Model must be one of: haiku, sonnet, opus');
+      }
 
       const { logWorkSessionSpawn, hashTask } = await import('../../../pipeline/workSessionLog');
       const taskHash = await hashTask(task);
-      const { startWorkSession } = await import('../../../sessionStarter');
-      const result = await startWorkSession(terminal, task, model);
+      const { createTask } = await import('../../../mailbox');
+      const queued = await createTask({
+        from: callerTerminal,
+        to: terminal,
+        title: `Work request from ${callerTerminal}`,
+        description: task,
+        acceptance_criteria: [
+          'Set a precise goal, measurable success criteria and exit condition.',
+          'Run and record the relevant quality checks.',
+          'Update task notes, state.md, todo.md and MEMORY.md before completion.',
+        ],
+        priority: 'high',
+        model: model as 'haiku' | 'sonnet' | 'opus',
+        ref: requestId,
+        context: `requested_by=${callerTerminal}; task_hash=${taskHash}`,
+      });
+      const result = {
+        success: queued.success,
+        message: queued.success
+          ? `Work request queued as ${queued.id}`
+          : `Failed to queue work request: ${queued.error}`,
+        sessionName: queued.id ? `queued:${queued.id}` : undefined,
+        requestId: queued.id,
+      };
 
       const logEntry = await logWorkSessionSpawn({
         terminal,

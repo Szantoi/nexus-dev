@@ -15,6 +15,7 @@ import matter from 'gray-matter';
 import DOMPurify from 'isomorphic-dompurify';
 import { verifyToken } from '../task-audit/auth';
 import { logger } from '../core/logger';
+import { getPlanningFocusPath } from '../config/paths';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -131,7 +132,7 @@ function sanitizeCriteria(criteria: string): string {
 
 function getDomainFocusPath(): string {
   // Navigate from knowledge-service/ to docs/planning/ (override via env for tests/deployments)
-  return process.env.PLANNING_FOCUS_PATH || path.join(process.cwd(), '../../docs/planning/domain-focus.md');
+  return getPlanningFocusPath();
 }
 
 interface FocusData {

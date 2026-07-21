@@ -46,7 +46,7 @@ export class ServerClient {
 
   /** GET /api/mailbox/:terminal/inbox?status=UNREAD */
   async fetchUnread(terminal: string): Promise<UnreadTask[]> {
-    const url = `${this.baseUrl}/api/mailbox/${encodeURIComponent(terminal)}/inbox?status=UNREAD`;
+    const url = `${this.baseUrl}/api/mailbox/${encodeURIComponent(terminal)}/inbox?status=UNREAD&metadata=true`;
     const res = await this.fetchFn(url, {
       headers: { Authorization: `Bearer ${this.token}` },
     });
@@ -72,5 +72,28 @@ export class ServerClient {
       });
     }
     return tasks;
+  }
+
+  async claimTask(terminal: string, messageId: string): Promise<void> {
+    await this.postTaskTransition(terminal, messageId, 'claim');
+  }
+
+  async releaseTask(terminal: string, messageId: string): Promise<void> {
+    await this.postTaskTransition(terminal, messageId, 'release');
+  }
+
+  private async postTaskTransition(
+    terminal: string,
+    messageId: string,
+    action: 'claim' | 'release',
+  ): Promise<void> {
+    const url = `${this.baseUrl}/api/mailbox/${encodeURIComponent(terminal)}/inbox/${encodeURIComponent(messageId)}/${action}`;
+    const res = await this.fetchFn(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok) {
+      throw new ServerApiError(res.status, `${action}Task(${terminal}/${messageId}) -> HTTP ${res.status}`);
+    }
   }
 }

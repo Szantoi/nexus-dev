@@ -18,6 +18,7 @@ import {
 } from './common';
 import { NWT_TIMEOUTS, nwtToMs } from '../constants/nwt';
 import { logger } from '../core/logger';
+import { SELF_BASE_URL } from '../config/env';
 
 // NWT-based timeouts (1 NWT = 2 minutes = 120 seconds)
 // INBOX_NUDGE = 3 NWT ≈ 6 minutes, but we use 2.5 NWT for ~5 min nudge cooldown
@@ -122,7 +123,7 @@ async function nudgeSession(
   // Previous implementation sent bash-formatted text to tmux, causing "bash: command not found" errors
   // Now we inject the prompt via MCP API to Claude session directly
   try {
-    const response = await fetch('http://localhost:3456/api/session/inject', {
+    const response = await fetch(`${SELF_BASE_URL}/api/session/inject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -175,7 +176,7 @@ async function autoStartSession(
   const initialPrompt = `[${timestamp}] [INBOX] Te a ${terminal.toUpperCase()} terminál vagy. Olvasd be: MEMORY.md — Inbox: ${path.basename(unread.path)}`;
 
   try {
-    const response = await fetch('http://localhost:3456/api/session/start', {
+    const response = await fetch(`${SELF_BASE_URL}/api/session/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

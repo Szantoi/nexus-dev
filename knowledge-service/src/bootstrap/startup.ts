@@ -11,8 +11,6 @@ import {
 import { initDatabase as initTaskMessageBox } from '../task-message-box';
 import { buildIndex } from '../indexer';
 import { startInboxWatcher, inboxEvents, scanExistingUnread, initializeRegistry, InboxEvent } from '../inboxWatcher';
-import { startTerminalSession } from '../sessionStarter';
-import { shouldWakeUp } from '../terminalStatus';
 import {
   startNightwatchScheduler,
   stopNightwatchScheduler,
@@ -77,6 +75,8 @@ import { startAllBots, stopAllBots, getBotsStatus } from '../telegram/multiBotMa
 import { subscribeToAllCheckpoints, getCheckpointSubscriptionStatus } from '../pipeline/subscriptionManager';
 import { attachEpicNotifications } from '../pipeline/epicNotifications';
 import { logger } from '../core/logger';
+import { env } from '../config/env';
+import { logPathConfig } from '../config/paths';
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -117,19 +117,14 @@ function isDuplicateEvent(messageId: string): boolean {
 }
 
 export function setupInboxWatcherBridge(): void {
-  // Listen for inbox changes and trigger session start/injection
-  inboxEvents.on('inbox_change', async (event: InboxEvent) => {
+  // Listen for inbox changes and wake outbound runners. This service never
+  // starts an agent directly: the runner remains the single launch authority.
+  inboxEvents.on('inbox_change', (event: InboxEvent) => {
     // Deduplicate: skip if same messageId was processed recently
     if (isDuplicateEvent(event.messageId)) {
       logger.info(`[InboxWatcher] Skipping duplicate event for ${event.messageId}`);
       return;
     }
-    // Check if terminal should be woken up (not already working)
-    if (!shouldWakeUp(event.terminal)) {
-      logger.info(`[InboxWatcher] ${event.terminal} is WORKING — not sending wake-up for ${event.messageId}`);
-      return;
-    }
-
     // Broadcast SSE notification
     mailboxEvents.emit('notification', {
       terminal: event.terminal,
@@ -145,24 +140,16 @@ export function setupInboxWatcherBridge(): void {
     });
 
     logger.info(`[SSE] Wake-up sent to ${event.terminal} for ${event.messageId}`);
-
-    // Start the terminal session or inject message into running session
-    try {
-      const result = await startTerminalSession(event.terminal, event.messageId);
-      if (result.success) {
-        logger.info(`[SessionStarter] ${result.message}`);
-      } else {
-        logger.info(`[SessionStarter] Skip: ${result.message}`);
-      }
-    } catch (err) {
-      logger.error(`[SessionStarter] Error starting ${event.terminal}:`, err);
-    }
   });
 }
 
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 export async function initialize(): Promise<void> {
+  // Log effective (secret-free) path configuration first so misconfigured
+  // deployments are visible before any data is written.
+  logPathConfig();
+
   // Initialize TaskMessageBox (SQLite backend)
   await initTaskMessageBox();
 
@@ -222,8 +209,8 @@ export function startServices(port: number): void {
   logger.info(`   POST /mcp              (JSON-RPC: initialize, tools/list, tools/call)\n`);
 
   // Start Nightwatch scheduler if enabled
-  if (process.env.ENABLE_NIGHTWATCH === 'true') {
-    const intervalMs = parseInt(process.env.NIGHTWATCH_INTERVAL || '120000', 10);
+  if (env.ENABLE_NIGHTWATCH) {
+    const intervalMs = env.NIGHTWATCH_INTERVAL;
     startNightwatchScheduler(intervalMs);
     logger.info(`   ⏰ Nightwatch Scheduler: ENABLED (every ${intervalMs / 1000}s)`);
   } else {
@@ -231,7 +218,7 @@ export function startServices(port: number): void {
   }
 
   // Start Heartbeat scheduler if enabled
-  if (process.env.ENABLE_HEARTBEAT === 'true') {
+  if (env.ENABLE_HEARTBEAT) {
     const heartbeatConfig = getHeartbeatConfig();
     startHeartbeatScheduler(heartbeatConfig);
     logger.info(`   💓 Heartbeat Scheduler: ENABLED (every ${heartbeatConfig.intervalMs / 60000}min)`);
@@ -240,7 +227,7 @@ export function startServices(port: number): void {
   }
 
   // Start Auto-Restart scheduler if enabled
-  if (process.env.ENABLE_AUTO_RESTART === 'true') {
+  if (env.ENABLE_AUTO_RESTART) {
     const autoRestartConfig = getAutoRestartConfig();
     startAutoRestartScheduler(autoRestartConfig);
     const scheduleDesc = autoRestartConfig.schedule.type === 'daily'
@@ -265,8 +252,8 @@ export function startServices(port: number): void {
   logger.info(`   🕐 Scheduled Windows: ${windowStats.totalWindows} configured, current: ${windowStats.currentWindow || 'none'}`);
 
   // Start message router if enabled
-  if (process.env.ENABLE_MESSAGE_ROUTER === 'true') {
-    const routerIntervalMs = parseInt(process.env.MESSAGE_ROUTER_INTERVAL || '10000', 10);
+  if (env.ENABLE_MESSAGE_ROUTER) {
+    const routerIntervalMs = env.MESSAGE_ROUTER_INTERVAL;
     startMessageRouter(routerIntervalMs);
     logger.info(`   📬 Message Router: ENABLED (every ${routerIntervalMs / 1000}s)`);
   } else {
@@ -274,7 +261,7 @@ export function startServices(port: number): void {
   }
 
   // Start channel coordinator if enabled
-  if (process.env.ENABLE_TELEGRAM_COORDINATOR === 'true') {
+  if (env.ENABLE_TELEGRAM_COORDINATOR) {
     startChannelCoordinator();
     logger.info(`   📡 Telegram Coordinator: ENABLED (hybrid backfill mode)`);
   } else {
@@ -282,12 +269,12 @@ export function startServices(port: number): void {
   }
 
   // Start system metrics collection (always enabled)
-  const metricsIntervalMs = parseInt(process.env.METRICS_INTERVAL || '60000', 10);
+  const metricsIntervalMs = env.METRICS_INTERVAL;
   startMetricsScheduler(metricsIntervalMs);
   logger.info(`   📊 System Metrics: ENABLED (every ${metricsIntervalMs / 1000}s)`);
 
   // Start Autonomous Development scheduler if enabled
-  if (process.env.ENABLE_AUTONOMOUS_DEV === 'true') {
+  if (env.ENABLE_AUTONOMOUS_DEV) {
     startAutonomousDevScheduler();
     const status = getAutonomousDevStatus();
     logger.info(`   🤖 Autonomous Dev: ENABLED (every 30min)`);
@@ -298,7 +285,7 @@ export function startServices(port: number): void {
   }
 
   // Start Root Monitor scheduler if enabled
-  if (process.env.ENABLE_ROOT_MONITOR === 'true') {
+  if (env.ENABLE_ROOT_MONITOR) {
     startRootMonitorScheduler();
     logger.info(`   👁️ Root Monitor: ENABLED (every 30min)`);
   } else {
@@ -306,7 +293,7 @@ export function startServices(port: number): void {
   }
 
   // Start Idea Scan scheduler if enabled
-  if (process.env.ENABLE_IDEA_SCAN === 'true') {
+  if (env.ENABLE_IDEA_SCAN) {
     startIdeaScanScheduler();
     const status = getIdeaScanStatus();
     logger.info(`   💡 Idea Scan: ENABLED (every 30min)`);
@@ -316,7 +303,7 @@ export function startServices(port: number): void {
   }
 
   // Start Hourly Digest scheduler if enabled
-  if (process.env.ENABLE_HOURLY_DIGEST !== 'false') {
+  if (env.ENABLE_HOURLY_DIGEST) {
     startHourlyDigestScheduler();
     const status = getHourlyDigestStatus();
     const nextRun = status.nextRun ? status.nextRun.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }) : 'N/A';
@@ -326,7 +313,7 @@ export function startServices(port: number): void {
   }
 
   // Start Phase Coordinator scheduler if enabled
-  if (process.env.ENABLE_PHASE_COORDINATOR === 'true') {
+  if (env.ENABLE_PHASE_COORDINATOR) {
     startPhaseCoordinator();
     const phaseStatus = getPhaseCoordinatorStatus();
     logger.info(`   📋 Phase Coordinator: ENABLED (every ${phaseStatus.config.intervalMinutes}min)`);
@@ -348,7 +335,7 @@ export function startServices(port: number): void {
   startResponseWorker();
 
   // Start Multi-Bot Manager (ADR-049 Phase 1)
-  if (process.env.ENABLE_MULTI_BOT === 'true') {
+  if (env.ENABLE_MULTI_BOT) {
     startAllBots().then(() => {
       const botsStatus = getBotsStatus();
       const runningBots = Object.entries(botsStatus).filter(([_, s]) => s.running);
@@ -380,7 +367,7 @@ export function startServices(port: number): void {
   logger.info(`   📢 Epic Notifications: ENABLED (Telegram progress tracking)`);
 
   // Set up Telegram webhook if configured (async in background)
-  const telegramWebhookUrl = process.env.TELEGRAM_WEBHOOK_URL;
+  const telegramWebhookUrl = env.TELEGRAM_WEBHOOK_URL;
   (async () => {
     if (telegramWebhookUrl) {
       const webhookSuccess = await setTelegramWebhook(telegramWebhookUrl);

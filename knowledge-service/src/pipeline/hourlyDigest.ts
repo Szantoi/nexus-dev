@@ -26,7 +26,7 @@ export interface DigestData {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const API_BASE = process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3456';
+import { SELF_BASE_URL as API_BASE } from '../config/env';
 
 // ─── Data Collection ─────────────────────────────────────────────────────────
 

@@ -13,7 +13,7 @@ import * as yaml from 'js-yaml';
 import { pipelineEvents, type PipelineEvent, type PipelineEventType } from './eventBus';
 import { broadcastToTerminal } from '../routes/subscriptionRoutes';
 import { sendNotification } from '../telegram/telegramService';
-import { startWorkSession } from '../sessionStarter';
+import { createTask } from '../mailbox';
 import { logger } from '../core/logger';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -199,8 +199,7 @@ export class SubscriptionManager {
   /**
    * Deliver notification to subscriber
    *
-   * ADR-053: Checkpoint triggers should START TERMINAL SESSIONS
-   * Not just send Telegram notifications - terminals need to work!
+   * Checkpoint triggers create durable work requests. The runner owns launch.
    */
   private async deliverNotification(subscription: Subscription, event: PipelineEvent): Promise<void> {
     const { terminal, deliveryMethod } = subscription;
@@ -215,17 +214,28 @@ export class SubscriptionManager {
         }
       }
 
-      // ADR-053: Start terminal work session for checkpoint triggers
-      // This is the PRIMARY delivery method - terminals should work on next task
+      // Queue checkpoint work instead of bypassing runner ownership/lease gates.
       if (event.type === 'outbox:done' || event.type === 'outbox:blocked') {
         const taskPrompt = this.buildCheckpointTaskPrompt(subscription, event);
-        logger.info(`[SubscriptionManager] Starting work session for ${terminal} (checkpoint trigger)`);
-
-        const result = await startWorkSession(terminal, taskPrompt, 'sonnet');
+        logger.info(`[SubscriptionManager] Queueing work request for ${terminal} (checkpoint trigger)`);
+        const result = await createTask({
+          from: 'conductor',
+          to: terminal,
+          title: `Checkpoint ${event.type}: ${subscription.target}`,
+          description: taskPrompt,
+          acceptance_criteria: [
+            'Process the checkpoint event exactly once.',
+            'Record completion or a concrete blocker through the mailbox tools.',
+          ],
+          priority: event.type === 'outbox:blocked' ? 'critical' : 'high',
+          model: 'sonnet',
+          ref: event.messageId,
+          context: `subscription_id=${subscription.id}`,
+        });
         if (result.success) {
-          logger.info(`[SubscriptionManager] Work session started: ${result.sessionName}`);
+          logger.info(`[SubscriptionManager] Work request queued: ${result.id}`);
         } else {
-          logger.info(`[SubscriptionManager] Work session already running or failed: ${result.message}`);
+          logger.warn(`[SubscriptionManager] Work request queue failed: ${result.error}`);
         }
       }
 
@@ -479,8 +489,7 @@ interface EpicWithCheckpoints {
  * Parse EPICS.yaml and extract all checkpoint subscriptions
  * Returns list of checkpoints with their target terminals
  */
-const SPACEOS_ROOT_DEFAULT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const DEFAULT_EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT_DEFAULT}/docs/projects/EPICS.yaml`;
+import { EPICS_PATH as DEFAULT_EPICS_PATH } from '../config/paths';
 
 export function parseCheckpointsFromEpics(epicsPath = DEFAULT_EPICS_PATH): {
   epicId: string;

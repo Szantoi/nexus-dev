@@ -21,7 +21,7 @@ import { pipelineEvents } from './eventBus';
 import { logger } from '../core/logger';
 
 const RESPONSE_COOLDOWN = 300; // 5 perc cooldown ugyanarra a response-ra
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 
 interface ResponseMessage {
   messageId: string;

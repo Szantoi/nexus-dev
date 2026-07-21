@@ -83,8 +83,8 @@ export interface MissionControlConfig {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const TERMINALS_DIR = process.env.TERMINALS_PATH || '/opt/spaceos/terminals';
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { TERMINALS_PATH as TERMINALS_DIR, SPACEOS_ROOT } from '../config/paths';
+import { env, secrets } from '../config/env';
 
 // Terminal definitions matching SpaceOS 7-terminal architecture
 const TERMINAL_DEFINITIONS: Array<{ id: string; name: string; type: Agent['type'] }> = [
@@ -99,8 +99,8 @@ const TERMINAL_DEFINITIONS: Array<{ id: string; name: string; type: Agent['type'
 ];
 
 const DEFAULT_CONFIG: MissionControlConfig = {
-  datehavenUrl: process.env.DATAHAVEN_URL || 'https://datahaven.joinerytech.hu',
-  datehavenToken: process.env.DATAHAVEN_TOKEN || 'dev-token-spaceos-dashboard-2026',
+  datehavenUrl: env.DATAHAVEN_URL,
+  datehavenToken: secrets.datahavenToken,
   syncInterval: 30000, // 30 seconds
   enableCrossSync: false,
 };
@@ -605,9 +605,9 @@ export async function healthCheck(): Promise<{
   }
 
   // Check Marveen (if configured)
-  if (DEFAULT_CONFIG.enableCrossSync && process.env.MARVEEN_URL) {
+  if (DEFAULT_CONFIG.enableCrossSync && env.MARVEEN_URL) {
     try {
-      const response = await fetch(`${process.env.MARVEEN_URL}/health`);
+      const response = await fetch(`${env.MARVEEN_URL}/health`);
       marveen = response.ok;
     } catch {
       // Not available

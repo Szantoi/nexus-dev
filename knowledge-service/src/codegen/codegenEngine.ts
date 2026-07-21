@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 const SCRIPTS_DIR = path.join(SPACEOS_ROOT, 'scripts/codegen');
 
 export interface GenerateApiClientParams {

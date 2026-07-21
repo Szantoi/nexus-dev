@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { logger } from '../core/logger';
+import { getTerminalsPath } from './paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -49,9 +50,8 @@ export function loadConfig(): TerminalsConfig {
   } catch (err) {
     logger.error(`[Config] Failed to load terminals.json: ${err}`);
     // Fallback to minimal config
-    const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
     _config = {
-      terminalsRoot: `${SPACEOS_ROOT}/terminals`,
+      terminalsRoot: getTerminalsPath(),
       terminals: {
         root: { session: 'spaceos-root', priority: true, model: 'opus', description: 'Root' },
         conductor: { session: 'spaceos-conductor', priority: true, model: 'sonnet', description: 'Conductor' },

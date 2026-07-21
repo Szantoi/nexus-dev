@@ -7,6 +7,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { SPACEOS_ROOT, log, telegram } from './common';
+import { env, secrets } from '../config/env';
 import { sha256File, sha256String } from './hashUtils';
 import {
   appendReviewDecision,
@@ -275,7 +276,7 @@ function parseReviewResponse(response: string): ReviewResult {
 
 export async function runDualReview(donePath: string): Promise<DualReviewResult> {
   // Check for API key first - skip review gracefully if not configured
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!secrets.anthropicApiKey) {
     await log('[Reviewer] ANTHROPIC_API_KEY not configured - skipping automated review');
     const doneBase = path.basename(donePath, '.md');
     const terminal = extractTerminal(donePath);
@@ -351,7 +352,7 @@ export async function runDualReview(donePath: string): Promise<DualReviewResult>
 
   // Initialize Anthropic client
   const client = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY
+    apiKey: secrets.anthropicApiKey
   });
 
   const timeoutMs = config.timing.review_timeout * 1000;
@@ -833,7 +834,7 @@ export async function handleDoneReview(donePath: string): Promise<{ approved: bo
     await log(`[Reviewer] Processing ${doneBase}: review_type=${reviewType}, task_type=${taskType}`);
 
     // MSG-NEXUS-010: Pre-review gate (fast deterministic checks before expensive AI review)
-    const preReviewEnabled = process.env.PRE_REVIEW_ENABLED !== 'false'; // Enabled by default
+    const preReviewEnabled = env.PRE_REVIEW_ENABLED; // Enabled by default
 
     if (preReviewEnabled && reviewType !== 'manual') {
       // Detect project type from terminal or files_changed

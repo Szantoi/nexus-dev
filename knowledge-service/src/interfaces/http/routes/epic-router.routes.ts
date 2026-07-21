@@ -14,10 +14,8 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
-
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
-const DEFAULT_EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+import { TERMINALS_PATH as TERMINALS_DIR, EPICS_PATH as DEFAULT_EPICS_PATH } from '../../../config/paths';
+import { secrets, SELF_BASE_URL } from '../../../config/env';
 import {
   getTerminalContext,
   getTerminalStatistics,
@@ -39,6 +37,7 @@ import {
 import { terminateColdSession } from '../../../sessionStarter';
 import { getSessionMode } from '../../../config/terminals';
 import { logger } from '../../../core/logger';
+import { requireRoot } from '../../../auth/tokenAuth';
 
 const router = Router();
 
@@ -53,18 +52,21 @@ const router = Router();
  * 2. Tokens cannot be guessed without the secret
  * 3. Server can verify token → terminal mapping
  */
-const TERMINAL_SECRET = process.env.TERMINAL_TOKEN_SECRET || 'spaceos-terminal-secret-2026';
-
 function generateTerminalToken(terminal: string): string {
+  const terminalSecret = secrets.terminalTokenSecret;
+  if (!terminalSecret) {
+    throw new Error('Terminal token authentication is not configured');
+  }
   return crypto
     .createHash('sha256')
-    .update(TERMINAL_SECRET + terminal)
+    .update(terminalSecret + terminal)
     .digest('hex')
     .slice(0, 32);
 }
 
 function verifyTerminalToken(token: string, terminal: string): boolean {
   const expectedToken = generateTerminalToken(terminal);
+  if (token.length !== expectedToken.length) return false;
   return crypto.timingSafeEqual(
     Buffer.from(token),
     Buffer.from(expectedToken)
@@ -76,6 +78,35 @@ function verifyTerminalToken(token: string, terminal: string): boolean {
  * Expects: Authorization: Bearer <token>
  */
 function requireTerminalAuth(req: Request, res: Response, next: NextFunction): void {
+  const terminal = req.params.terminal as string;
+  if (!terminal) {
+    res.status(400).json({
+      success: false,
+      error: 'Terminal parameter required'
+    });
+    return;
+  }
+
+  // AUTH_MODE=required already authenticates the request globally. Authorize
+  // the server-derived identity directly and avoid requiring a second Bearer
+  // token in the same header.
+  if (req.mcpTerminal === 'root' || req.mcpTerminal === terminal) {
+    next();
+    return;
+  }
+  if (req.mcpTerminal) {
+    res.status(403).json({ success: false, error: `Forbidden for terminal ${terminal}` });
+    return;
+  }
+
+  if (!secrets.terminalTokenSecret) {
+    res.status(503).json({
+      success: false,
+      error: 'Terminal token authentication is not configured',
+    });
+    return;
+  }
+
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -87,16 +118,6 @@ function requireTerminalAuth(req: Request, res: Response, next: NextFunction): v
   }
 
   const token = authHeader.slice(7); // Remove "Bearer "
-  const terminal = req.params.terminal as string;
-
-  if (!terminal) {
-    res.status(400).json({
-      success: false,
-      error: 'Terminal parameter required'
-    });
-    return;
-  }
-
   try {
     if (!verifyTerminalToken(token, terminal)) {
       res.status(403).json({
@@ -123,11 +144,17 @@ function requireTerminalAuth(req: Request, res: Response, next: NextFunction): v
  * Get the token for a terminal (admin use only)
  * Protected by admin secret
  */
-router.get('/token/:terminal', (req: Request, res: Response) => {
-  const adminSecret = process.env.ADMIN_SECRET || 'spaceos-admin-2026';
+router.get('/token/:terminal', requireRoot, (req: Request, res: Response) => {
+  const adminSecret = secrets.adminSecret;
   const providedSecret = req.headers['x-admin-secret'] as string;
 
-  if (providedSecret !== adminSecret) {
+  if (!adminSecret) {
+    res.status(503).json({ success: false, error: 'Admin token provisioning is not configured' });
+    return;
+  }
+
+  if (!providedSecret || providedSecret.length !== adminSecret.length ||
+      !crypto.timingSafeEqual(Buffer.from(providedSecret), Buffer.from(adminSecret))) {
     res.status(403).json({ success: false, error: 'Admin access required' });
     return;
   }
@@ -139,7 +166,7 @@ router.get('/token/:terminal', (req: Request, res: Response) => {
     success: true,
     terminal,
     token,
-    usage: `curl -H "Authorization: Bearer ${token}" http://localhost:3456/api/epic-router/fetch/${terminal}/{messageId}`
+    usage: `curl -H "Authorization: Bearer ${token}" ${SELF_BASE_URL}/api/epic-router/fetch/${terminal}/{messageId}`
   });
 });
 

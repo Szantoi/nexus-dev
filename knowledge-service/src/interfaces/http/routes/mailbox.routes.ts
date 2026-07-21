@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { EventEmitter } from 'events';
 import {
   listInbox,
+  listInboxMetadata,
   listOutbox,
   listAllUnreadOutbox,
   getInboxMessageCounter,
@@ -18,6 +19,7 @@ import {
 import { validate, TerminalParamSchema, TerminalSchema } from '../../../validation';
 import { triggerImmediatePipelineAsync } from '../../../pipeline/immediatePipeline';
 import { logger } from '../../../core/logger';
+import { getTerminalContext, setTerminalContext } from '../../../pipeline/epicRouter';
 
 const router = Router();
 
@@ -84,7 +86,9 @@ router.get('/:terminal/inbox', validate(TerminalParamSchema, 'params'), async (r
     : undefined;
 
   try {
-    const messages = await listInbox(terminal, status);
+    const messages = req.query.metadata === 'true'
+      ? await listInboxMetadata(terminal, status)
+      : await listInbox(terminal, status);
     res.json({ terminal, status: status || 'all', count: messages.length, messages });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -93,6 +97,70 @@ router.get('/:terminal/inbox', validate(TerminalParamSchema, 'params'), async (r
 });
 
 // ─── Send Message ────────────────────────────────────────────────────────────
+
+/** Establish the terminal context required by MCP before a runner launch. */
+router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, 'params'), async (req: Request, res: Response) => {
+  const terminal = String(req.params.terminal);
+  const messageId = String(req.params.messageId);
+
+  try {
+    const current = getTerminalContext(terminal);
+    if (!current) {
+      res.status(404).json({ success: false, error: `Unknown terminal: ${terminal}` });
+      return;
+    }
+    if (current.current_task_id && current.current_task_id !== messageId) {
+      res.status(409).json({ success: false, error: 'Terminal already has another claimed task' });
+      return;
+    }
+
+    const unread = await listInboxMetadata(terminal, 'UNREAD');
+    const task = unread.find((message) => message.frontmatter.id === messageId);
+    if (!task) {
+      res.status(409).json({ success: false, error: 'Task is not an unread inbox item' });
+      return;
+    }
+
+    setTerminalContext(
+      terminal,
+      task.frontmatter.epic_id || null,
+      task.frontmatter.project_id || null,
+      messageId,
+      'working',
+      current.consecutive_epic_tasks,
+    );
+    logger.info(`[RunnerClaim] claimed ${terminal}/${messageId}`);
+    res.json({ success: true, terminal, messageId });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ success: false, error: msg });
+  }
+});
+
+router.post('/:terminal/inbox/:messageId/release', validate(TerminalParamSchema, 'params'), (req: Request, res: Response) => {
+  const terminal = String(req.params.terminal);
+  const messageId = String(req.params.messageId);
+  const current = getTerminalContext(terminal);
+
+  if (!current) {
+    res.status(404).json({ success: false, error: `Unknown terminal: ${terminal}` });
+    return;
+  }
+  if (current.current_task_id !== messageId) {
+    res.status(409).json({ success: false, error: 'Task is not currently claimed by terminal' });
+    return;
+  }
+  setTerminalContext(
+    terminal,
+    current.current_epic_id || null,
+    current.current_project_id || null,
+    null,
+    'idle',
+    current.consecutive_epic_tasks,
+  );
+  logger.warn(`[RunnerClaim] released ${terminal}/${messageId}`);
+  res.json({ success: true, terminal, messageId });
+});
 
 router.post('/:terminal/inbox', validate(TerminalParamSchema, 'params'), async (req: Request, res: Response) => {
   const terminal = String(req.params.terminal);
@@ -269,7 +337,6 @@ router.get('/:terminal/subscribe', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
   // Send initial connection event

@@ -9,6 +9,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { logger } from '../core/logger';
+import { getSpaceosRoot } from '../config/paths';
 
 export interface ContextTransferParams {
   fromTerminal: string;
@@ -36,7 +37,7 @@ async function createInboxMessage(
   content: string
 ): Promise<boolean> {
   try {
-    const inboxDir = path.join(process.env.SPACEOS_ROOT || '/opt/spaceos', 'terminals', toTerminal, 'inbox');
+    const inboxDir = path.join(getSpaceosRoot(), 'terminals', toTerminal, 'inbox');
     await fs.mkdir(inboxDir, { recursive: true });
     const fileName = `${messageId}.md`;
     const filePath = path.join(inboxDir, fileName);

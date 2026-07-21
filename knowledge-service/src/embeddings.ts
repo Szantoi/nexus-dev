@@ -1,4 +1,5 @@
 import { logger } from './core/logger';
+import { secrets } from './config/env';
 /**
  * Server-side embedding approach: let ChromaDB handle all embeddings.
  * No client-side embedding library needed → no sharp dependency → no CPU arch issues.
@@ -18,7 +19,7 @@ async function voyageEmbed(
   texts: string[],
   inputType: 'document' | 'query'
 ): Promise<number[][]> {
-  const key = process.env.VOYAGE_API_KEY;
+  const key = secrets.voyageApiKey;
   if (!key) throw new Error('VOYAGE_API_KEY not set');
 
   const response = await fetch(VOYAGE_API_URL, {
@@ -46,7 +47,7 @@ async function voyageEmbed(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export const useVoyage = (): boolean => !!process.env.VOYAGE_API_KEY;
+export const useVoyage = (): boolean => !!secrets.voyageApiKey;
 
 /**
  * Embed documents. Returns undefined for server-side (ChromaDB handles it).

@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { SPACEOS_ROOT, log } from './common';
+import { secrets } from '../config/env';
 import {
   loadPipelineConfig,
   loadPipelinePrompt,
@@ -230,7 +231,7 @@ export async function runPipelineDocs(donePath: string, terminal: string): Promi
 Ha nincs következő task, akkor: \`PIPELINE_RESULT: DONE|NEXT:NONE|TESTS:0\``;
 
     // Call LLM
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const client = new Anthropic({ apiKey: secrets.anthropicApiKey });
     const model = resolveModel(config.models.docs_updater);
     const timeoutMs = config.timing.docs_timeout * 1000;
 

@@ -7,9 +7,7 @@ import * as yaml from 'js-yaml';
 import { Checkpoint, Epic, loadActiveEpic } from './epicManager';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
-const EPICS_PATH = process.env.EPICS_PATH || `${SPACEOS_ROOT}/docs/projects/EPICS.yaml`;
+import { TERMINALS_PATH as TERMINALS_DIR, EPICS_PATH } from '../config/paths';
 
 /**
  * Parse checkpoint condition

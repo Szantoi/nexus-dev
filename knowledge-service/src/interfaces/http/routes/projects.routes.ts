@@ -26,7 +26,7 @@ import {
 } from '../../../projects/checkpointStore';
 import { logger } from '../../../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../../../config/paths';
 
 const router = Router();
 

@@ -18,8 +18,7 @@ import { completeInboxMessage } from '../mailbox';
 import { createTask } from '../mailbox';
 import { logger } from '../core/logger';
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const TERMINALS_DIR = process.env.TERMINALS_PATH || `${SPACEOS_ROOT}/terminals`;
+import { SPACEOS_ROOT, TERMINALS_PATH as TERMINALS_DIR } from '../config/paths';
 const MONITOR_INBOX = path.join(TERMINALS_DIR, 'monitor', 'inbox');
 const CYCLE_STATE_FILE = `${SPACEOS_ROOT}/logs/dispatcher/.monitor-cycle-state`;
 

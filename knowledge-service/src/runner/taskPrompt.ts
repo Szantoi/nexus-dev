@@ -7,23 +7,27 @@
  * Network data therefore never reaches a command line or shell.
  */
 
-export function buildTaskAssignmentPrompt(terminal: string, messageId: string): string {
+export function buildTaskAssignmentPrompt(
+  terminal: string,
+  messageId: string,
+  mcpServerName = 'spaceos-knowledge',
+): string {
   return `[TASK ASSIGNED] Task ID: ${messageId}
 
 Neked egy feladat lett kiosztva. Használd az MCP eszközöket a task kezeléséhez:
 
 1. TASK LEKÉRÉSE:
-   mcp__spaceos-knowledge__fetch_task
+   mcp__${mcpServerName}__fetch_task
      terminal: "${terminal}"
      message_id: "${messageId}"
 
 2. TASK FOGADÁS MEGERŐSÍTÉSE:
-   mcp__spaceos-knowledge__ack_task
+   mcp__${mcpServerName}__ack_task
      terminal: "${terminal}"
      message_id: "${messageId}"
 
 3. TASK BEFEJEZÉSE (amikor KÉSZ vagy):
-   mcp__spaceos-knowledge__complete_task
+   mcp__${mcpServerName}__complete_task
      terminal: "${terminal}"
      message_id: "${messageId}"
 

@@ -38,7 +38,7 @@ const ALERT_RULES: AlertRule[] = [
   { id: 'no_activity', trigger: 'no_activity', threshold: 120, cooldown: 30 },
 ];
 
-const API_BASE = process.env.KNOWLEDGE_SERVICE_URL || 'http://localhost:3456';
+import { SELF_BASE_URL as API_BASE } from '../config/env';
 
 // ─── State Management ────────────────────────────────────────────────────────
 

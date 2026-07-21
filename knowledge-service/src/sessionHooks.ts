@@ -63,7 +63,8 @@ export interface SessionEndResult {
 // ─── Database Path ───────────────────────────────────────────────────────────
 
 import { MEMORY_DB } from './config/paths';
-const DB_PATH = process.env.MEMORY_DB_PATH || MEMORY_DB;
+// MEMORY_DB already honors the MEMORY_DB_PATH legacy alias (config/paths.ts)
+const DB_PATH = MEMORY_DB;
 
 let db: Database.Database | null = null;
 

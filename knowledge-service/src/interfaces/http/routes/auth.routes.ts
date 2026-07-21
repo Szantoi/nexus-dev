@@ -7,8 +7,9 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-// Simple auth token (no database, just static token from env)
-const DASHBOARD_TOKEN = process.env.DASHBOARD_AUTH_TOKEN || 'dev-token-spaceos-dashboard-2026';
+// Simple auth token (no database, just static token from central config)
+import { secrets } from '../../../config/env';
+const DASHBOARD_TOKEN = secrets.dashboardAuthToken;
 
 // ─── Verify Auth Token ───────────────────────────────────────────────────────
 

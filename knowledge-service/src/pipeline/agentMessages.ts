@@ -44,9 +44,8 @@ export interface CreateMessageParams {
 
 // ─── Database Setup ──────────────────────────────────────────────────────────
 
-// DATA_DIR is configurable per-island, defaults to ./data relative to knowledge-service
-const DATA_DIR = process.env.DATA_DIR || join(__dirname, '../../data');
-const DB_PATH = process.env.AGENT_MESSAGES_DB || join(DATA_DIR, 'agent_messages.db');
+// DATA_DIR is configurable per-island — central config layer decides.
+import { DATA_DIR, AGENT_MESSAGES_DB as DB_PATH } from '../config/paths';
 
 let db: Database.Database | null = null;
 

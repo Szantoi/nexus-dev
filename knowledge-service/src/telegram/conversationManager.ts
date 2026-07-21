@@ -88,9 +88,8 @@ export interface QueueResponseInput {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-import { DATA_DIR } from '../config/paths';
+import { DATA_DIR, TELEGRAM_DB as DB_PATH } from '../config/paths';
 import { logger } from '../core/logger';
-const DB_PATH = process.env.TELEGRAM_DB_PATH || path.join(DATA_DIR, 'telegram.db');
 
 // Conversation expires after 24 hours of inactivity
 const CONVERSATION_EXPIRY_MS = 24 * 60 * 60 * 1000;

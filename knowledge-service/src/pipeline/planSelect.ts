@@ -4,6 +4,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { secrets } from '../config/env';
 import {
   SPACEOS_ROOT,
   log
@@ -201,7 +202,7 @@ export async function runPlanSelect(): Promise<SelectResult> {
 
   // ── Call Anthropic API ──────────────────────────────────────────────────
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const client = new Anthropic({ apiKey: secrets.anthropicApiKey });
   const fullModel = resolveModel(model);
   const timeoutMs = config.timing.selector_timeout * 1000;
 

@@ -52,8 +52,8 @@ export interface RetryQueueStats {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-const QUEUE_DIR = process.env.DATA_DIR || `${SPACEOS_ROOT}/spaceos-nexus/knowledge-service/data`;
+// Retry queue lives under the island's DATA_DIR (config/paths.ts).
+import { DATA_DIR as QUEUE_DIR } from '../config/paths';
 const QUEUE_FILE = 'pending-retries.json';
 const QUEUE_PATH = path.join(QUEUE_DIR, QUEUE_FILE);
 const LOCK_NAME = 'pending-retries';

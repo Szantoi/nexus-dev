@@ -7,8 +7,9 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 
-// Base paths
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+// Base paths (all config-driven — see src/config/paths.ts and env.ts)
+import { SPACEOS_ROOT, getSpaceosRoot, getFrontendPortalDir } from './config/paths';
+import { MCP_SERVER_URL } from './config/env';
 const SKILLS_DIR = path.join(SPACEOS_ROOT, '.claude/skills');
 const DOCS_DIR = path.join(SPACEOS_ROOT, 'docs');
 
@@ -163,8 +164,8 @@ export async function getTerminalSetup(terminal: string): Promise<{
     kernel: path.join(SPACEOS_ROOT, 'backend/spaceos-kernel'),
     orch: path.join(SPACEOS_ROOT, 'backend/spaceos-orchestrator'),
     orchestrator: path.join(SPACEOS_ROOT, 'backend/spaceos-orchestrator'),
-    fe: path.join(SPACEOS_ROOT, process.env.FRONTEND_PORTAL_PATH || 'frontend/portal'),
-    portal: path.join(SPACEOS_ROOT, process.env.FRONTEND_PORTAL_PATH || 'frontend/portal'),
+    fe: getFrontendPortalDir(),
+    portal: getFrontendPortalDir(),
     joinery: path.join(SPACEOS_ROOT, 'backend/spaceos-modules-joinery'),
     abstractions: path.join(SPACEOS_ROOT, 'backend/spaceos-modules-abstractions'),
     cutting: path.join(SPACEOS_ROOT, 'backend/spaceos-modules-cutting'),
@@ -206,7 +207,7 @@ export async function getTerminalSetup(terminal: string): Promise<{
     mcpServers: {
       'spaceos-knowledge': {
         type: 'http',
-        url: process.env.MCP_SERVER_URL || 'http://localhost:3456/mcp',
+        url: MCP_SERVER_URL,
         timeout: 60000,
         headers: {
           Authorization: 'Bearer <TOKEN>',
@@ -272,9 +273,9 @@ export interface TerminalDocsInfo {
 export async function listTerminalDocs(): Promise<TerminalDocsInfo[]> {
   const results: TerminalDocsInfo[] = [];
 
-  // Terminal info - uses SPACEOS_ROOT env var for portability
-  const ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
-  const PORTAL_PATH = process.env.FRONTEND_PORTAL_PATH || 'frontend/portal';
+  // Terminal info - config-driven root for portability
+  const ROOT = getSpaceosRoot();
+  const PORTAL_DIR = getFrontendPortalDir();
   const TERMINAL_INFO: Record<string, { port: string | null; type: 'persistent' | 'on-demand'; directory: string }> = {
     root: { port: null, type: 'persistent', directory: `${ROOT}/` },
     conductor: { port: null, type: 'persistent', directory: `${ROOT}/spaceos-conductor/` },
@@ -283,7 +284,7 @@ export async function listTerminalDocs(): Promise<TerminalDocsInfo[]> {
     nexus: { port: '3456', type: 'on-demand', directory: `${ROOT}/spaceos-nexus/` },
     kernel: { port: '5000', type: 'on-demand', directory: `${ROOT}/backend/spaceos-kernel/` },
     orch: { port: '3000', type: 'on-demand', directory: `${ROOT}/backend/spaceos-orchestrator/` },
-    fe: { port: '5173', type: 'on-demand', directory: `${ROOT}/${PORTAL_PATH}/` },
+    fe: { port: '5173', type: 'on-demand', directory: `${PORTAL_DIR}/` },
     joinery: { port: '5002', type: 'on-demand', directory: `${ROOT}/backend/spaceos-modules-joinery/` },
     abstractions: { port: '5003', type: 'on-demand', directory: `${ROOT}/backend/spaceos-modules-abstractions/` },
     cutting: { port: '5005', type: 'on-demand', directory: `${ROOT}/backend/spaceos-modules-cutting/` },

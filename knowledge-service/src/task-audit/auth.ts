@@ -18,7 +18,7 @@ import { logger } from '../core/logger';
 
 // ── Configuration ───────────────────────────────────────────────────────────
 
-const SPACEOS_ROOT = process.env.SPACEOS_ROOT || '/opt/spaceos';
+import { SPACEOS_ROOT } from '../config/paths';
 const TOKEN_CONFIG_PATH = path.join(SPACEOS_ROOT, 'config/tokens.yaml');
 
 // LRU Cache settings
