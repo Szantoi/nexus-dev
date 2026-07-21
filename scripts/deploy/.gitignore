@@ -1,0 +1,4 @@
+# Lokális, környezet-specifikus deploy-konfig — NEM kerül gitre.
+# Verziókezelt sablon: deploy.config.example.sh
+deploy.config.sh
+*.local.sh

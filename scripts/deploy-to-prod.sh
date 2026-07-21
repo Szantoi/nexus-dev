@@ -1,4 +1,14 @@
 #!/bin/bash
+# ⚠️ ELAVULT — CSAK DOKUMENTÁLT VÉSZHELYZETI FALLBACK (TASK-QC-004, 2026-07-18).
+#
+# Ezt a scriptet a scripts/deploy/ alatti biztonságos deploy-lánc váltotta ki:
+#   scripts/deploy/build-release.sh   — release-előkészítés (typecheck+teszt+audit+build → artifact)
+#   scripts/deploy/deploy-release.sh  — verziózott deploy + automatikus rollback + health-check
+# Ismert hibái (ezért NE használd normál esetben): lenyeli a teszthibát
+# (`npm test 2>/dev/null || echo`), deploy közben commitol/tagel/pushol,
+# hardcodolt útvonalak/port, health-hibánál csak kézi rollback-parancsot ír ki.
+# TÖRLÉSÉHEZ KÜLÖN EMBERI JÓVÁHAGYÁS KELL — addig vészhelyzeti tartalék.
+#
 # MILESTONE DEPLOY - Dev → Production
 # CSAK mérföldköveknél használd!
 
