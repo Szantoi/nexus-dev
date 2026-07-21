@@ -29,17 +29,17 @@
   független review → non-production release/rollback → konzisztens state
   bizonyítéklánc és `TASK-DP-011` PASS audit.
 
-- [ ] **NEXUS-ISLAND-RUNTIME program — FELOLDVA, 4. kör hátra** (döntés
-  2026-07-21): Gábor döntött — (a) audit-módszertan: **hívásgráf-elemzés**
-  (a `sessionStarter`/`sessionManager` exportok kimeneti oldaláról, minden
-  hívó bejárásával; a regex 3 körben elbukott), (b) `subscriptionManager`
-  checkpoint-launch: **kapuzás az egyetlen launch authority mögé** (kérést
-  ad fel, lease/review/budget kapukon át; az elv a `spawn_work_session`/
-  `taskEscalation`-restart/`requestReview` besorolására is irányadó).
-  `TASK-ISL-001` `blocked → in_progress`, döntési napló a taskfájlban,
-  `check:tasks` PASS. **Következő lépés: a 4. review-kör végrehajtása az
-  új módszertannal + ADR-081 kiegészítése** (architect-session feladata);
-  ISL-002…017 ISL-001 `done`-jára vár.
+- [ ] **NEXUS-ISLAND-RUNTIME program — ISL-001 DONE, implementáció indítható:**
+  a `TASK-ISL-001` 6 review-kör után `done` (Gábor döntése: hívásgráf-audit +
+  subscriptionManager-kapuzás; a hívásgráf-módszer 5 új launch-utat talált,
+  köztük az MCP `complete_task` checkpoint-launch fő élt). `ISL-ARCHITECTURE`
+  epic `done`. Az ADR-081 launch-leltár (22 élő + 1 kategória + 1 holt + 1
+  alvó) az ISL-013 munkalistája. **Következő döntés (Gábor): induljon-e az
+  ISL-implementáció?** A közvetlenül ISL-001-re épülő taskok (ISL-002 compound
+  identity, ISL-007 CLI-adapter contract) felszabadultak — de az ADR-068
+  állapotgép miatt `blocked → ready` NEM egy lépés (előbb `in_progress`).
+  A 16 blocked ISL-task `blocked_reason`-je most PONTATLAN (ISL-001-et még
+  „emberi döntésre vár"-ként írja) — a program folytatásakor frissítendő.
 
 
 - [ ] **joinerytech pre-existens registry-bug (owner: joinerytech-csapat):** a régi `messageRegistry` SQLite CHECK-constraintje (`type IN (...)`, `priority IN ('critical','high','medium','low')`) elutasít pár valódi üzenetet a sync során (3678 halmozott hiba a log életében — nem a mailbox-fix okozta). Az üzenetek fájlként megvannak/kézbesíthetők, csak a registry-index hiányos. A modern nexus-kódban ez a modul már más — a végleges gyógyír a sziget kódfrissítése.
@@ -75,6 +75,20 @@
 - [ ] README.md frissítése (elavult: Voyage/Gemini setup, lint-szekció, portok)
 
 ## Kész
+
+- [x] 2026-07-21 — **TASK-ISL-001 (szigetüzemi célarchitektúra) DONE** — 6
+  review-kör, hívásgráf-alapú launch-audit. Gábor döntése oldotta fel a
+  blokkot (módszertan + kapuzás). A hívásgráf-módszer 5 új launch-utat
+  talált a regex 3 köréhez képest; végleges ADR-081 leltár: 22 élő + 1
+  fájlrendszeri kategória + 1 holt + 1 alvó út. Független reviewer zárta
+  `done`-ra (6. kör PASS). `ISL-ARCHITECTURE` epic `done`. Tanulság
+  memóriában: [[nexus-dp-isl-programs]].
+- [x] 2026-07-21 — **TASK-QC-011 (workflowDb history-bug) DONE** — hiányzó
+  better-sqlite3 named param + néma catch → history-vesztés; fix `?? null`
+  + `{success,error?}` propagálás; független review PASS, 1314 teszt zöld.
+- [x] 2026-07-21 — **TASK-QC-012 (goalStore ID-ütközés) DONE** — ms-alapú
+  szuffix ütközés → néma felülírás; fix perzisztens számláló + mutex + `wx`
+  + retry; független review PASS (cross-process támadás szimulációval kivédve).
 
 - [x] 2026-07-21 — **Árva mailbox-fák LEZÁRVA** (Gábor: A opció — átnézés, majd „arhiváld"). Mindkét fa teljes tartalma átnézve: prod 18 fájl (07-13…16), joinerytech 74 fájl (07-13…21). **Eredmény: EGYETLEN nyitott teendő sincs** — a prod árvában minden inbox-task `COMPLETED`/feldolgozott (merge-conflict megoldva: nincs MERGE_HEAD; nexus-dev audit: architect elvégezte; migráció: a dda0bcc release maga volt az), az outbox DONE-ok lezárt munka nyugtái; a joinerytech árvában `44 done/UNREAD` + 28 „task" amiből a conductor-inboxosok mind `goal-completed-*` autonóm nyugták (mislabelt type), a maradék lezárt Fázis-0 munka (a live fa DONE-jai bizonyítják). Értékes FYI kiemelve Gábornak: architect 07-16 session — 4 OpenAPI 3.1 spec (6476 sor, 81 endpoint), Cabinet-motor kanonikus döntés, nexus-dev audit DEPLOY READY. **Archiválás**: mindkét fa átnevezve `terminals.orphan-archive-20260721`-re + README-ARCHIVE.md; health 3456/3458 OK utána. Fontos lelet: a joinerytech árvából **25 fájl git-követett** volt (checkout hozta vissza őket 07-17-én — ezért a bulk timestamp!) → az átnevezés után 25 `D` a `git status`-ban; a joinerytech-csapat döntése, hogy commitolja-e a törlést (amíg nem, egy checkout visszahozhatja a fát — ártalmatlan, mert már semmi sem írja/olvassa).
 

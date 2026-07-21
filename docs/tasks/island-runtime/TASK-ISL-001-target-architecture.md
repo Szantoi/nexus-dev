@@ -5,7 +5,7 @@ program: NEXUS-ISLAND-RUNTIME
 project: nexus/knowledge-service
 milestone: ISL-M1
 epic: ISL-ARCHITECTURE
-status: in_progress
+status: done
 priority: critical
 depends_on: []
 parallel_with: []
@@ -1436,4 +1436,584 @@ munka: a 4. review-kör végrehajtása az új módszertannal + az ADR-081
 kiegészítése a kapuzási döntéssel. Ezt egy architect-session viszi tovább;
 addig a task `in_progress`-ben áll, ezzel a naplóbejegyzéssel mint az
 állapot indoklásával.
+
+---
+
+## 4. kör — hívásgráf-audit végrehajtása (2026-07-21)
+
+### Goal
+
+A tulajdonosi döntés (fenti szakasz) 1. pontja szerinti HÍVÁSGRÁF-ELEMZÉS
+végrehajtása a `knowledge-service/src` felett: a `sessionStarter.ts`/
+`sessionManager.ts` MINDEN exportjának és minden egyéb launch-képes
+csomópontnak a kimeneti oldali, teljes hívó-lista-bejárása a belépési
+pontokig; az eredmény kimerítő leltártáblává és (a)-(d) osztályozássá
+rendezése; az ADR-081 kiegészítése a kapuzási döntéssel és a lefedettségi
+nyilatkozat cseréje hívásgráf-alapúra. Kizárólag dokumentáció módosul,
+forráskód nem. A frontmatter `in_progress → ready` (ADR-068 szerinti él);
+`done`-ra zárni csak független reviewer jogosult.
+
+### Módszer és futtatott keresések
+
+Minden keresés a Grep eszközzel (célzott regex, nem shell-pipeline), a
+`knowledge-service/src` alatt:
+
+1. **Export-leltár:** `^export (async )?(function|const|class)…` a
+   `sessionStarter.ts`-re és `sessionManager.ts`-re → 9 + 9 = 18 export.
+2. **Re-export/barrel:** `export .* from '…sessionStarter|sessionManager'`
+   → 0 találat; `require('…sessionStarter|sessionManager')` → 0;
+   **dinamikus import:** `import('…sessionStarter|sessionManager')` → 2
+   (`session.tools.ts:197`, `terminalReviewer.ts:869`) — mindkettő a
+   leltárban.
+3. **Levélcsomópont-sweep:** `new-session|claude --model|claude -p`
+   (tesztek kizárva) → minden találat hozzárendelve egy nevesített
+   launch-függvényhez (13 launch-képes függvény összesen).
+4. **Hívó-bejárás:** minden launch-képes függvényre `név(` keresés, majd a
+   hívók hívóinak iteratív bejárása. Futtatott minták (mind teljes
+   `src`-szélességben): `startWorkSession(`, `startTerminalSession(`,
+   `startSession(`, `startParallelWorkSession(|spawnRawWorkers(`,
+   `wakeUpTerminal(`, `injectPrompt(`, `startChatSession(|
+   injectTelegramWithContext(|injectToChatSession(`, `newSession(`,
+   `runTerminalReview(|runDualTerminalReview(|requestReview(`,
+   `handleTerminalReview(|createTerminalRejectInbox(`,
+   `watchTaskEscalations(|taskEscalationManager.`, `checkAndRestart…(|
+   triggerManualCycle(|createAutonomousDevRouter(|runAutonomousCycle(`,
+   `injectTelegramMessageToTerminal(`, `createTelegramRouter`,
+   `launch(|.launch` (runner), `bestOfN`.
+5. **HTTP-önhívás-sweep** (a függvénynév-keresést megkerülő kategória):
+   `api/session|session/start|sessions/start|api/control/dispatch` → 1
+   valódi launch-önhívó (`watchInbox.ts:126,179`); a
+   `control.routes.ts:581` `POST /windows/session/start` ellenőrizve:
+   csak bookkeeping (`registerWindowSession`), nem launch.
+6. **Kapu-ellenőrzések forrásból:** `bootstrap/startup.ts` (192-193,
+   231-233, 249-251, 296-297, 357-358, 375), `bootstrap/app.ts` mountok
+   (193, 195, 226-227), `config/env.ts` defaultok (`REVIEW_MODE` default
+   `terminal` — 132. sor; `AUTONOMOUS_DEV_CONTROL_MODE` default
+   `autonomous` — 123. sor; webhook-secret fallback — 245-246. sor).
+
+### Eredmény
+
+**13 launch-képes függvény, 19 élő + 1 holt belépési út.** A teljes,
+fájl:sor pontosságú leltártábla, az (a)-(d) osztályozás és az új
+lefedettségi nyilatkozat az
+[ADR-081](../../architecture/decisions/ADR-081-single-launch-authority.md)
+"Hívásgráf-alapú launch-audit (2026-07-21, 4. kör)" szakaszában van
+rögzítve (itt nem duplikálva — QUALITY.md 5. pont, token-tudatosság).
+
+**HÁROM ÚJ, korábban egyik körben sem dokumentált megállapítás (KIEMELT):**
+
+1. **A `terminalReviewer.ts` "dead code" minősítése TÉVES volt.** A
+   `handleTerminalReview` exportot (722. sor) a `pipeline/watchDone.ts:165`
+   ÉLŐBEN hívja a nightwatch-ciklusból (`nightwatch.ts:54`), és a
+   `REVIEW_MODE` default `terminal` értéke mellett ez az út **default-on
+   aktív** az `ENABLE_NIGHTWATCH` mögött — a tmux+`claude --model` alapú
+   `runTerminalReview` (225/229. sor) tehát élő, lease-mentes launch. A
+   2-3. kör csak a `runTerminalReview`/`runDualTerminalReview`/
+   `requestReview` hívóit kereste, a harmadik launch-elérésű exportot nem.
+   (A `requestReview` export viszont VALÓBAN holt — egyetlen production
+   hívója sincs, csak teszt.)
+2. **`POST /api/autonomous/trigger`** (mount: `app.ts:195`,
+   root-gated): `triggerManualCycle` → `runAutonomousCycle` →
+   `coldStartConductor` — az `ENABLE_AUTONOMOUS_DEV` flaget MEGKERÜLI
+   (a `triggerManualCycle` nem ellenőrzi `config.enabled`-et), egyedüli
+   belső fék a controlMode, amelynek defaultja `'autonomous'`, és a
+   `POST /api/autonomous/mode` végponttal át is állítható.
+3. **`POST /api/telegram/webhook`** (mount: `app.ts:193`, NEM root-gated,
+   csak webhook-secret — hardcodolt fallback-defaulttal):
+   `processWebhookUpdate` → `injectTelegramMessageToTerminal`
+   (`telegramService.ts:205-207`) → `startChatSession` auto-start — a
+   korábbi körök a `telegramBot.ts`-t tévesen "csak meglévő sessionbe
+   injektál" kategóriába sorolták.
+
+**Osztályozás (összefoglaló; részletek az ADR-081-ben):** (a) 1 út (runner
+`SessionLauncher.launch` — a cél-mechanizmus); (b) kapuzandó: 16 út
+(köztük a tulajdonosi döntésben nevesített `subscriptionManager`
+checkpoint-launch, `spawn_work_session`, `taskEscalation` 'restart', és
+az újonnan talált watchDone→terminalReviewer lánc + `/api/autonomous` +
+telegram-webhook); (b)-speciális operátori override: 2 út
+(`/api/session/start`, `/wake` — a korábbi 4 kötelező feltétellel); (c)
+csak-ébresztő: SSE/mailbox-notification és a runner SSE-listenere; (d)
+holt: 1 (`requestReview`, explicit bekötési tilalommal).
+
+**ADR-081 módosításai ebben a körben:** Kontextus-blokk 3. frissítése; a
+regex-alapú lefedettségi nyilatkozat CSERÉJE (visszavonva + hívásgráf-alapú
+új nyilatkozat); új "Hívásgráf-alapú launch-audit (2026-07-21, 4. kör)"
+szakasz (tulajdonosi döntés, módszer, export-leltár, 20 soros
+belépésipont-tábla, 3 új megállapítás, (a)-(d) osztályozás); Döntés 14.
+pont korrigálva (terminalReviewer nem dead code → kapuzandó) + új 16-19.
+döntési pontok (subscriptionManager, spawn_work_session, taskEscalation
+'restart', /api/autonomous + telegram-webhook); Következmények, Kapcsolódó
+kód, Bizonyíték, Nyitott kérdések bővítve.
+
+### Futtatott kapuk, exit code-ok
+
+```
+node scripts/check-doc-links.mjs   (repo-gyökér)
+→ "Ellenőrizve: 90 markdown-link (docs), 8 ADR-útvonal-hivatkozás,
+   155 ADR-szám-említés (knowledge-service/src)"
+→ "OK — minden hivatkozás létező célra mutat."   exit code: 0  (PASS)
+
+npm run check:tasks                (knowledge-service/)
+→ "[check:tasks] Felfedezve: 46 task (46 parse-olható)."
+→ "[check:tasks] OK — a task-séma, DAG, EPICS-tagság és
+   archívum-invariánsok konzisztensek."          exit code: 0  (PASS)
+```
+
+### Módosított fájlok (ez a kör)
+
+- `docs/architecture/decisions/ADR-081-single-launch-authority.md` — a
+  fenti módosításlista szerint.
+- `docs/tasks/island-runtime/TASK-ISL-001-target-architecture.md` (ez a
+  fájl) — ez a szakasz + frontmatter `status: in_progress → ready`.
+
+Forráskód-módosítás ebben a körben sem történt. A frontmatter `ready` —
+a formális `done` zárást kizárólag egy friss kontextusú, független
+reviewer adhatja meg (a készítő nem zárhatja le saját taskját).
+
+---
+
+## Független review, 4. kör felülvizsgálata (2026-07-21) — REQUEST_CHANGES
+
+### Nyilatkozat a függetlenségről
+
+Ezt a review-t egy friss kontextusú session végezte, amely sem az eredeti
+ADR-készlet, sem a 4. kör hívásgráf-auditjának elkészítésében nem vett részt.
+Kizárólag olvasás, saját kódfelderítés (Grep/Read, nem shell-pipeline) és a
+két kapu önálló futtatása történt — nincs forráskód-módosítás, nincs commit.
+A cél a 4. kör MEGCÁFOLÁSA volt: NEM a leltárból indultam ki, hanem a
+`sessionStarter.ts`/`sessionManager.ts` launch-függvényeitől kifelé, ill. az
+összes `child_process`-levélcsomóponttól és a HTTP-önhívások/eseménybusz-
+emitterek felől próbáltam meg egy be nem sorolt launch-utat találni.
+
+### 1. ADVERZÁRIÁLIS TELJESSÉG-PRÓBA — ÚJ, BE NEM SOROLT LAUNCH-UTAT TALÁLTAM (blokkoló)
+
+**Megállapítás: a `POST /api/subscriptions/test-trigger` HTTP-végpont egy
+élő, HTTP-ról elérhető, NEM root-kapuzott launch-kiváltó út, amely a 4. kör
+20 soros belépésipont-leltárában NEM szerepel.**
+
+A lánc fájl:sor szinten:
+
+- `knowledge-service/src/routes/subscriptionRoutes.ts:176` `POST /test-trigger`
+  handler → `:185` `emitOutboxEvent(eventType, terminal, messageId, ...)`, ahol
+  az `eventType` **default értéke `'outbox:done'`** (`:177`), a `terminal` és
+  `messageId` szabadon a kérés törzséből jön.
+- Mount: `knowledge-service/src/bootstrap/app.ts:243`
+  `app.use('/api/subscriptions', subscriptionRoutes)` — **`requireRootForMutations`
+  NÉLKÜL** (szemben a `session.routes.ts`/`control.routes.ts`/`/api/autonomous`
+  mountokkal, amelyek mind root-kapuzottak). Az egyetlen kapu a globális
+  `app.use('/api', apiAuthGate)` (`app.ts:185`), ami `AUTH_MODE=required`
+  esetén BÁRMELY érvényes tokent elfogad (nem csak root), `open` módban pedig
+  no-op (`auth/tokenAuth.ts:254-260`).
+- `emitOutboxEvent` (`pipeline/eventBus.ts:127-134`) → `pipelineEvents.emit('outbox:done', …)`.
+- `pipeline/subscriptionManager.ts:82` konstruktor → `attachToEventBus` `:384-385`
+  `pipelineEvents.onAny(...)` → `:386` `findMatchingSubscriptions` → `:392-393`
+  `deliverNotification` → `:220` (`event.type === 'outbox:done' || 'outbox:blocked'`)
+  → **`:224` `startWorkSession(terminal, taskPrompt, 'sonnet')`** = LAUNCH
+  (`sessionStarter.ts:1116`).
+- Kiválthatóság igazolva: az `isMatch` (`subscriptionManager.ts:162-180`)
+  `task`-típusú feliratkozásnál akkor illeszt, ha `event.messageId ===
+  subscription.target` és az esemény típusa illik. A bootstrap
+  `subscribeToAllCheckpoints()` (`startup.ts:375`, **feltétel nélkül**) minden
+  EPICS.yaml-checkpointra létrehoz ilyen feliratkozást — tehát egy létező
+  checkpoint `messageId`-jével a `test-trigger` valós `startWorkSession`
+  indítást vált ki, a lease-réteg teljes megkerülésével.
+
+**Miért kerülte el a 4. kör?** A hívásgráf-audit a `subscriptionManager`
+launch-mechanizmust MAGÁT helyesen megtalálta (leltár #2. sor), de a belépési
+pontját KIZÁRÓLAG a bootstrap-attachként (`startup.ts:375` + `onAny`)
+azonosította, és a láncot az `outbox:done`/`outbox:blocked` ESEMÉNYNÉL
+lezárta — nem járta be, hogy KI EMITTÁLJA ezeket az eseményeket. Pedig az
+eseménybusz egy szétcsatoló pont: a launch tényleges kiváltói az
+`emitOutboxEvent`/`outbox:*` EMITTEREK. Ezek (Grep szerint):
+`inboxWatcher.ts:290/300`, `pipeline/epicRouter.ts:513`, és — kritikusan —
+`routes/subscriptionRoutes.ts:185` (HTTP-végpont). A 4. kör
+HTTP-önhívás-sweepje (`api/session|session/start|sessions/start|
+api/control/dispatch`, lásd ADR-081 Módszer 5. pont) mintázatilag KÉPTELEN
+volt elkapni a `/api/subscriptions/test-trigger` utat, és az
+esemény-emitter-oldali visszabejárás elmaradt. Ez pontosan az a hibaosztály,
+amit az 1. kör a `session.routes.ts`-re, a 3. kör a `subscriptionManager`
+gating-hiányára már blokkolónak minősített — most egy HTTP-ról, alacsonyabb
+(nem-root) jogosultsággal is elérhető belépési ponton keresztül.
+
+Ez a README kilépési szabálya szerinti eset: az ISL-013 implementálójának a
+taskfájlból és az ADR-081-ből NINCS eldöntött szerződése arról, mi történjen
+a `POST /api/subscriptions/test-trigger` végponttal (és tágabban: az
+`outbox:*` eseményt emittáló minden belépési ponttal, amely a
+`subscriptionManager` kapuzandó launchát kiváltja) — kapuzandó, megszűnik,
+vagy naplózott operátori kivétel lesz-e. Ezért a verdikt **REQUEST_CHANGES**.
+
+### 2. A leltár-sorok szúrópróbája (6+ út, köztük a 3 új) — a #2 kivételével PASS
+
+Fájl:sor szinten önállóan ellenőriztem:
+
+- **#4 (watchDone→terminalReviewer, ÚJ):** `pipeline/watchDone.ts:26`
+  `USE_TERMINAL_REVIEW = env.REVIEW_MODE !== 'api'`; `:164-165`
+  `USE_TERMINAL_REVIEW ? handleTerminalReview(donePath)`. `env.ts:132`
+  `REVIEW_MODE` default `'terminal'` → `USE_TERMINAL_REVIEW` **default-on**.
+  `terminalReviewer.ts:722` `handleTerminalReview` → `:753/:757/:762`
+  `runLightReview`/`runDualTerminalReview` → `:441/:516-517` `runTerminalReview`
+  (`:198`) → `:225` `tmux new-session` + `:229` `claude --model`. Kapu:
+  `ENABLE_NIGHTWATCH` (nightwatch-scheduler, `startup.ts:231-233` +
+  `nightwatch.ts:54`). **A tábla állítása pontos — default-on aktív, nem holt.
+  PASS.**
+- **#10 (POST /api/autonomous/trigger, ÚJ):** `app.ts:195`
+  `/api/autonomous` router `requireRootForMutations` mögött;
+  `autonomousDev.ts:575-577` `router.post('/trigger')` → `triggerManualCycle`
+  (`:534-535` `runAutonomousCycle(DEFAULT_CONFIG)`, **nem ellenőrzi
+  `config.enabled`-et** → megkerüli az `ENABLE_AUTONOMOUS_DEV` flaget) →
+  `:399` `coldStartConductor` → `:301` `newSession` + `:305`
+  `sendKeys('claude --model …')`. `AUTONOMOUS_DEV_CONTROL_MODE` default
+  `'autonomous'` (`env.ts:123`). **A tábla állítása pontos. PASS.**
+- **#16 (POST /api/telegram/webhook, ÚJ):** `app.ts:193` `/api/telegram`
+  router **root-kapu NÉLKÜL**; `telegramBot.ts:647` `router.post('/webhook')`,
+  secret-check `:650` (`WEBHOOK_SECRET`, hardcodolt fallback
+  `env.ts:245-246` `'spaceos-webhook-secret-2026'`) → `:657`
+  `processWebhookUpdate` → `:520` `injectTelegramMessageToTerminal`
+  (`telegramService.ts:192`) → `:207` `startChatSession` auto-start. **A
+  tábla állítása pontos. PASS.** (Kiegészítő megfigyelés, nem blokkoló: a
+  `telegramBot.ts:667` `router.post('/webhook/:terminal')` út a secret-et
+  EGYÁLTALÁN nem ellenőrzi — ez az ADR-080 auth-hatályát erősíti, de nem
+  launch-besorolási hiba.)
+- **#7 (POST /api/session/start):** `session.routes.ts:30` `startSession`;
+  mount `app.ts:226-227` `requireRootForMutations`. **PASS.**
+- **#20 (requestReview HOLT):** `terminalReviewer.ts:808` `requestReview`
+  hívói: kizárólag `__tests__/unit/terminalReviewerPipeline.test.ts`
+  (379/396/410/430). Production hívó nincs; a regisztrált `request_review`
+  MCP tool `createTask`-ot hív. **A holt minősítés helyes. PASS.**
+- **#2 (subscriptionManager):** a launch-csomópont (`:224 startWorkSession`)
+  és a bootstrap-attach (`:375`) állítása pontos — DE a belépésipont-
+  enumeráció HIÁNYOS (lásd 1. pont): a `test-trigger` HTTP-út és általában
+  az `outbox:*`-emitterek nincsenek belépési pontként számbavéve. **RÉSZLEGES
+  — ez a blokkoló megállapítás magja.**
+
+### 3. Konzisztencia a tulajdonosi döntéssel — PASS
+
+Az ADR-081 4. körös kiegészítése hűen tükrözi a 2026-07-21-i tulajdonosi
+döntést: a hívásgráf-módszertan (Döntés-blokk + "Hívásgráf-alapú
+launch-audit" szakasz), a `subscriptionManager` (b) KAPUZÁS besorolása
+(Döntés 16. pont), és az elv kiterjesztése `spawn_work_session` (17.),
+`taskEscalation` 'restart' (18.), valamint a `terminalReviewer` /
+`requestReview` (14. pont + (d) kategória) besorolására — mind egyezik a
+döntés levezetett elvével. Nem találtam a döntésen túlterjeszkedő vagy annak
+ellentmondó állítást. A most talált `test-trigger`-út a döntés ELVE alá
+esne (kapuzandó), de az ADR ezt a belépési pontot nem nevesíti — ez nem
+a döntéssel való inkonzisztencia, hanem lefedettségi hiány.
+
+### 4. Formai kapuk
+
+```
+node scripts/check-doc-links.mjs   (repo-gyökér)
+→ "Ellenőrizve: 90 markdown-link (docs), 8 ADR-útvonal-hivatkozás,
+   155 ADR-szám-említés (knowledge-service/src)"
+→ "OK — minden hivatkozás létező célra mutat."   exit code: 0  (PASS)
+
+npm run check:tasks                (knowledge-service/)
+→ "[check:tasks] Felfedezve: 46 task (46 parse-olható)."
+→ "[check:tasks] OK — a task-séma, DAG, EPICS-tagság és
+   archívum-invariánsok konzisztensek."          exit code: 0  (PASS)
+```
+
+Frontmatter-életciklus: a szerkesztésem `ready → in_progress` (ADR-068
+szerinti legális él), hogy a készítő folytathassa. Az elfogadási feltételek
+közül a "Külön architect/reviewer megpróbálta megcáfolni a konzisztenciát"
+pont MOST is teljesül (ez a review), de a megcáfolás SIKERES volt (új
+launch-út), ezért a task nem zárható `done`-ra.
+
+### Verdikt: REQUEST_CHANGES
+
+**Döntő indok:** önálló, kimeneti/emitter-oldali felderítéssel találtam egy
+ÉLŐ, a 4. kör 20 soros leltárában nem szereplő launch-utat — a
+`POST /api/subscriptions/test-trigger` HTTP-végpont
+(`routes/subscriptionRoutes.ts:185`, mount `app.ts:243`, NEM root-kapuzott),
+amely az eseménybuszon (`emitOutboxEvent` → `subscriptionManager`
+`deliverNotification` → `startWorkSession`) tranzitívan lease-mentes
+munka-session-indítást vált ki. A hívásgráf-audit a `subscriptionManager`
+launchát megtalálta, de a belépési pontját csak a bootstrap-attachig
+követte, az `outbox:*`-eseményEMITTEREK visszabejárása elmaradt.
+
+**Szükséges javítás a PASS-hoz:**
+
+1. Az ADR-081 hívásgráf-leltára egészüljön ki az `outbox:done`/`outbox:blocked`
+   eseménybusz-emitterek mint belépési pontok bejárásával, és nevesítse
+   közöttük a `POST /api/subscriptions/test-trigger` HTTP-végpontot
+   (`routes/subscriptionRoutes.ts:176-197`, mount `app.ts:243`), az
+   `inboxWatcher.ts:290/300`-at és a `pipeline/epicRouter.ts:513`-at — mind a
+   `subscriptionManager` (b) KAPUZÁS-döntése alá vonva (a `test-trigger`
+   nem-root elérhetősége az ADR-080 auth-hatályára is utaljon).
+2. A hívásgráf-módszertan egészüljön ki explicit lépéssel: a launch-utat
+   kiváltó ESEMÉNYBUSZ-eseményekre (`pipelineEvents.emit(...)`) is el kell
+   végezni az emitter-oldali visszabejárást a belépési pontokig — nem elég a
+   launch-függvény közvetlen hívóit követni, mert az eseménybusz szétcsatolja
+   a kiváltót a launch-tól. (A HTTP-önhívás-sweep mintáját is bővíteni kell
+   `api/subscriptions`-re / `emitOutboxEvent`-re.)
+3. Az új lefedettségi nyilatkozat frissüljön: a jelenlegi "19 élő + 1 holt"
+   belépésipont-szám a fenti emitter-belépések felvételével bővül.
+
+A frontmatter `status` `ready → in_progress` (a készítő folytathatja); a
+formális `done` zárást a javítás utáni következő független review adhatja meg.
+
+---
+
+## 5. kör — emitter-oldali bejárás (2026-07-21)
+
+### Goal
+
+A 4. kör REQUEST_CHANGES-ének mindhárom követelménye: (1) az ADR-081
+leltára egészüljön ki az `outbox:done|blocked` eseménybusz-emitterek mint
+belépési pontok bejárásával (nevesítve a `POST /api/subscriptions/
+test-trigger`-t, az `inboxWatcher.ts:290/300`-at és az
+`epicRouter.ts:513`-at, mind a subscriptionManager (b) kapuzás-döntése alá
+vonva, a test-trigger nem-root elérhetőségét ADR-080-ra utalva); (2) a
+módszertan bővüljön explicit esemény-emitter bejárási szabállyal és a
+HTTP-önhívás-sweep szélesítésével; (3) a lefedettségi nyilatkozat frissüljön
+az új belépésipont-számmal. Általánosítva: minden esemény-busz/observer
+minta bejárása, ami launch-képes fogyasztóhoz vezet.
+
+### Módszer és futtatott keresések
+
+Grep-alapú, célzott bejárás (nem shell-pipeline), `knowledge-service/src`:
+
+1. **Busz-példány-felderítés:** `extends EventEmitter|new EventEmitter` →
+   pontosan 3 busz: `pipelineEvents` (`pipeline/eventBus.ts:108`),
+   `inboxEvents` (`inboxWatcher.ts:30`), `mailboxEvents`
+   (`interfaces/http/routes/mailbox.routes.ts:26`).
+2. **Fogyasztó-oldal:** `pipelineEvents.on|pipelineEvents.onAny|
+   inboxEvents.on|mailboxEvents.on` → launch-képes fogyasztó KIZÁRÓLAG a
+   `subscriptionManager.ts:385` (`onAny` → `deliverNotification:220` —
+   csak `outbox:done|blocked` indít, forrásból ellenőrizve) és a
+   `startup.ts:123` inbox-bridge (a leltár #1 útja). A többi fogyasztó
+   nem launch: `epicNotifications.ts:337` (Telegram),
+   `pipeline.routes.ts:47` (SSE), `mailboxEvents` (SSE-only, launch-képes
+   listener nincs).
+3. **Emitter-oldal:** `pipelineEvents.emit|emitOutboxEvent(|
+   emitNightwatchCycle(` → az `outbox:done|blocked` 3 emitter-helye:
+   `routes/subscriptionRoutes.ts:185`, `inboxWatcher.ts:290/300`
+   (`handleOutboxChange:217`, chokidar), `pipeline/epicRouter.ts:513`
+   (`handleTaskCompletion:487`). A 13 további eseménytípus emitterei
+   launch-szempontból irrelevánsak (2. pont).
+4. **Emitter-hívók bejárása a belépési pontokig:**
+   `handleTaskCompletion(` → `epic-router.routes.ts:344` (HTTP `POST
+   /api/epic-router/task/:terminal/complete`, `requireTerminalAuth`, mount
+   `app.ts:270`), `epic-router.routes.ts:799` (`completeTaskForMcp:782`) ←
+   `completeTaskForMcp(` → `mailbox.tools.ts:574` (MCP `complete_task`
+   tool, `:536-538`), és `projectDispatcher.ts:265` — ez utóbbi ALVÓ:
+   `startDispatcher(` hívó-keresés = 0 production találat
+   (`projectDispatcher.ts:702` definíción kívül semmi).
+5. **Mount/kapu-ellenőrzés forrásból:** `app.ts:243` `/api/subscriptions`
+   — `requireRootForMutations` NÉLKÜL, csak a globális `apiAuthGate`
+   (`app.ts:185`); `app.ts:270` `/api/epic-router`; a `test-trigger`
+   handler `subscriptionRoutes.ts:176-197` (eventType default
+   `'outbox:done'`, terminal/messageId a kérés törzséből).
+
+### Eredmény
+
+**Az `outbox:*`-emitterek bejárása 4 új nevesített + 1 kategória-belépést
+adott a leltárhoz** (ADR-081 leltártábla #21-25, a #2 sor pontosításával):
+
+- **#21** `POST /api/subscriptions/test-trigger` — a reviewer lelete,
+  megerősítve (nem-root; kapuzandó + ADR-080).
+- **#22 [a test-triggeren TÚLI további új út]** `POST
+  /api/epic-router/task/:terminal/complete` → `handleTaskCompletion` →
+  `emitOutboxEvent` → subscriptionManager-launch — terminál-tokennel (nem
+  root!) elérhető.
+- **#23 [további új út]** MCP `complete_task` (`mailbox.tools.ts:574`) →
+  ugyanez a lánc — ez az ADR-053 szerinti SZÁNDÉKOLT checkpoint-
+  munkafolyam fő éle (bármely terminál task-lezárása checkpoint-launchot
+  válthat ki), tehát a subscriptionManager-kapuzás (ADR-081 Döntés 16.
+  pont) a rendszer központi automatizmusát érinti, nem csak egy
+  teszt-végpontot.
+- **#24 [kategória-út]** fájlrendszeri outbox-írók (agent-sessionök,
+  task-message-box projekció, mailbox HTTP-útvonalak, federation) → a
+  feltétel nélküli `startInboxWatcher` chokidar-án át
+  (`handleOutboxChange` → emit).
+- **#25 [alvó]** `projectDispatcher.processProjectDone` →
+  `handleTaskCompletion` — a `startDispatcher`-nek nincs hívója; bekötése
+  csak a 16. pont kapuzása után megengedett (dokumentált feltétel).
+
+Emellett az inbox-oldali szétcsatolás (#1 út emitter-oldala:
+`inboxWatcher.ts:197` ← inbox-fájl-írók, pl. `session.tools.ts:103`,
+`mailbox.routes.ts:125`) és a `mailboxEvents` launch-mentessége is
+dokumentálva. **A launch-képes esemény-fogyasztók száma nem nőtt** (továbbra
+is a subscriptionManager és az inbox-bridge), a belépésipont-leltár
+összesített állása: **22 nevesített élő út + 1 kategória-út + 1 holt + 1
+alvó** (korábban: 19 élő + 1 holt).
+
+**ADR-081 módosításai ebben a körben:** Módszer-szakasz kiegészítve az
+esemény-emitter bejárási szabállyal (kötelező lépés + a futtatott keresések);
+leltártábla #2 sora pontosítva (listener-oldal vs. emitter-belépések) +
+#21-25 sorok; új "5. kör: esemény-emitter-oldali bejárás" alszakasz;
+osztályozási tábla (b) és (d) sora bővítve; új Döntés 20. pont (az
+emitterek a 16. pont kapuzása alá tartoznak; test-trigger auth → ADR-080;
+projectDispatcher-bekötési feltétel); lefedettségi nyilatkozat frissítve
+(6. lépés + új számok); Bizonyíték és Kapcsolódó kód bővítve.
+
+### Futtatott kapuk, exit code-ok
+
+```
+node scripts/check-doc-links.mjs   (repo-gyökér)
+→ "OK — minden hivatkozás létező célra mutat."   exit code: 0  (PASS)
+
+npm run check:tasks                (knowledge-service/)
+→ "[check:tasks] OK — a task-séma, DAG, EPICS-tagság és
+   archívum-invariánsok konzisztensek."          exit code: 0  (PASS)
+```
+
+### Módosított fájlok (ez a kör)
+
+- `docs/architecture/decisions/ADR-081-single-launch-authority.md` — a
+  fenti módosításlista szerint.
+- `docs/tasks/island-runtime/TASK-ISL-001-target-architecture.md` (ez a
+  fájl) — ez a szakasz + frontmatter `status: in_progress → ready`.
+
+Forráskód-módosítás ebben a körben sem történt; commit/push nem történt. A
+frontmatter `ready` — a formális `done` zárást kizárólag friss kontextusú,
+független reviewer adhatja meg.
+
+---
+
+## Független review, 6. kör — az 5. kör felülvizsgálata (2026-07-21) — PASS
+
+### Nyilatkozat a függetlenségről
+
+Ezt a review-t egy friss kontextusú session végezte (ugyanaz az adverzáriális
+reviewer, aki a 4. kört REQUEST_CHANGES-re küldte), amely az 5. kör
+emitter-oldali bejárásának elkészítésében NEM vett részt. Kizárólag olvasás,
+saját Grep/Read-alapú kódfelderítés (nem shell-pipeline) és a két kapu önálló
+futtatása történt — nincs forráskód-módosítás, nincs commit. A cél az 5. kör
+MEGCÁFOLÁSA volt: az új rétegekre (esemény-emitterek, watcherek, task-completion
+lánc) fókuszáltan próbáltam találni egy MÉG kihagyott launch-utat. Nem sikerült
+— ezért PASS.
+
+### 1. A 4. kör 3 követelménye HIÁNYTALANUL teljesült (fájl:sor)
+
+- **(1) Leltár-bővítés az `outbox:*`-emitter-belépésekkel:** ADR-081
+  leltártábla #21-25 sorai jelen; nevesítve a `POST
+  /api/subscriptions/test-trigger` (#21), a `POST
+  /api/epic-router/task/:terminal/complete` (#22), az MCP `complete_task`
+  (#23), a chokidar-fájlrendszeri író-kategória (#24) és az alvó
+  `projectDispatcher` (#25). Mind a #2 `subscriptionManager` (b) kapuzás alá
+  vonva (osztályozási tábla (b) sora, ADR-081). A `test-trigger` nem-root
+  elérhetősége → ADR-080 utalás jelen (leltár #21 "auth-hiány: ADR-080
+  hatály"; Döntés 20. pont). **TELJESÜLT.**
+- **(2) Módszertan-szabály:** ADR-081 "5. kör kiegészítés: esemény-emitter
+  bejárási szabály" (a Módszer-szakaszban) explicit előírja az emitter-oldali
+  visszabejárást minden launch-képes busz-fogyasztóra, és a chokidar-t is
+  szétcsatoló élként kezeli; a HTTP-önhívás-sweep mintája `api/subscriptions`/
+  `emitOutboxEvent`-re bővült. **TELJESÜLT.**
+- **(3) Lefedettségi nyilatkozat:** frissült egy 6. lépéssel (eseménybusz-
+  emitter-bejárás) és új összesítéssel: "22 nevesített élő belépési út + 1
+  fájlrendszeri kategória-út + 1 holt + 1 alvó". **TELJESÜLT.**
+
+### 2. Adverzáriális teljesség-próba az új rétegeken — NEM találtam kihagyott utat
+
+- **(a) A `handleTaskCompletion`/`completeTaskForMcp` lánc TOVÁBBI hívói?**
+  Önálló Grep: `handleTaskCompletion` hívói PONTOSAN 3 —
+  `epic-router.routes.ts:344` (#22, HTTP), `epic-router.routes.ts:799`
+  (`completeTaskForMcp`-n belül, #23) és `pipeline/projectDispatcher.ts:265`
+  (#25, alvó). A `completeTaskForMcp` egyetlen hívója
+  `mailbox.tools.ts:574` (#23). **Federation-útvonal NINCS** (a
+  `federation.routes.ts`-ben nulla `completeTaskForMcp`/`handleTaskCompletion`/
+  `emitOutboxEvent` találat), más MCP tool vagy HTTP-végpont NINCS. A
+  `handleTaskCompletion` (`epicRouter.ts:487`) FELTÉTEL NÉLKÜL emittál
+  `outbox:done`-t (`:513`) — a lánc valós, az 5. kör osztályozása pontos.
+  **NINCS kihagyott hívó.**
+- **(b) Más fájlrendszer-watcher (chokidar/fs.watch)?** Önálló Grep
+  (`chokidar|fs\.watch|watchFile|\.watch\(`): pontosan 2 chokidar-példány —
+  `inboxWatcher.ts:6` (a feltétel nélküli #1/#24 watcher) és
+  `projectDispatcher.ts:145` (a #25 ALVÓ dispatcheré). `fs.watch`/`watchFile`
+  a `src`-ben NINCS. **Nincs harmadik, nem-inventarizált watcher.**
+- **(c) Az `inboxEvents`/`mailboxEvents` "nem-launch" fogyasztói tényleg
+  azok?** `inboxEvents.on`: egyetlen fogyasztó, `startup.ts:122`
+  (`inbox_change` → a #1 launch-bridge, MÁR inventarizálva). `mailboxEvents`:
+  önálló Grep szerint NULLA `.on` fogyasztó a teljes `src`-ben (csak emitterek:
+  `startup.ts:129`, `mailbox.routes.ts:125/162`) — vagyis nem SSE-only, hanem
+  jelenleg fogyasztó NÉLKÜLI; launch-képes listener biztosan nincs rajta. (Ez
+  az ADR "SSE-kézbesítők" jellemzésénél árnyalatnyival erősebb — nulla
+  listener —, de a launch-mentesség VÉGKÖVETKEZTETÉSE változatlanul helyes;
+  nem blokkoló.) Harmadik launch-fogyasztó a 3 busz egyikén sincs.
+- **(d) A #25 `projectDispatcher` tényleg alvó?** Megerősítve:
+  `startDispatcher` (`projectDispatcher.ts:702`) egyetlen hívása belső — a
+  `getDispatcher` (`:695`) is csak a `startDispatcher`-en belül hívódik
+  (`:703`), production route/scheduler/bootstrap hívó NINCS (Grep: a
+  `getDispatcher(`/`startDispatcher(`/`.start()` a `src`-ben kizárólag a
+  definíción belül). A `projectTools.ts:170-178` csak KOMMENTBEN utal rá
+  ("would trigger... daemon running"), nem hívja. Így a `:145` chokidar-watcher
+  sosem indul. **Valóban alvó; a (d)/holt-alvó besorolás helyes.**
+
+Kiegészítő, önálló kontroll: az `outbox:done|blocked` emitter-halmaz
+kimerítő — a teljes `src`-ben pontosan 3 `emitOutboxEvent(` hívóhely
+(`subscriptionRoutes.ts:185`, `inboxWatcher.ts:290/300`, `epicRouter.ts:513`),
+és a helper-en kívüli EGYETLEN közvetlen `pipelineEvents.emit(...)` hívás
+launch-szempontból irreleváns (`watchResponse.ts:130` `'response:routed'`,
+amire a `deliverNotification` `:220` feltétele nem indít sessiont). Nincs
+dinamikus típusú, rejtett `outbox:*` emitter.
+
+### 3. Szúrópróba az új sorokon (#21-24) — mind valós és helyesen osztályozott
+
+- **#21** `subscriptionRoutes.ts:185` `emitOutboxEvent(eventType, …)`
+  (default `'outbox:done'`, `:177`), mount `app.ts:243` `requireRootForMutations`
+  NÉLKÜL → `eventBus.ts:133` `pipelineEvents.emit` → `subscriptionManager.ts:385`
+  `onAny` → `:393` `deliverNotification` → `:224` `startWorkSession`. Nem-root
+  (csak `apiAuthGate`). **Valós, (b) kapuzandó + ADR-080. PASS.**
+- **#22** `epic-router.routes.ts:334` `POST /task/:terminal/complete`,
+  `requireTerminalAuth` middleware, mount `app.ts:270` `/api/epic-router` →
+  `:344` `handleTaskCompletion` → `epicRouter.ts:513` `emitOutboxEvent` → #2
+  lánc. Terminál-token (nem root). **Valós, (b). PASS.**
+- **#23** MCP `complete_task` (`mailbox.tools.ts:536-574`) → `completeTaskForMcp`
+  (`epic-router.routes.ts:782`) → `:799` `handleTaskCompletion` → `:513`. Ez az
+  ADR-053 szerinti szándékolt checkpoint-munkafolyam fő éle. **Valós, (b) — a
+  kapuzás a rendszer központi automatizmusát érinti, helyesen kiemelve. PASS.**
+- **#24** Fájlrendszeri outbox-írók → a FELTÉTEL NÉLKÜLI `startInboxWatcher`
+  (`startup.ts:192`) chokidar-ja → `inboxWatcher.ts:217` `handleOutboxChange`
+  → `:290/:300` `emitOutboxEvent` → #2 lánc. **Valós kategória-út, (b). PASS.**
+
+### 4. Formai kapuk
+
+```
+node scripts/check-doc-links.mjs   (repo-gyökér)
+→ "Ellenőrizve: 90 markdown-link (docs), 8 ADR-útvonal-hivatkozás,
+   155 ADR-szám-említés (knowledge-service/src)"
+→ "OK — minden hivatkozás létező célra mutat."   exit code: 0  (PASS)
+
+npm run check:tasks                (knowledge-service/)
+→ "[check:tasks] Felfedezve: 46 task (46 parse-olható)."
+→ "[check:tasks] OK — a task-séma, DAG, EPICS-tagság és
+   archívum-invariánsok konzisztensek."          exit code: 0  (PASS)
+```
+
+(A fenti a szerkesztéseim UTÁNI, megismételt futtatás; mindkét kapu exit 0.)
+
+### Verdikt: PASS
+
+**Mit próbáltam megcáfolni, és miért nem sikerült:** az emitter-oldali új
+rétegen (task-completion lánc, eseménybuszok, fájlrendszer-watcherek)
+próbáltam egy MÉG kihagyott launch-utat találni. (a) A `handleTaskCompletion`/
+`completeTaskForMcp` teljes hívó-halmaza pontosan a 3 inventarizált csomópont
+— nincs federation- vagy egyéb belépés. (b) A `src`-ben nincs harmadik
+fájlrendszer-watcher. (c) A 3 EventEmitter-busz mindegyike fogyasztó-oldalról
+ellenőrzött; launch-képes listener csak a `subscriptionManager` és az
+inbox-bridge, mindkettő inventarizálva. (d) A `projectDispatcher` bizonyítottan
+alvó (nincs `startDispatcher`-hívó). Az `outbox:*`-emitter-halmaz kimerítő. Az
+5. kör mindhárom követelményemet hiánytalanul, fájl:sor pontosan teljesítette,
+a #21-25 láncok valósak és helyesen osztályozottak, a módszertan most már
+explicit esemény-emitter/observer bejárási szabályt tartalmaz, és a lefedettségi
+nyilatkozat a hívásgráf + emitter-oldali bejárás kettősére épül. Nem maradt
+nyitott, kritikus launch-authority-szerződés az ISL-002…017 implementálói
+számára.
+
+**A task elfogadási feltételeinek zárómérlege:** minden SZIGET-01…10 →
+célállapot + ADR lefedve; az állapotgép be/ki/hibafeltételei (ADR-079),
+a konkurencia-/crash-/auth-/federation threat model (ADR-084 + adverzáriális
+szakaszok), a backward-compat/rollback (ADR-084), a Codex/Claude/Antigravity
+capability-adapter (ADR-082) mind dokumentált; és — ez a döntő elfogadási
+feltétel — KÜLÖN, független reviewer 6 körön át (ebből 3 REQUEST_CHANGES +
+1 blocked + tulajdonosi döntés) próbálta megcáfolni a launch-authority
+lefedettségét, és a 6. körre a megcáfolás nem sikerült. A linkellenőrzés és
+a task-séma kapu zöld.
+
+**Zárás:** frontmatter `status` `ready → in_progress` (a 6. körös review-munka)
+`→ done`. A fájlt NEM mozgatom `archive/`-ba, az `EPICS.yaml`-t NEM módosítom
+— a koordinátor végzi a szinkronnal együtt. Forráskódot nem módosítottam,
+nem commitoltam; kizárólag ezt a taskfájlt szerkesztettem (review-szakasz +
+frontmatter).
 

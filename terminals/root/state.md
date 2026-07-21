@@ -31,19 +31,32 @@ javítottam. Fontos felfedezés eközben: `TASK-DP-004` és `TASK-DP-007`
 függőségei (DP-002/003, ill. DP-003/006) már teljesültek — `blocked`→
 `ready`-re állítva, mindkettő INDÍTHATÓ. `TASK-DP-005` csak DP-004 után.
 
-**NEXUS-ISLAND-RUNTIME program FELOLDVA** (2026-07-21): Gábor meghozta a
-két blokkolt döntést — (1) a launch-authority audit módszertana
-**hívásgráf-elemzés** (a regex 3 körben bizonyítottan elbukott; a felderítés
-a `sessionStarter`/`sessionManager` exportjainak KIMENETI oldaláról, minden
-hívó bejárásával fut), (2) a `subscriptionManager` automatikus
-checkpoint-launch **kapuzva az egyetlen launch authority mögé** (megmarad a
-mechanizmus, de csak kérést adhat fel; lease/review/budget kapukon át megy).
-A kapuzás ELVE a 3. döntési pontra is irányadó (`spawn_work_session`,
-`taskEscalation` restart-ág, `requestReview` — besorolást a 4. kör ADR-081
-kiegészítése rögzíti). `TASK-ISL-001` `blocked → in_progress` (ADR-068
-legális él, döntési napló a taskfájlban, `check:tasks` PASS). **Hátra van: a
-4. review-kör végrehajtása az új módszertannal** — architect-session viszi;
-ISL-002…017 továbbra is ISL-001 `done`-jára vár.
+**NEXUS-ISLAND-RUNTIME program: ISL-001 DONE, epic lezárva** (2026-07-21):
+Gábor tulajdonosi döntése után (hívásgráf-audit + subscriptionManager
+kapuzás) a `TASK-ISL-001` **6 review-kör** alatt konvergált és `done`
+(független reviewer zárta). A hívásgráf-módszertan azonnal igazolta magát:
+a 4-6. kör **5 további, korábban nem dokumentált launch-utat** tárt fel,
+amit a regex 3 körön át nem látott — köztük az MCP `complete_task` →
+checkpoint-launch FŐ ÉL (ADR-053), a `POST /api/epic-router/.../complete`
+(terminál-token, nem root!), a telegram-webhook (hardcodolt secret-fallback),
+és a `POST /api/subscriptions/test-trigger`. Végleges ADR-081 launch-leltár:
+**22 élő + 1 fájlrendszeri kategória + 1 holt + 1 alvó út** — ez lesz az
+ISL-013 (launch authority) pontos munkalistája. Az `ISL-ARCHITECTURE` epic
+`done` (EPICS.yaml). **A ISL-002…017 implementációs taskok innen
+indíthatók** (közvetlen függőségeik felszabadultak; a lánc a design intentre
+épül). Kiemelt üzemeltetési következmény: a launch authority (ISL-013)
+bevezetésekor a NAPI checkpoint-automatizmus is átmegy a kapun → a legitim
+folyamat sebessége/épsége kiemelt terv-szempont.
+
+**Két QC-follow-up bug JAVÍTVA** (2026-07-21, mindkettő független review PASS
+→ `done`): **QC-011** (workflowDb history: hiányzó better-sqlite3 named param
++ generikus catch → minden lépésváltási history némán elveszett; fix: `?? null`
+kötés + `{success,error?}` hiba-propagálás) és **QC-012** (goalStore ID: ms-alapú
+szuffix ütközött → néma fájl-felülírás; fix: perzisztens számláló + mutex +
+`wx` flag + retry). Red→green igazolva, teljes suite 1308→1314 teszt zöld.
+FIGYELEM: a 3 érintett forrásfájl (workflowDb/workflowManager/goalStore) diffje
+KEVEREDIK a jóváhagyásra váró baseline path-centralizálásával — a forráskód-fix
+így a baseline részeként megy fel (mint a QC-001…010 kódja), nem külön commit.
 
 **Aktuális fejlesztésifolyamat-baseline:** a helyi `main` munkafa 250+
 staged/unstaged/untracked bejegyzést tartalmaz (a QC-program teljes
