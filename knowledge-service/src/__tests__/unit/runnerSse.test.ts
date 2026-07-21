@@ -72,6 +72,8 @@ describe('startPollLoop wake()', () => {
     return {
       store,
       fetchUnread: vi.fn(async () => []),
+      claimTask: vi.fn(async () => undefined),
+      releaseTask: vi.fn(async () => undefined),
       launch: vi.fn().mockReturnValue({ started: true }),
       isBusy: () => false,
     };

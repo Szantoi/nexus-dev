@@ -3,6 +3,8 @@
  * Calibratable thresholds for statistical validation
  */
 
+import { perfBudget } from '../helpers/perfBudget';
+
 export const API_CONFIG = {
   baseUrl: process.env.TEST_API_URL || 'http://localhost:3456',
   authToken: process.env.TEST_AUTH_TOKEN || 'dev-token-spaceos-dashboard-2026',
@@ -52,12 +54,13 @@ export const THRESHOLDS = {
     validStages: ['ideas', 'selected', 'debate', 'consensus', 'queue'],
   },
 
-  // Response times (ms)
+  // Response times (ms) — scaled by PERF_BUDGET_MULTIPLIER (TASK-QC-006)
+  // so coverage-instrumented / loaded CI runs don't flake.
   performance: {
-    healthMaxMs: 100,
-    dashboardMaxMs: 500,
-    mailboxListMaxMs: 300,
-    searchMaxMs: 2000,
+    healthMaxMs: perfBudget(100),
+    dashboardMaxMs: perfBudget(500),
+    mailboxListMaxMs: perfBudget(300),
+    searchMaxMs: perfBudget(2000),
   },
 };
 

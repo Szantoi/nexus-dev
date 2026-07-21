@@ -9,6 +9,7 @@
  * Run: npm test -- src/__tests__/agent/communication.test.ts
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   AGENT_THRESHOLDS,
@@ -436,7 +437,7 @@ describe('Communication Performance', () => {
     console.log(`Inbox read: avg=${avgTime.toFixed(0)}ms, max=${maxTime}ms`);
 
     // Should be reasonably fast
-    expect(avgTime).toBeLessThan(500);
+    expect(avgTime).toBeLessThan(perfBudget(500));
   });
 
   it('message send is within timeout', async () => {

@@ -2,16 +2,22 @@
  * Federation HTTP API tests (ADR-066 reference, increment 2).
  * Exercises POST /send → GET /inbox → GET /message/:id → POST /ack over Express.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import crypto from 'crypto';
 import path from 'path';
 import os from 'os';
+
+vi.hoisted(() => {
+  process.env.AUTH_MODE = 'open';
+  delete process.env.MCP_AUTH_TOKEN;
+});
 
 const runId = crypto.randomBytes(6).toString('hex');
 process.env.DATA_DIR = path.join(os.tmpdir(), `fedroutes-data-${runId}`);
 process.env.TERMINALS_PATH = path.join(os.tmpdir(), `fedroutes-terminals-${runId}`);
 // Point agents config at a nonexistent file so no tokens load → dev-mode auth (allow all).
 process.env.AGENTS_CONFIG_PATH = path.join(os.tmpdir(), `no-such-agents-${runId}.yaml`);
+process.env.AUTH_MODE = 'open';
 delete process.env.MCP_AUTH_TOKEN;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

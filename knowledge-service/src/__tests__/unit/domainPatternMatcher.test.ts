@@ -5,6 +5,7 @@
  * Target coverage: >90%
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   matchDomainPattern,
@@ -346,7 +347,7 @@ describe('Domain Pattern Matcher', () => {
       await matchDomainPattern('implement database migration strategy');
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(300);
+      expect(duration).toBeLessThan(perfBudget(300));
     });
 
     it('should handle multiple rapid requests', async () => {
@@ -358,7 +359,7 @@ describe('Domain Pattern Matcher', () => {
 
       const duration = Date.now() - start;
       // 5 requests should complete within reasonable time
-      expect(duration).toBeLessThan(1500);
+      expect(duration).toBeLessThan(perfBudget(1500));
     });
 
     it('should cache known patterns efficiently', () => {
@@ -370,7 +371,7 @@ describe('Domain Pattern Matcher', () => {
       const duration = Date.now() - start;
 
       expect(patterns1).toEqual(patterns2);
-      expect(duration).toBeLessThan(10);
+      expect(duration).toBeLessThan(perfBudget(10));
     });
   });
 });

@@ -3,16 +3,22 @@
  * deviations) + golden path recording + the /api/eval HTTP roundtrip.
  * These tests PIN the expected behavior — the eval suite itself must be provably correct.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import crypto from 'crypto';
 import path from 'path';
 import os from 'os';
+
+vi.hoisted(() => {
+  process.env.AUTH_MODE = 'open';
+  delete process.env.MCP_AUTH_TOKEN;
+});
 
 const runId = crypto.randomBytes(6).toString('hex');
 process.env.DATA_DIR = path.join(os.tmpdir(), `eval-data-${runId}`);
 process.env.TERMINALS_PATH = path.join(os.tmpdir(), `eval-terminals-${runId}`);
 process.env.GOLDEN_PATHS_DIR = path.join(os.tmpdir(), `eval-golden-${runId}`);
 process.env.AGENTS_CONFIG_PATH = path.join(os.tmpdir(), `no-agents-${runId}.yaml`); // dev-mode auth
+process.env.AUTH_MODE = 'open';
 delete process.env.MCP_AUTH_TOKEN;
 
 import { compareTrajectory } from '../eval/trajectoryComparator';

@@ -5,6 +5,7 @@
  * Target coverage: >90%
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { scaffoldComponent, getScaffoldTemplates } from '../../generators/componentScaffold';
 import type { ScaffoldParams } from '../../generators/componentScaffold';
@@ -342,7 +343,7 @@ describe('Component Scaffold', () => {
       await scaffoldComponent(params);
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(500);
+      expect(duration).toBeLessThan(perfBudget(500));
     });
 
     it('should scaffold multiple components quickly', async () => {
@@ -358,7 +359,7 @@ describe('Component Scaffold', () => {
 
       const duration = Date.now() - start;
       // 5 scaffolds should complete in reasonable time
-      expect(duration).toBeLessThan(2000);
+      expect(duration).toBeLessThan(perfBudget(2000));
     });
   });
 });

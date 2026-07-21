@@ -10,6 +10,7 @@
  * Target coverage: 80%+
  */
 
+import { perfBudget } from './helpers/perfBudget';
 import { describe, it, expect } from 'vitest';
 import { validateEpicsYaml, EpicsValidationResult } from '../pipeline/epicsValidator';
 import { EpicsYaml, EpicDependency } from '../graph/types';
@@ -611,6 +612,6 @@ describe('epicsValidator - Edge Cases', () => {
     const duration = Date.now() - start;
 
     expect(result.valid).toBe(true);
-    expect(duration).toBeLessThan(1000); // Should complete in < 1s
+    expect(duration).toBeLessThan(perfBudget(1000)); // Should complete in < 1s
   });
 });

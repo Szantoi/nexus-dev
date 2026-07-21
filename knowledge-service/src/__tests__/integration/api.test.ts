@@ -8,6 +8,7 @@
  * The server must be running before executing tests.
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   API_CONFIG,
@@ -49,7 +50,7 @@ describe('Health & Readiness API', () => {
 
     expect(res.status).toBe(200);
     // Health endpoint sometimes slower on cold start - allow 500ms
-    expect(elapsed).toBeLessThan(500);
+    expect(elapsed).toBeLessThan(perfBudget(500));
 
     const data = await res.json();
 

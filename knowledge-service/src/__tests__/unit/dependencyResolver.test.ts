@@ -5,6 +5,7 @@
  * Target coverage: >90%
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import {
   resolveDependencies,
@@ -277,7 +278,7 @@ describe('Dependency Resolver', () => {
       await resolveDependencies('EPIC-IDENTITY-V1', true);
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(150);
+      expect(duration).toBeLessThan(perfBudget(150));
     });
 
     it('should validate graph in <200ms', async () => {
@@ -285,7 +286,7 @@ describe('Dependency Resolver', () => {
       await validateDependencyGraph();
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(200);
+      expect(duration).toBeLessThan(perfBudget(200));
     });
 
     it('should compute critical path in <200ms', async () => {
@@ -293,7 +294,7 @@ describe('Dependency Resolver', () => {
       await getCriticalPath('EPIC-CUTTING-Q3');
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(200);
+      expect(duration).toBeLessThan(perfBudget(200));
     });
   });
 });

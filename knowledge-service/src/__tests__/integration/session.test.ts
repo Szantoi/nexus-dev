@@ -7,6 +7,7 @@
  * Run: npm test -- src/__tests__/integration/session.test.ts
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { API_CONFIG } from './api.config';
 
@@ -68,7 +69,7 @@ async function discoverTerminals(): Promise<TerminalInfo[]> {
 const SESSION_THRESHOLDS = {
   // API response times
   timing: {
-    statusCheckMaxMs: 500,
+    statusCheckMaxMs: perfBudget(500),
     startRequestMaxMs: 2000,
   },
 

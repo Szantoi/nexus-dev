@@ -5,6 +5,7 @@
  * Target coverage: >90%
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -386,7 +387,7 @@ describe('Session Context Transfer', () => {
       await transferSessionContext(params);
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(200);
+      expect(duration).toBeLessThan(perfBudget(200));
     });
   });
 });

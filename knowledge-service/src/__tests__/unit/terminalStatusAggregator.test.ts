@@ -5,7 +5,24 @@
  * Hermetic: terminal state is seeded via the in-memory terminalStatus registry.
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Hermetic guard: contextPersistence reads STATUS.md/.turn-count/.session-state
+// files under the REAL terminals dir (config-driven TERMINALS_PATH). A unit
+// test must not depend on the repo filesystem — and those reads also blow the
+// <100ms performance budget on slower disks. Mock it with deterministic
+// values matching the real return shape.
+vi.mock('../../contextPersistence', () => ({
+  getContextSaturation: vi.fn(async (terminal: string) => ({
+    terminal,
+    turnCount: terminal === 'explorer' ? 35 : 5,
+    status: terminal === 'explorer' ? ('warning' as const) : ('ok' as const),
+    message: 'mocked',
+    needsReanchor: false,
+  })),
+}));
+
 import {
   getTerminalStatusAggregate,
   getTerminalHealthScore,
@@ -217,7 +234,7 @@ describe('Terminal Status Aggregator', () => {
       await getTerminalStatusAggregate('summary');
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(100);
+      expect(duration).toBeLessThan(perfBudget(100));
     });
 
     it('should handle detailed format within <200ms', async () => {
@@ -225,7 +242,7 @@ describe('Terminal Status Aggregator', () => {
       await getTerminalStatusAggregate('detailed');
       const duration = Date.now() - start;
 
-      expect(duration).toBeLessThan(200);
+      expect(duration).toBeLessThan(perfBudget(200));
     });
   });
 });

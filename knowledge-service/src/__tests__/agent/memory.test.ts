@@ -13,6 +13,7 @@
  * Run: npm test -- src/__tests__/agent/memory.test.ts
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
   AGENT_THRESHOLDS,
@@ -363,7 +364,7 @@ describe('Memory Operation Performance', () => {
     console.log(`Memory read: avg=${avgTime.toFixed(0)}ms, max=${maxTime}ms`);
 
     // Should be fast (< 100ms)
-    expect(avgTime).toBeLessThan(100);
+    expect(avgTime).toBeLessThan(perfBudget(100));
   });
 
   it('memory write is within threshold', async () => {

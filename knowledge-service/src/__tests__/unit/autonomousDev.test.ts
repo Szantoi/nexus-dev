@@ -24,6 +24,13 @@ vi.mock('../../pipeline/paneState', () => ({
   detectPaneState: vi.fn(() => Promise.resolve({ state: 'idle' })),
 }));
 
+const { createTaskMock } = vi.hoisted(() => ({
+  createTaskMock: vi.fn(() =>
+    Promise.resolve({ success: true, id: 'MSG-CONDUCTOR-AUTO' }),
+  ),
+}));
+vi.mock('../../mailbox', () => ({ createTask: createTaskMock }));
+
 // Import after mocking
 import {
   runAutonomousCycle,
@@ -147,6 +154,13 @@ describe('Autonomous Dev Token Optimization', () => {
       if (result.promptTokenCount) {
         expect(result.promptTokenCount).toBeGreaterThan(0);
       }
+      expect(result.taskDispatched).toBe(true);
+      expect(result.launchRequestId).toBe('MSG-CONDUCTOR-AUTO');
+      expect(createTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+        from: 'root',
+        to: 'conductor',
+        priority: 'high',
+      }));
     });
 
     it('should use only base template when all extras are disabled', async () => {

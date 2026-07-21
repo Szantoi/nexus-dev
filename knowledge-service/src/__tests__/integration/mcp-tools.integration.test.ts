@@ -6,6 +6,7 @@
  * Target coverage: >85% integration coverage
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -320,7 +321,7 @@ describe('MCP Tools Integration', () => {
       ]);
 
       const duration = Date.now() - start;
-      expect(duration).toBeLessThan(300);
+      expect(duration).toBeLessThan(perfBudget(300));
     });
 
     it('should run 5 concurrent pattern matches', async () => {
@@ -339,7 +340,7 @@ describe('MCP Tools Integration', () => {
       const duration = Date.now() - start;
 
       expect(results.length).toBe(5);
-      expect(duration).toBeLessThan(1500); // ~300ms per tool
+      expect(duration).toBeLessThan(perfBudget(1500)); // ~300ms per tool
     });
 
     it('should scaffold 3 components sequentially', async () => {
@@ -366,7 +367,7 @@ describe('MCP Tools Integration', () => {
       const duration = Date.now() - start;
 
       expect(results.every((r) => r.success)).toBe(true);
-      expect(duration).toBeLessThan(1500);
+      expect(duration).toBeLessThan(perfBudget(1500));
     });
   });
 

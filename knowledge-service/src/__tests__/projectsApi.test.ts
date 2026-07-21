@@ -3,16 +3,22 @@
  * PINS the expected behavior: goals change ONLY through the API (validated,
  * logged, audit-trailed), and "where are we?" is one GET /status call.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import crypto from 'crypto';
 import path from 'path';
 import os from 'os';
 import * as fs from 'fs';
 
+vi.hoisted(() => {
+  process.env.AUTH_MODE = 'open';
+  delete process.env.MCP_AUTH_TOKEN;
+});
+
 const runId = crypto.randomBytes(6).toString('hex');
 process.env.DATA_DIR = path.join(os.tmpdir(), `proj-data-${runId}`);
 process.env.TERMINALS_PATH = path.join(os.tmpdir(), `proj-terminals-${runId}`);
 process.env.AGENTS_CONFIG_PATH = path.join(os.tmpdir(), `no-agents-${runId}.yaml`); // dev-mode auth
+process.env.AUTH_MODE = 'open';
 delete process.env.MCP_AUTH_TOKEN;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

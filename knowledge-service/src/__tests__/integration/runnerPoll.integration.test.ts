@@ -89,6 +89,8 @@ describe('runner poll cycle over HTTP', () => {
     const deps = {
       store,
       fetchUnread: (t: string) => client.fetchUnread(t),
+      claimTask: async () => undefined,
+      releaseTask: async () => undefined,
       launch,
       isBusy: () => false,
     };
@@ -120,6 +122,8 @@ describe('runner poll cycle over HTTP', () => {
     const res = await pollOnce(cfg, {
       store,
       fetchUnread: (t: string) => client.fetchUnread(t),
+      claimTask: async () => undefined,
+      releaseTask: async () => undefined,
       launch,
       isBusy: () => false,
     });

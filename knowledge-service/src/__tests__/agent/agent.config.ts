@@ -10,6 +10,8 @@
  * - MCP tool usage
  */
 
+import { perfBudget } from '../helpers/perfBudget';
+
 export const API_CONFIG = {
   baseUrl: process.env.TEST_API_URL || 'http://localhost:3456',
   authToken: process.env.TEST_AUTH_TOKEN || 'dev-token-spaceos-dashboard-2026',
@@ -28,36 +30,40 @@ export const TERMINALS = {
 
 /**
  * Agent behavior thresholds - calibratable per environment
+ *
+ * TASK-QC-006: every fixed millisecond budget is scaled by perfBudget()
+ * (PERF_BUDGET_MULTIPLIER env, default 1; coverage/CI runs use a larger
+ * multiplier) so instrumented or loaded runs don't flake.
  */
 export const AGENT_THRESHOLDS = {
   // Identity verification
   identity: {
     minSimilarityScore: 0.7,        // Semantic similarity to CLAUDE.md
-    maxResponseTimeMs: 15000,       // Identity question response time
+    maxResponseTimeMs: perfBudget(15000), // Identity question response time
     requiredFields: ['role', 'responsibilities', 'boundaries'],
   },
 
   // Memory persistence (cold start)
   memory: {
     coldStartRecallAccuracy: 0.85,  // % of facts recalled after restart
-    memoryWriteTimeoutMs: 5000,     // Max time to write MEMORY.md
+    memoryWriteTimeoutMs: perfBudget(5000), // Max time to write MEMORY.md
     minPersistenceRate: 0.90,       // % of writes that survive restart
-    factRecallTimeoutMs: 10000,     // Max time to recall a fact
+    factRecallTimeoutMs: perfBudget(10000), // Max time to recall a fact
   },
 
   // Graceful shutdown
   shutdown: {
-    maxGracefulShutdownMs: 30000,   // Max time for graceful shutdown
+    maxGracefulShutdownMs: perfBudget(30000), // Max time for graceful shutdown
     contextSaveSuccessRate: 0.95,   // % of shutdowns with context saved
-    statusPropagationMaxMs: 5000,   // Max time to update Datahaven
+    statusPropagationMaxMs: perfBudget(5000), // Max time to update Datahaven
   },
 
   // Inter-agent communication
   communication: {
-    messageDeliveryTimeoutMs: 10000,  // Max time for message delivery
-    roundTripTimeoutMs: 30000,        // Max time for send + response
+    messageDeliveryTimeoutMs: perfBudget(10000), // Max time for message delivery
+    roundTripTimeoutMs: perfBudget(30000),       // Max time for send + response
     deliverySuccessRate: 0.98,        // % of messages delivered
-    ackTimeoutMs: 5000,               // Max time for acknowledgement
+    ackTimeoutMs: perfBudget(5000),   // Max time for acknowledgement
   },
 
   // MCP tool usage
@@ -65,7 +71,7 @@ export const AGENT_THRESHOLDS = {
     toolSelectionAccuracy: 0.95,    // Correct tool selected
     parameterAccuracy: 0.98,        // Correct parameters
     resultParsingSuccess: 0.99,     // Result correctly parsed
-    toolCallTimeoutMs: 10000,       // Max time for tool execution
+    toolCallTimeoutMs: perfBudget(10000), // Max time for tool execution
   },
 
   // Session state machine
@@ -77,7 +83,7 @@ export const AGENT_THRESHOLDS = {
       ['blocked', 'working'],
       ['blocked', 'idle'],
     ] as const,
-    statusUpdateMaxMs: 3000,        // Max time for status update
+    statusUpdateMaxMs: perfBudget(3000), // Max time for status update
   },
 };
 

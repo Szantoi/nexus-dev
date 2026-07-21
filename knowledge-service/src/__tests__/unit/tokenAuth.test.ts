@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
+import type { Response } from 'express';
 
 const AGENTS_PATH = vi.hoisted(() => {
   const runId = require('crypto').randomBytes(6).toString('hex');
@@ -21,12 +22,16 @@ const AGENTS_PATH = vi.hoisted(() => {
 import {
   loadAgentTokens,
   getAgentFromToken,
+  getIslandForAgent,
+  getAuthMode,
   hasTokensConfigured,
   setAuthMode,
   resetAuthStateForTests,
   authenticateMcp,
   authenticateRest,
   apiAuthGate,
+  requireRoot,
+  requireRootForMutations,
 } from '../../auth/tokenAuth';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -237,5 +242,150 @@ describe('AUTH_MODE=required', () => {
     authenticateMcp(bad.req, bad.res, bad.next);
     expect(bad.res.statusCode).toBe(403);
     expect(bad.res.body).toMatchObject({ error: { code: -32002 } });
+  });
+});
+
+// ─── Config edge cases (TASK-QC-006) ─────────────────────────────────────────
+
+describe('token loading edge cases', () => {
+  it('MCP_AUTH_TOKEN env overrides the YAML master token', () => {
+    process.env.MCP_AUTH_TOKEN = 'env-master';
+    try {
+      writeAgentsYaml(YAML_WITH_TOKENS);
+      expect(getAgentFromToken('env-master')).toBe('root');
+      // The YAML master token is NOT honored when the env token is set.
+      expect(getAgentFromToken('master-secret')).toBeNull();
+    } finally {
+      delete process.env.MCP_AUTH_TOKEN;
+    }
+  });
+
+  it('malformed agents.yaml falls back to env tokens only (fail closed in required mode)', () => {
+    process.env.MCP_TOKEN_SOLO = 'solo-token';
+    try {
+      fs.writeFileSync(AGENTS_PATH, '{{{{ not yaml : [', 'utf-8');
+      resetAuthStateForTests();
+      setAuthMode('required');
+      loadAgentTokens();
+      expect(getAgentFromToken('solo-token')).toBe('solo');
+      expect(getAgentFromToken('backend-token')).toBeNull();
+    } finally {
+      delete process.env.MCP_TOKEN_SOLO;
+      removeAgentsYaml();
+    }
+  });
+
+  it('reload with an unchanged mtime is a no-op (cache short-circuit)', () => {
+    writeAgentsYaml(YAML_WITH_TOKENS);
+    loadAgentTokens(); // same mtime, tokens already loaded -> early return
+    expect(getAgentFromToken('backend-token')).toBe('backend');
+  });
+
+  it('getAuthMode reflects setAuthMode overrides', () => {
+    setAuthMode('open');
+    expect(getAuthMode()).toBe('open');
+    setAuthMode('required');
+    expect(getAuthMode()).toBe('required');
+  });
+});
+
+describe('getIslandForAgent (multi-island scoping)', () => {
+  it('explicit mapping > default_island > service ISLAND_ID', () => {
+    writeAgentsYaml(`
+master_token: "master-secret"
+agents:
+  "backend-token": backend
+  "conductor-token": conductor
+agent_islands:
+  backend: island-b
+default_island: island-default
+`);
+    expect(getIslandForAgent('backend')).toBe('island-b'); // explicit
+    expect(getIslandForAgent('conductor')).toBe('island-default'); // default_island
+
+    writeAgentsYaml(YAML_WITH_TOKENS); // no islands configured at all
+    // Falls back to the service's own ISLAND_ID (config/paths, default 'spaceos').
+    expect(getIslandForAgent('backend')).toBeTruthy();
+  });
+});
+
+describe('denial logging header handling', () => {
+  it('denies identically when the client presents x-real-ip / x-forwarded-for', () => {
+    writeAgentsYaml(YAML_WITH_TOKENS);
+    setAuthMode('required');
+
+    const realIp = mockReqRes();
+    realIp.req.headers['x-real-ip'] = '198.51.100.7';
+    authenticateRest(realIp.req, realIp.res, realIp.next);
+    expect(realIp.res.statusCode).toBe(401);
+
+    const fwd = mockReqRes();
+    fwd.req.headers['x-forwarded-for'] = '203.0.113.5, 10.0.0.1';
+    fwd.req.ip = undefined;
+    authenticateRest(fwd.req, fwd.res, fwd.next);
+    expect(fwd.res.statusCode).toBe(401);
+  });
+
+  it('authenticateMcp fails closed with -32000 when no tokens are configured in required mode', () => {
+    removeAgentsYaml();
+    setAuthMode('required');
+    const { req, res, next } = mockReqRes();
+    authenticateMcp(req, res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toMatchObject({ jsonrpc: '2.0', error: { code: -32000 }, id: null });
+  });
+});
+
+describe('administrative authorization', () => {
+  beforeEach(() => {
+    writeAgentsYaml(YAML_WITH_TOKENS);
+    setAuthMode('required');
+  });
+
+  it('allows only the master-token identity through requireRoot', () => {
+    const agent = mockReqRes('Bearer backend-token');
+    authenticateRest(agent.req, agent.res, () => requireRoot(agent.req, agent.res as any, agent.next));
+    expect(agent.res.statusCode).toBe(403);
+    expect(agent.next).not.toHaveBeenCalled();
+
+    const root = mockReqRes('Bearer master-secret');
+    authenticateRest(root.req, root.res, () => requireRoot(root.req, root.res as any, root.next));
+    expect(root.next).toHaveBeenCalledOnce();
+  });
+
+  it('permits reads but protects mutations', () => {
+    const read = mockReqRes();
+    read.req.method = 'GET';
+    requireRootForMutations(read.req, read.res as any, read.next);
+    expect(read.next).toHaveBeenCalledOnce();
+
+    const write = mockReqRes('Bearer backend-token');
+    authenticateRest(write.req, write.res, () =>
+      requireRootForMutations(write.req, write.res as any, write.next));
+    expect(write.res.statusCode).toBe(403);
+  });
+
+  it('treats HEAD and OPTIONS as reads in requireRootForMutations', () => {
+    for (const method of ['HEAD', 'OPTIONS'] as const) {
+      const r = mockReqRes();
+      r.req.method = method;
+      requireRootForMutations(r.req, r.res as unknown as Response, r.next);
+      expect(r.next).toHaveBeenCalledOnce();
+      expect(r.res.statusCode).toBeNull();
+    }
+  });
+
+  it('requireRoot resolves the identity itself when no upstream gate ran (open-mode wiring)', () => {
+    // No req.mcpTerminal attached: requireRoot must call authenticateRest first.
+    const root = mockReqRes('Bearer master-secret');
+    requireRoot(root.req, root.res as unknown as Response, root.next);
+    expect(root.next).toHaveBeenCalledOnce();
+    expect(root.req.mcpTerminal).toBe('root');
+
+    const agent = mockReqRes('Bearer backend-token');
+    requireRoot(agent.req, agent.res as unknown as Response, agent.next);
+    expect(agent.next).not.toHaveBeenCalled();
+    expect(agent.res.statusCode).toBe(403);
   });
 });

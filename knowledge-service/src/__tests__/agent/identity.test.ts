@@ -12,6 +12,7 @@
  * Run: npm test -- src/__tests__/agent/identity.test.ts
  */
 
+import { perfBudget } from '../helpers/perfBudget';
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   AGENT_THRESHOLDS,
@@ -55,7 +56,7 @@ describe('CLAUDE.md Existence', () => {
       });
 
       expect(result).not.toBeNull();
-      expect(elapsed).toBeLessThan(100); // Fast file read
+      expect(elapsed).toBeLessThan(perfBudget(100)); // Fast file read
     }
   });
 });
@@ -449,7 +450,7 @@ describe('Identity Access Performance', () => {
     );
 
     // Should be very fast (< 50ms avg)
-    expect(avgTime).toBeLessThan(50);
+    expect(avgTime).toBeLessThan(perfBudget(50));
   });
 
   it('identity extraction is efficient', async () => {
@@ -464,6 +465,6 @@ describe('Identity Access Performance', () => {
     );
 
     // Should complete quickly
-    expect(elapsed).toBeLessThan(500);
+    expect(elapsed).toBeLessThan(perfBudget(500));
   });
 });
