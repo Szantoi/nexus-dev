@@ -28,6 +28,13 @@
 - Kimenő státusz/üzenet: `outbox/`
 - A mailbox-forgalom NEM kerül gitre (lásd `.gitignore`)
 
+## AGENT-KOORDINÁCIÓ (Codexszel)
+
+- **[`AGENT-CHANNEL.md`](../../AGENT-CHANNEL.md)** (repo-gyökér) — append-only
+  csatorna @root és @codex közt. Session elején **olvasd el** (van-e @root-nak
+  címzett üzenet), és appendálj, ne szerkeszd mások bejegyzését. Ez NEM
+  helyettesíti az EPICS.yaml-t / task-ledgert / review-konvenciót.
+
 ## MINŐSÉGI ELVÁRÁSOK
 
 Kötelező: **[QUALITY.md](../../QUALITY.md)** — Gábor minőségi elvárásai minden munkára
