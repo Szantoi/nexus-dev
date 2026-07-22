@@ -2,7 +2,7 @@
 
 > **Verzió:** 1.2
 > **Dátum:** 2026-07-22
-> **Státusz:** A-review 2 P1 FAIL javítva, harmadik re-review vár; B platform-preflight PASS
+> **Státusz:** A-szelet review 3 PASS; B dependency/platformkapu indul
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -44,7 +44,9 @@ tranzakció. Két párhuzamos eltérő claimből pontosan egy sikeres; legacy
 clobber/dispatch után a tuple és a queue változatlan. 7 célzott suite / 144
 teszt, teljes suite 1342 PASS + 1 skipped és minden quality-kapu PASS. Élő DEV/3466-ban
 két párhuzamos claim eredménye `200+409`, majd root DENY és scoped receipt/retry
-PASS; harmadik, készítőtől független review kötelező.
+PASS. A harmadik, készítőtől független review a teljes ownership-mátrixot újra
+reprodukálta és **PASS** verdiktet adott P0/P1/P2 finding nélkül; az A-szelet
+lezárt, a receipt+idle poll wiring továbbra is a C–D szelet része.
 
 A B-szelethez rendelkezésre áll kétplatformos preflight-evidence:
 `node-pty@1.1.0` Linux/Node 22 forkpty és Windows/Node 24 ConPTY spawn/write/exit
@@ -291,7 +293,7 @@ localhost bind vagy dashboard engedélyezés hiányzó tokennel startup FAIL.
   és scope-rotációs replay teszt;
 - [x] tranzakciós claim/release CAS; párhuzamos claimből egy nyertes; generikus
   és legacy context-write nem hozhat létre és nem írhat felül scoped claimet;
-- [ ] készítőtől független review PASS.
+- [x] készítőtől független review PASS (`d607aaa`, review 3; 130/130 releváns teszt).
 
 ### B — natív dependency és platformkapu
 

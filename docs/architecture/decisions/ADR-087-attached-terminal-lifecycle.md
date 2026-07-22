@@ -108,13 +108,12 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
 - CAS-korrekció utáni élő DEV evidence: két eltérő, párhuzamos conductor claim
   pontosan `200+409`; a nyertes `island-live-cas` scoped completionje sequence 1,
   azonos sequence-es retry PASS; root cross-terminal DENY. DEV leállítva.
+- A-szelet független review 3 (`d607aaa`): PASS, P0/P1/P2 finding nélkül;
+  130/130 releváns teszt és közvetlen claim/release/completion/legacy-clobber
+  mátrix PASS. Ez az A-szeletet zárja, a teljes ADR elfogadását még nem.
 
 ## Nyitott kérdések
 
-- Az első két független review findingjainak javítását elfogadja-e a harmadik review
-  (claim island-kötés, legacy bypass tiltás, credential-scoped és íráshiba-álló
-  cursor, literális checkpoint-illesztés, valamint tranzakciós claim/release CAS
-  és scoped tuple-immutabilitás)?
 - A három CLI mely verzióján és mely screen-markerrel igazolható stabil
   interaktív readiness Windowson és Linuxon?
 - A dashboard későbbi központi relay-je szükséges-e, vagy a localhost +

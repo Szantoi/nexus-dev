@@ -26,7 +26,8 @@
   suite / 144 teszt, teljes suite 1342 PASS + 1 skipped, coverage és minden quality-kapu
   PASS. Élő DEV/3466 párhuzamos claim `200+409`, root DENY és scoped
   receipt/retry PASS; DEV leállítva. Következő kapu: @root harmadik független
-  review PASS.
+  review PASS — teljesült: P0/P1/P2 finding nélkül, 130/130 reviewer-teszt és
+  közvetlen ownership-mátrix PASS. Az A-szelet lezárt.
   Utána: (B) stabil node-pty dependency, Linuxon regenerált lock, ugyanazzal
   Windows/Linux `npm ci` és natív smoke (előzetes 1.1.0 preflight mindkét OS-en
   PASS); (C) mixed-mode router + PTY state machine;

@@ -255,5 +255,12 @@ teljes suite 1342 PASS + 1 skipped; coverage statements 41,82%, branches 36,29%,
 functions 41,55%, lines 42,26%; audit 0, secret/link/task/size PASS. Élő
 DEV/3466: két párhuzamos eltérő claim `200+409`, root cross-terminal completion
 DENY, a nyerteshez `island-live-cas` sequence=1 receipt és idempotens retry
-PASS; DEV leállítva, production deploy nem történt. A harmadik független review
-még kötelező; a task `in_progress`.
+PASS; DEV leállítva, production deploy nem történt.
+
+**Független review 3:** PASS, P0/P1/P2 finding nélkül a `d607aaa` commiton.
+A reviewer 7 releváns suite / 130 tesztet futtatott, és közvetlenül igazolta az
+üres claimet, azonos unscoped task atomikus scope-olását, idempotens exact
+retry-t, `1×200 + 1×409` párhuzamos claimet, minden generic/legacy clobber
+tiltását, rossz release/completion utáni változatlan tuple+queue állapotot,
+majd a matching release és matching completion sikerét receipt létrejöttével.
+Az A-szelet lezárt; a teljes TASK-ISL-007 a B–F szeletek miatt `in_progress`.

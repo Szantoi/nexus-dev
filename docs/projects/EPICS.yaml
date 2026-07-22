@@ -620,7 +620,8 @@ epics:
       élő DEV/3466 evidence PASS. A második review P1 claim-TOCTOU/legacy
       clobber findingje tranzakciós claim/release CAS-sal és immutable scoped
       contexttel javítva; teljes quality és élő DEV CAS evidence PASS. Harmadik
-      review még kötelező, ezért in_progress;
+      review 3 PASS P0/P1/P2 finding nélkül; az A-szelet lezárt, a B dependency/
+      platformkapu indul. Az epic a további B–F szeletek miatt in_progress;
       node-pty 1.1.0 kétplatformos
       preflight PASS, dependency/lock még nincs beemelve.
 

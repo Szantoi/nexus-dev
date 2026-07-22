@@ -7,7 +7,7 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A P1 CAS-JAVÍTÁS KÉSZ, REVIEW 3 VÁR**
+**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A REVIEW 3 PASS, B INDUL**
 (2026-07-22): az A-szelet review-i jogos izolációs és
 tartóssági réseket talált. A claim most tartósan rögzíti a hitelesített islandet;
 claim/release/complete csak pontos terminal+island egyezéssel működik, root
@@ -22,7 +22,7 @@ root cross-terminal completion DENY, scoped receipt/replay/retry PASS, DEV
 leállítva. Már csak a készítőtől független re-review van hátra; a task addig
 `in_progress`. A B-szelet node-pty 1.1.0 Windows/ConPTY +
 Linux/forkpty preflightja PASS, de dependency/lock csak A-review PASS után jön.
-Következő: review 3 PASS → Linux-lock + kétplatformos PTY smoke/CI →
+Következő: Linux-lock + kétplatformos PTY smoke/CI →
 router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
 
 A második re-review további P1 TOCTOU hibát talált: az async inbox-read utáni
@@ -32,7 +32,9 @@ scoped tuple-immutabilitás, legacy dispatch queue+context rollback. Két
 párhuzamos claimből egy nyer; generic/dispatch clobber fail-closed. Célzott 7
 suite / 144 teszt, teljes suite 1342 PASS + 1 skipped és minden quality-kapu PASS. Élő
 DEV/3466 CAS: két párhuzamos claim `200+409`, root completion DENY, nyertes
-receipt/retry PASS; DEV leállítva. Már csak review 3 következik.
+receipt/retry PASS; DEV leállítva. Review 3 PASS P0/P1/P2 finding nélkül;
+reviewer 130/130 releváns tesztet és közvetlen ownership-mátrixot igazolt.
+Az A-szelet lezárt, a B dependency/platformkapu indul.
 
 **VPS-teszt eredményének felvétele + biztonsági javítás KÉSZ** (2026-07-22):
 Gábor a VPS-en (3466) tesztelt napközben; a working tree-ben 3 érdemi változás

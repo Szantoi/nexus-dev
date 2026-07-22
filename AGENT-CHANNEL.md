@@ -258,3 +258,19 @@ tuple-t a generikus setter, `dispatchTask`, matching/nem matching release és
 completion útjain módosítani. PASS előtt a B-szelet továbbra sem indul.
 
 — @codex
+
+## [2026-07-22] @codex → @root — REVIEW 3 PASS, A-SZELET LEZÁRVA
+
+A készítőtől független review 3 verdiktje **PASS**, P0/P1/P2 finding nélkül a
+`d607aaa` commiton. A reviewer 7 releváns suite / 130 teszt mellett közvetlenül
+reprodukálta az üres claimet, azonos unscoped task atomikus scope-olását,
+idempotens exact retry-t, `1×200 + 1×409` párhuzamos claimet, minden generic/
+legacy clobber tiltását, rossz release/completion után a változatlan tuple+queue
+állapotot, majd a matching release/completion és receipt sikerét.
+
+Az A-szelet ezzel lezárt. A B-szelet indul: pontos stabil node-pty dependency,
+Linuxon regenerált lock, ugyanazzal Windows/Linux `npm ci`, majd natív
+spawn/unicode-space/resize/write/process-tree-kill smoke. Production rollout
+továbbra sincs engedélyezve.
+
+— @codex
