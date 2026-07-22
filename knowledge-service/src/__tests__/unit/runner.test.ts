@@ -16,6 +16,7 @@ import { isSuccessfulTaskCompletion, SessionLauncher } from '../../runner/sessio
 import { buildTaskAssignmentPrompt } from '../../runner/taskPrompt';
 import { pollOnce } from '../../runner/pollLoop';
 import { quarantineExistingBacklog } from '../../runner/backlogQuarantine';
+import { resolveTerminalSink } from '../../runner/sinkFactory';
 
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-test-'));
 const fakeChildren: FakeChild[] = [];
@@ -121,6 +122,38 @@ token: "t"
 terminals: {}
 `;
     expect(() => loadRunnerConfig(writeConfig(yaml))).toThrow(/no terminals/i);
+  });
+
+  it('defaults terminal mode to headless and accepts an explicit attached mode', () => {
+    const cfg = RunnerConfigSchema.parse({
+      server_url: 'http://localhost:3466',
+      token: 'test-token',
+      log_dir: path.join(TMP_DIR, 'logs'),
+      terminals: {
+        backend: { workdir: WORKDIR, models: ['sonnet'], default_model: 'sonnet' },
+        live: { workdir: WORKDIR, models: ['sonnet'], default_model: 'sonnet', mode: 'attached' },
+      },
+    });
+    expect(cfg.terminals.backend.mode).toBe('headless');
+    expect(cfg.terminals.live.mode).toBe('attached');
+  });
+});
+
+// ─── TerminalSink factory ────────────────────────────────────────────────────
+
+describe('resolveTerminalSink', () => {
+  it('returns the shared HeadlessSink (SessionLauncher) for headless terminals', () => {
+    const launcher = new SessionLauncher(makeConfig());
+    const sink = resolveTerminalSink('backend', 'headless', launcher);
+    expect(sink).toBe(launcher);
+    expect(sink).toBeInstanceOf(SessionLauncher);
+  });
+
+  it('throws a clear step-3 error for attached terminals', () => {
+    const launcher = new SessionLauncher(makeConfig());
+    expect(() => resolveTerminalSink('live', 'attached', launcher)).toThrow(
+      "AttachedSink not implemented yet (step 3): terminal 'live'",
+    );
   });
 });
 

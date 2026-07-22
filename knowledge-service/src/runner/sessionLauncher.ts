@@ -15,6 +15,7 @@ import { getCliAdapter } from './adapterRegistry';
 import type { AdapterEvent, CliProvider } from './cliAdapter';
 import type { RunnerConfig } from './runnerConfig';
 import { buildTaskAssignmentPrompt } from './taskPrompt';
+import type { TerminalSink } from './terminalSink';
 
 const SAFE_MESSAGE_ID = /^[A-Za-z0-9._-]+$/;
 
@@ -113,7 +114,14 @@ export function clearStaleSessionMarkers(config: RunnerConfig): void {
   }
 }
 
-export class SessionLauncher {
+/**
+ * The headless TerminalSink: one detached, one-shot CLI process per task with
+ * no live terminal attachment. This is the default (and, until step 3, only)
+ * sink. It implements {@link TerminalSink} directly — `dispatch` is the sink
+ * entry point and delegates to {@link SessionLauncher.launch}; `ensureReady`
+ * is intentionally omitted because a headless session needs no warm-up.
+ */
+export class SessionLauncher implements TerminalSink {
   private readonly active = new Map<string, ActiveSession>();
 
   constructor(
@@ -122,6 +130,15 @@ export class SessionLauncher {
     private readonly platform: NodeJS.Platform = process.platform,
     private readonly terminateFn: TerminateFn = terminateProcessTree,
   ) {}
+
+  /**
+   * TerminalSink entry point — an alias of {@link SessionLauncher.launch}. The
+   * poll loop remains the single launch authority; the sink only executes an
+   * already-authorised request.
+   */
+  dispatch(req: LaunchRequest): LaunchResult {
+    return this.launch(req);
+  }
 
   isBusy(terminal: string): boolean {
     return this.active.has(terminal);

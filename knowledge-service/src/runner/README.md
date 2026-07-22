@@ -15,13 +15,36 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
   YAML-konfig betöltés), [`pollLoop.ts`](pollLoop.ts),
   [`sseListener.ts`](sseListener.ts) (terminálonként egy stream, backoffal),
   [`serverClient.ts`](serverClient.ts) (HTTP-hívások Bearer-tokennel),
-  [`sessionLauncher.ts`](sessionLauncher.ts) (process supervisor,
-  busy-követés), [`processedStore.ts`](processedStore.ts) (feldolgozott
-  üzenetek perzisztens nyilvántartása — duplaindítás ellen),
+  [`sessionLauncher.ts`](sessionLauncher.ts) (a **headless** TerminalSink:
+  process supervisor, busy-követés), [`terminalSink.ts`](terminalSink.ts)
+  (a `TerminalSink` absztrakció), [`sinkFactory.ts`](sinkFactory.ts)
+  (mode → sink feloldás), [`processedStore.ts`](processedStore.ts)
+  (feldolgozott üzenetek perzisztens nyilvántartása — duplaindítás ellen),
   [`taskPrompt.ts`](taskPrompt.ts), valamint a provider-adapterek:
   [`cliAdapter.ts`](cliAdapter.ts), [`codexAdapter.ts`](codexAdapter.ts),
   [`claudeAdapter.ts`](claudeAdapter.ts),
   [`antigravityAdapter.ts`](antigravityAdapter.ts).
+
+## TerminalSink absztrakció
+
+A poll-hurok az egyetlen indítási autoritás; a **`TerminalSink`**
+([`terminalSink.ts`](terminalSink.ts)) csak *végrehajt*, nem dönt. A kontraktus:
+`dispatch(req)` (a launch belépési pont), `isBusy`, `cancel`, `cancelAll`,
+`activeCount`, valamint egy opcionális `ensureReady()` (az attached mód
+warm-upja; a headless sink nem implementálja).
+
+- **`headless`** (default): a mai [`SessionLauncher`](sessionLauncher.ts) — egy
+  leválasztott, egyszeri CLI-processz taskonként, prompt stdinen, élő terminál
+  nélkül. A `dispatch` a `launch` aliasa → **nulla viselkedésváltozás**.
+- **`attached`** (3. lépés, node-pty — **még nincs implementálva**): élő PTY
+  session terminálonként.
+
+A [`sinkFactory.ts`](sinkFactory.ts) a terminál `mode` mezője alapján old fel
+sinket: `headless` → a megosztott headless sink; `attached` → **világos hibát
+dob** (`AttachedSink not implemented yet (step 3): terminal '<name>'`). A
+[`main.ts`](main.ts) a poll indítása előtt preflightol (`selectRunnerSink`),
+így egy `attached` terminál fail-closed leállítja a runnert — nem esik csendben
+headlessre.
 
 ## Függőségi irány
 
@@ -34,7 +57,8 @@ minden adat a HTTP API-n át jön.
 - **`config/runner.yaml`** (sablon: [`runner.yaml.example`](../../config/runner.yaml.example)):
   `server_url`, kiszolgált `terminals` térkép, `poll_interval_ms`,
   `sse_enabled`, `max_backoff_ms`, `log_dir`, `quarantine_existing_on_first_start`,
-  provider/model allowlistek,
+  provider/model allowlistek, terminálonkénti `mode`
+  (`headless` default / `attached` step 3),
   sandbox, timeout és kimeneti limit. Codexnél az automatizálási út
   `codex exec --json --ephemeral`; a prompt stdinre kerül.
 - Env: `RUNNER_TOKEN` (a runner Bearer-tokenje — kötelező), `RUNNER_CONFIG_PATH`

@@ -42,6 +42,11 @@ const TerminalEntrySchema = z
     default_model: z.string().regex(SAFE_MODEL).default('sonnet'),
     additional_write_dirs: z.array(z.string().min(1)).default([]),
     credential_env: z.string().regex(SAFE_ENV_NAME).optional(),
+    // Execution model for this terminal. `headless` (default) = today's
+    // autonomous one-shot CLI session. `attached` = a live node-pty session
+    // (step 3, not yet implemented) — accepted by config validation but the
+    // sink factory fails loudly at launch until it lands.
+    mode: z.enum(['headless', 'attached']).default('headless'),
   })
   .refine((entry) => entry.models.includes(entry.default_model), {
     message: 'default_model must be present in models',

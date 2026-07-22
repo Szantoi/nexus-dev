@@ -11,6 +11,7 @@ import { loadRunnerConfig } from './runnerConfig';
 import { ProcessedStore } from './processedStore';
 import { ServerClient } from './serverClient';
 import { clearStaleSessionMarkers, SessionLauncher } from './sessionLauncher';
+import { selectRunnerSink } from './sinkFactory';
 import { startPollLoop } from './pollLoop';
 import { startSseListener, type SseListenerHandle } from './sseListener';
 import { discoverConfiguredClis } from './cliDiscovery';
@@ -40,6 +41,10 @@ async function main(): Promise<void> {
   const client = new ServerClient(config.server_url, config.token);
   clearStaleSessionMarkers(config);
   const launcher = new SessionLauncher(config);
+  // Sink preflight: today only the headless sink exists. An `attached` terminal
+  // fails closed here (like the CLI-discovery preflight) rather than silently
+  // running headless. Returns the sink the poll loop dispatches through.
+  const sink = selectRunnerSink(config, launcher);
 
   await quarantineExistingBacklog(
     config,
@@ -56,8 +61,8 @@ async function main(): Promise<void> {
     fetchUnread: (terminal) => client.fetchUnread(terminal),
     claimTask: (terminal, messageId) => client.claimTask(terminal, messageId),
     releaseTask: (terminal, messageId) => client.releaseTask(terminal, messageId),
-    launch: (req) => launcher.launch(req),
-    isBusy: (terminal) => launcher.isBusy(terminal),
+    launch: (req) => sink.dispatch(req),
+    isBusy: (terminal) => sink.isBusy(terminal),
     store,
   });
 
@@ -84,12 +89,12 @@ async function main(): Promise<void> {
     for (const listener of sseListeners) listener.stop();
     loop.stop();
     store.save();
-    const cancelled = launcher.cancelAll();
+    const cancelled = sink.cancelAll();
     if (cancelled > 0) logger.info(`[Runner] Cancelling ${cancelled} active session(s).`);
     const forceExit = setTimeout(() => process.exit(0), config.shutdown_grace_ms);
     forceExit.unref();
     const waitForExit = setInterval(() => {
-      if (launcher.activeCount() === 0) {
+      if (sink.activeCount() === 0) {
         clearInterval(waitForExit);
         clearTimeout(forceExit);
         process.exit(0);

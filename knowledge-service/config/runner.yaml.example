@@ -59,10 +59,19 @@ log_dir: logs/runner
 
 # Only listed terminals can execute on this host. Network task metadata can
 # request a model only from that terminal's local allowlist.
+#
+# Per-terminal `mode` selects the execution model (default: headless):
+#   headless  today's autonomous one-shot CLI session (detached process,
+#             prompt via stdin, no live terminal). This is backward-compatible.
+#   attached  a live node-pty session (step 3 — NOT YET IMPLEMENTED). Config
+#             validation accepts it, but the runner fails closed at launch
+#             until the attached sink lands, rather than silently running
+#             headless.
 terminals:
   conductor:
     workdir: /opt/nexus/terminals/conductor
     provider: codex
+    mode: headless
     models: [gpt-5.6-terra]
     default_model: gpt-5.6-terra
     credential_env: NEXUS_AGENT_TOKEN_CONDUCTOR
