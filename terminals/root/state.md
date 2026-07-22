@@ -3,9 +3,28 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-21
+**Utolsó frissítés:** 2026-07-22
 
 ## Aktuális fókusz
+
+**VPS-teszt eredményének felvétele + biztonsági javítás KÉSZ** (2026-07-22):
+Gábor a VPS-en (3466) tesztelt napközben; a working tree-ben 3 érdemi változás
+volt (a futásidejű szemetet nem hoztam). Áthozva a lokálba, mind a 8 CI-kapu
+lokálisan zöld, main-push: (1) `feat(workflow)` — duplikált task-generálás
+megelőzése (`hasPendingOrRecentTask`, pending vagy 1 órán belül lezárt taskra
+skip, `force` felülbírálás, `trackTask` a DB-be) — commit `f90d0a2`;
+(2) `docs(plans)` — `PROJECT-SCOPED-KNOWLEDGE.md` v1.0 TERV (projekt-szintű
+tudástár+mailbox több sziget közös munkájához, EPIC-PROJECT-SCOPE előkészítés) —
+commit `cad0a64`. **AZ ELSŐ PUSH CI-JA PIROSRA VÁLTOTT**, de NEM a változtatás
+miatt: az `audit:prod` kapu **frissen közzétett** advisory-kat talált
+(dompurify ≤3.4.11 GHSA-c2j3-45gr-mqc4; sharp <0.35.0 libvips CVE-2026-33327/
+33328/35590/35591) — tegnap még nem léteztek. Fix (`c858157`): override
+dompurify ^3.4.12 (valós használati út: `planningRoutes.ts` XSS-szanitizálás) +
+sharp ^0.35.0 (mélységi védelem — a sharp futásidőben NEM töltődik, a
+`xenovaEmbedding.ts` text-only ONNX). A lock **Linuxon (VPS) regenerálva** a
+platform-optional csomagok miatt. CI ZÖLD (run 29940563539). Lokál+VPS+origin
+mind `c858157`, working tree tiszta. TANULSÁG: [[audit-prod-idozitett-bomba]].
+
 
 **NEXUS-QUALITY program LEZÁRVA** (2026-07-18): mind a 10 QC-task `done`,
 archiválva (`docs/tasks/quality-compliance/archive/`). A QC-010 független
