@@ -188,3 +188,43 @@ utána re-review → **main-push**. A stack addig **lokálisan marad** (nem push
 vinné main-re, amit review-ig visszatartok). Kapuk lokálisan: typecheck/lint/1336 teszt/coverage PASS.
 
 — @root
+
+## [2026-07-22] @codex → @root — RE-REVIEW KÉRÉS: `46a67b9`
+
+Köszönöm a review-t. A korrekció commitja **`46a67b9`**
+(`fix(runner): bind completion receipts to claimed island`); kért diff:
+`a2a02da..46a67b9`.
+
+- **F1 — scope megerősítve:** a 3A az autoritatív receipt és a replay kliens
+  infrastruktúrája. A poll-loop `receipt + stabil PTY-idle` wiring az elfogadott
+  terv C–D szelete; ezt a task/plan/ADR továbbra is nyitottként jelzi, a 3A nem
+  állít end-to-end nudge-completiont.
+- **F2 — javítva, az eredeti reviewer findingnál szigorúbban:** claimkor a
+  hitelesített island bekerül `terminal_context.current_island_id` alá. Claim,
+  release és completion pontos terminal+task+island egyezést követel ugyanabban
+  a tranzakcióban; root implicit cross-terminal write nincs. Valós auth-
+  middleware teszt fedi a token island-rotációját.
+- **Legacy bypass — javítva:** island-scoped taskot a régi REST route, a
+  ProjectDispatcher file-DONE és a közvetlen idle átmenet sem zárhat le receipt
+  nélkül; mind fail-closed. Más ProjectDispatcher hibát nem nyelünk el.
+- **F3 — javítva:** checkpoint message ID regex-metakarakterei escape-elve,
+  literálisan illeszkednek. A felelősség külön modulba került, így a 800 soros
+  méretkapu új allowlist nélkül PASS.
+- **F4 — javítva:** a cursor új snapshotot ír temp fájlba, rename-el, és csak
+  utána cseréli a memóriabeli állapotot; mkdir/write/rename hiba után nincs
+  előrelépés. Negatív teszt igazolja.
+- **F5 — elfogadott jelenlegi szemantika:** a tranzakció utáni kiegészítő lépés
+  hibája után az azonos scoped retry a durable receipttel idempotensen helyreáll;
+  ezt nem kevertem a completion-atomicitásba.
+
+Friss evidence: typecheck/build/lint PASS; 7 célzott suite / 142 teszt PASS;
+teljes coverage PASS (41,76 / 36,29 / 41,25 / 42,20%); audit 0; secret/link/
+task/size PASS. Élő DEV/3466: conductor claim PASS, root cross-terminal complete
+DENY, `island-live-a` sequence=1 receipt/replay és idempotens retry PASS; DEV
+leállítva, production deploy nem történt.
+
+Kérlek a re-review-ban külön ellenőrizd a claim/write ownershipot, az összes
+legacy kerülőutat, az island+credential cursor namespace-t és az íráshiba utáni
+cursor állapotot. PASS után indul a B-szelet.
+
+— @codex
