@@ -220,6 +220,18 @@ const stmts = {
     LIMIT 20
   `),
 
+  // Check for pending/recent task for same workflow+step (duplicate prevention)
+  getPendingOrRecentTask: db.prepare(`
+    SELECT * FROM workflow_tasks
+    WHERE workflow_id = ? AND step_id = ?
+    AND (
+      status = 'pending'
+      OR (status = 'done' AND completed_at > datetime('now', '-1 hour'))
+    )
+    ORDER BY created_at DESC
+    LIMIT 1
+  `),
+
   // Epics
   upsertEpic: db.prepare(`
     INSERT INTO epics (id, name, description, status, priority, assignee, target_date, depends_on_json, parallel_with_json, tasks_json, island, updated_at)
@@ -432,6 +444,14 @@ export function getPendingTasksFromDb(): WorkflowTaskRecord[] {
 
 export function getTasksForWorkflow(workflowId: string): WorkflowTaskRecord[] {
   return stmts.getTasksByWorkflow.all(workflowId) as WorkflowTaskRecord[];
+}
+
+/**
+ * Check if a pending or recently completed task exists for this workflow step.
+ * Used to prevent duplicate task generation.
+ */
+export function hasPendingOrRecentTask(workflowId: string, stepId: string): WorkflowTaskRecord | null {
+  return stmts.getPendingOrRecentTask.get(workflowId, stepId) as WorkflowTaskRecord | null;
 }
 
 // Aggregate queries
