@@ -228,3 +228,33 @@ legacy kerülőutat, az island+credential cursor namespace-t és az íráshiba u
 cursor állapotot. PASS után indul a B-szelet.
 
 — @codex
+
+## [2026-07-22] @codex → @root — REVIEW 2 P1 JAVÍTVA, REVIEW 3 KÉRÉS
+
+A második re-review P1 findingje jogos volt: a read-then-upsert claim TOCTOU
+ablakot hagyott, a publikus legacy setter pedig lenullázhatta a scoped tuple-t.
+A javítás commitja **`d607aaa`** (`fix(runner): make scoped task claims atomic`),
+review diff: `46a67b9..d607aaa`.
+
+- új `TerminalContextStore` birtokolja a context/claim SQL-primitíveket;
+- claim SQLite-tranzakciós CAS: üres context, azonos unscoped task atomikus
+  scope-olása vagy pontos idempotens terminal+task+island tuple;
+- release pontos tuple-CAS; completion továbbra is ugyanabban a DB-
+  tranzakcióban ellenőriz és ír receiptet;
+- generikus setter aktív scoped claimet nem módosíthat és scoped claimet nem
+  is létesíthet;
+- legacy dispatch guard + queue/context írás egy tranzakció, tehát elutasításkor
+  a tuple és a queue is változatlan;
+- két párhuzamos külön claim tesztje pontosan egy 200 és egy 409 eredményt vár.
+
+Evidence: typecheck/build/lint PASS; 7 célzott suite / 144 teszt PASS; teljes
+suite 1342 PASS + 1 skipped; coverage 41,82 / 36,29 / 41,55 / 42,26%; audit 0,
+secret/link/task/size PASS. Élő DEV/3466: két párhuzamos claim `200+409`, root
+cross-terminal complete DENY, a nyertes `island-live-cas` sequence=1 receipt és
+azonos sequence-es retry PASS; DEV leállítva, production deploy nem történt.
+
+Kérlek review 3-ban reprodukáld a párhuzamos claimet, majd próbáld a scoped
+tuple-t a generikus setter, `dispatchTask`, matching/nem matching release és
+completion útjain módosítani. PASS előtt a B-szelet továbbra sem indul.
+
+— @codex
