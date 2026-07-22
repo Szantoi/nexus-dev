@@ -225,3 +225,35 @@ Ellenőrzési bizonyíték a korrekció után:
 még kötelező. A runner főciklusba kötött receipt+idle döntés szándékosan a C–D
 szelet scope-ja, ezért a 3A infrastruktúra és a teljes AttachedSink továbbra is
 `in_progress`.
+
+### 2026-07-22 — AttachedSink 3A második review és P1 CAS-korrekció
+
+A második re-review **FAIL / P1** eredményt adott. A claim route a contextet egy
+aszinkron inbox-read előtt vizsgálta, majd feltétel nélküli upsertet végzett.
+Két eltérő párhuzamos claim egyaránt sikeres lehetett, és a publikus legacy
+`setTerminalContext`/dispatch hívók egy aktív scoped claim islandjét NULL-ra
+írhatták; ezután a legacy completion guard sem ismerte volna fel a tulajdont.
+
+Javítás:
+
+- `TerminalContextStore` külön felelősségként fogja össze a context és ownership
+  SQL-primitíveket;
+- claim: SQLite-tranzakciós CAS, amely csak üres contextet, azonos unscoped task
+  biztonságos scope-olását vagy pontos idempotens terminal+task+island tuple-t
+  fogad el;
+- release: pontos terminal+task+island `WHERE` feltételes CAS;
+- a generikus compatibility setter aktív scoped claimet nem módosíthat, és új
+  scoped claimet sem létesíthet;
+- legacy dispatch ugyanabban a tranzakcióban ellenőrzi a guardot, frissíti a
+  queue-t és a contextet, így elutasításkor egyik sem változik;
+- negatív teszt: két párhuzamos eltérő REST claimből pontosan egy 200 és egy 409;
+  generic setter/legacy dispatch clobber-kísérlet után a tuple és a queue
+  változatlan; matching release/completion továbbra is PASS.
+
+**Friss evidence:** typecheck/build/lint PASS; 7 célzott suite / 144 teszt és a
+teljes suite 1342 PASS + 1 skipped; coverage statements 41,82%, branches 36,29%,
+functions 41,55%, lines 42,26%; audit 0, secret/link/task/size PASS. Élő
+DEV/3466: két párhuzamos eltérő claim `200+409`, root cross-terminal completion
+DENY, a nyerteshez `island-live-cas` sequence=1 receipt és idempotens retry
+PASS; DEV leállítva, production deploy nem történt. A harmadik független review
+még kötelező; a task `in_progress`.

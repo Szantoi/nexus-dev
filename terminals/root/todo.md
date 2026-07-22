@@ -19,7 +19,14 @@
   cursor-advance és literális checkpoint-illesztés. Typecheck/build/lint, 7
   célzott suite / 142 teszt, teljes coverage, audit/secret/link/task/size és
   élő DEV/3466 scoped claim→DENY→receipt→replay→retry PASS; DEV leállítva.
-  Következő kapu: @root független re-review PASS.
+  A második re-review egy P1 TOCTOU hibát talált: a read-then-upsert claim és a
+  legacy setter felülírhatta a scoped tuple-t. Javítva tranzakciós claim/release
+  CAS-sal és immutable scoped contexttel; két párhuzamos claimből egy nyer, a
+  generic/legacy clobber a queue-t és tuple-t változatlanul hagyja. Célzott 7
+  suite / 144 teszt, teljes suite 1342 PASS + 1 skipped, coverage és minden quality-kapu
+  PASS. Élő DEV/3466 párhuzamos claim `200+409`, root DENY és scoped
+  receipt/retry PASS; DEV leállítva. Következő kapu: @root harmadik független
+  review PASS.
   Utána: (B) stabil node-pty dependency, Linuxon regenerált lock, ugyanazzal
   Windows/Linux `npm ci` és natív smoke (előzetes 1.1.0 preflight mindkét OS-en
   PASS); (C) mixed-mode router + PTY state machine;

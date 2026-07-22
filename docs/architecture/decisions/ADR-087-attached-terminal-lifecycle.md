@@ -105,12 +105,16 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
   cross-terminal completion DENY, cursoros replay, üres `after=1` oldal és
   azonos sequence-et adó idempotens retry PASS. A DEV szerver a 3466-os porton
   futott, majd le lett állítva; production deploy nem történt.
+- CAS-korrekció utáni élő DEV evidence: két eltérő, párhuzamos conductor claim
+  pontosan `200+409`; a nyertes `island-live-cas` scoped completionje sequence 1,
+  azonos sequence-es retry PASS; root cross-terminal DENY. DEV leállítva.
 
 ## Nyitott kérdések
 
-- Az első két független review findingjainak javítását elfogadja-e a re-review
+- Az első két független review findingjainak javítását elfogadja-e a harmadik review
   (claim island-kötés, legacy bypass tiltás, credential-scoped és íráshiba-álló
-  cursor, literális checkpoint-illesztés)?
+  cursor, literális checkpoint-illesztés, valamint tranzakciós claim/release CAS
+  és scoped tuple-immutabilitás)?
 - A három CLI mely verzióján és mely screen-markerrel igazolható stabil
   interaktív readiness Windowson és Linuxon?
 - A dashboard későbbi központi relay-je szükséges-e, vagy a localhost +

@@ -20,9 +20,10 @@ import { validate, TerminalParamSchema, TerminalSchema } from '../../../validati
 import { triggerImmediatePipelineAsync } from '../../../pipeline/immediatePipeline';
 import { logger } from '../../../core/logger';
 import {
+  claimTerminalTask,
   getTerminalContext,
   listRunnerCompletionReceipts,
-  setTerminalContext,
+  releaseTerminalTask,
 } from '../../../pipeline/epicRouter';
 
 const router = Router();
@@ -190,20 +191,6 @@ router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, '
   }
 
   try {
-    const current = getTerminalContext(terminal);
-    if (!current) {
-      res.status(404).json({ success: false, error: `Unknown terminal: ${terminal}` });
-      return;
-    }
-    if (current.current_task_id && current.current_task_id !== messageId) {
-      res.status(409).json({ success: false, error: 'Terminal already has another claimed task' });
-      return;
-    }
-    if (current.current_task_id === messageId && current.current_island_id !== island) {
-      res.status(409).json({ success: false, error: 'Task is already claimed in another island scope' });
-      return;
-    }
-
     const unread = await listInboxMetadata(terminal, 'UNREAD');
     const task = unread.find((message) => message.frontmatter.id === messageId);
     if (!task) {
@@ -211,17 +198,23 @@ router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, '
       return;
     }
 
-    setTerminalContext(
+    const claimResult = claimTerminalTask(
       terminal,
+      messageId,
+      island,
       task.frontmatter.epic_id || null,
       task.frontmatter.project_id || null,
-      messageId,
-      'working',
-      current.consecutive_epic_tasks,
-      island,
     );
+    if (claimResult === 'unknown_terminal') {
+      res.status(404).json({ success: false, error: `Unknown terminal: ${terminal}` });
+      return;
+    }
+    if (claimResult === 'conflict') {
+      res.status(409).json({ success: false, error: 'Terminal already has another scoped task owner' });
+      return;
+    }
     logger.info(`[RunnerClaim] claimed ${island}/${terminal}/${messageId}`);
-    res.json({ success: true, terminal, messageId });
+    res.json({ success: true, terminal, messageId, idempotent: claimResult === 'idempotent' });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).json({ success: false, error: msg });
@@ -242,29 +235,14 @@ router.post('/:terminal/inbox/:messageId/release', validate(TerminalParamSchema,
     res.status(403).json({ success: false, error: `Forbidden: ${caller} cannot release tasks for ${terminal}` });
     return;
   }
-  const current = getTerminalContext(terminal);
-
-  if (!current) {
+  if (!getTerminalContext(terminal)) {
     res.status(404).json({ success: false, error: `Unknown terminal: ${terminal}` });
     return;
   }
-  if (current.current_task_id !== messageId) {
-    res.status(409).json({ success: false, error: 'Task is not currently claimed by terminal' });
+  if (!releaseTerminalTask(terminal, messageId, island)) {
+    res.status(409).json({ success: false, error: 'Task is not claimed by this terminal/island scope' });
     return;
   }
-  if (!current.current_island_id || current.current_island_id !== island) {
-    res.status(409).json({ success: false, error: 'Task claim belongs to another island scope' });
-    return;
-  }
-  setTerminalContext(
-    terminal,
-    current.current_epic_id || null,
-    current.current_project_id || null,
-    null,
-    'idle',
-    current.consecutive_epic_tasks,
-    null,
-  );
   logger.warn(`[RunnerClaim] released ${island}/${terminal}/${messageId}`);
   res.json({ success: true, terminal, messageId });
 });

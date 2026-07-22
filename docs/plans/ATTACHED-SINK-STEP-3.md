@@ -2,7 +2,7 @@
 
 > **Verzió:** 1.2
 > **Dátum:** 2026-07-22
-> **Státusz:** A-review 1 FAIL javítva, re-review vár; B platform-preflight PASS
+> **Státusz:** A-review 2 P1 FAIL javítva, harmadik re-review vár; B platform-preflight PASS
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -32,6 +32,19 @@ fingerprint, és memóriában csak sikeres rename után lép előre. A checkpoin
 literálisan illeszkedik. Valódi token→island rotációs negatív teszt, 7 célzott
 suite / 142 teszt, teljes coverage és élő DEV ismétlés PASS. A re-review
 továbbra is kötelező.
+
+A második re-review egy további P1 TOCTOU/ownership hibát talált: a route az
+aszinkron inbox-olvasás előtt ellenőrizte a contextet, majd feltétel nélkül
+upsertelt; a publikus legacy setterek az aktív island-kötést is lenullázhatták.
+A claim ezért SQLite-tranzakciós CAS lett (üres context, azonos unscoped task
+biztonságos scope-olása vagy pontos idempotens tuple), a release pontos
+tuple-CAS, a generikus setter aktív scoped claimet nem módosíthat és scoped
+claimet nem is hozhat létre. A legacy dispatch queue+context változása egy
+tranzakció. Két párhuzamos eltérő claimből pontosan egy sikeres; legacy
+clobber/dispatch után a tuple és a queue változatlan. 7 célzott suite / 144
+teszt, teljes suite 1342 PASS + 1 skipped és minden quality-kapu PASS. Élő DEV/3466-ban
+két párhuzamos claim eredménye `200+409`, majd root DENY és scoped receipt/retry
+PASS; harmadik, készítőtől független review kötelező.
 
 A B-szelethez rendelkezésre áll kétplatformos preflight-evidence:
 `node-pty@1.1.0` Linux/Node 22 forkpty és Windows/Node 24 ConPTY spawn/write/exit
@@ -276,6 +289,8 @@ localhost bind vagy dashboard engedélyezés hiányzó tokennel startup FAIL.
 - [x] island-scoped task legacy REST/file-DONE completion-bypassának tiltása;
 - [x] endpoint/island/terminal/credential-fingerprint scoped cursor namespace
   és scope-rotációs replay teszt;
+- [x] tranzakciós claim/release CAS; párhuzamos claimből egy nyertes; generikus
+  és legacy context-write nem hozhat létre és nem írhat felül scoped claimet;
 - [ ] készítőtől független review PASS.
 
 ### B — natív dependency és platformkapu

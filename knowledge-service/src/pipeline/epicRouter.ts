@@ -22,6 +22,15 @@ import { log } from './common';
 import { emitOutboxEvent } from './eventBus';
 import { updateCheckpointStatus } from './checkpointStatusUpdater';
 import {
+  LegacyCompletionRefusedError,
+  ScopedClaimMutationRefusedError,
+  TerminalContextStore,
+  type TerminalClaimResult,
+  type TerminalContext,
+} from './terminalContextStore';
+export { LegacyCompletionRefusedError, ScopedClaimMutationRefusedError };
+export type { TerminalClaimResult, TerminalContext };
+import {
   CompletionReceiptStore,
   type CompletionReceiptPage,
   type CompletionReceiptSource,
@@ -156,18 +165,6 @@ export interface Epic {
   updated_at: string;
 }
 
-export interface TerminalContext {
-  terminal: string;
-  current_island_id?: string;
-  current_epic_id?: string;
-  current_project_id?: string;
-  current_task_id?: string;
-  status: 'idle' | 'working' | 'blocked';
-  last_task_completed_at?: string;
-  consecutive_epic_tasks: number;
-  updated_at: string;
-}
-
 export interface QueuedTask {
   id: number;
   message_id: string;
@@ -192,13 +189,6 @@ export interface RoutingDecision {
 export interface CompletionReceiptContext {
   islandId: string;
   source: CompletionReceiptSource;
-}
-
-export class LegacyCompletionRefusedError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'LegacyCompletionRefusedError';
-  }
 }
 
 export function getRunnerCompletionReceipt(
@@ -312,35 +302,10 @@ export function setEpicStatus(epicId: string, status: Epic['status']): void {
 
 // ─── Terminal Context ───────────────────────────────────────────────────────
 
-const upsertContext = db.prepare(`
-  INSERT INTO terminal_context (
-    terminal, current_island_id, current_epic_id, current_project_id,
-    current_task_id, status, consecutive_epic_tasks
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-  ON CONFLICT(terminal) DO UPDATE SET
-    current_island_id = excluded.current_island_id,
-    current_epic_id = excluded.current_epic_id,
-    current_project_id = excluded.current_project_id,
-    current_task_id = excluded.current_task_id,
-    status = excluded.status,
-    consecutive_epic_tasks = excluded.consecutive_epic_tasks,
-    updated_at = datetime('now')
-`);
-
-const getContext = db.prepare(`SELECT * FROM terminal_context WHERE terminal = ?`);
-const setContextStatus = db.prepare(`UPDATE terminal_context SET status = ?, updated_at = datetime('now') WHERE terminal = ?`);
-const setContextTaskCompleted = db.prepare(`
-  UPDATE terminal_context
-  SET status = 'idle',
-      last_task_completed_at = datetime('now'),
-      current_task_id = NULL,
-      updated_at = datetime('now')
-  WHERE terminal = ?
-`);
+const terminalContextStore = new TerminalContextStore(db);
 
 export function getTerminalContext(terminal: string): TerminalContext | undefined {
-  return getContext.get(terminal) as TerminalContext | undefined;
+  return terminalContextStore.get(terminal);
 }
 
 export function setTerminalContext(
@@ -352,36 +317,41 @@ export function setTerminalContext(
   consecutiveTasks: number = 0,
   islandId: string | null = null,
 ): void {
-  upsertContext.run(terminal, islandId, epicId, projectId, taskId, status, consecutiveTasks);
+  terminalContextStore.setGeneric(
+    terminal, epicId, projectId, taskId, status, consecutiveTasks, islandId,
+  );
+}
+
+/** Atomic ownership CAS: only an empty context or the exact tuple may succeed. */
+export function claimTerminalTask(
+  terminal: string,
+  messageId: string,
+  islandId: string,
+  epicId: string | null,
+  projectId: string | null,
+): TerminalClaimResult {
+  return terminalContextStore.claim(terminal, messageId, islandId, epicId, projectId);
+}
+
+/** Exact scoped release CAS; no read-then-write window and no root override. */
+export function releaseTerminalTask(
+  terminal: string,
+  messageId: string,
+  islandId: string,
+): boolean {
+  return terminalContextStore.release(terminal, messageId, islandId);
 }
 
 export function markTerminalWorking(terminal: string, taskId: string): void {
-  const ctx = getTerminalContext(terminal);
-  if (ctx) {
-    setTerminalContext(
-      terminal,
-      ctx.current_epic_id || null,
-      ctx.current_project_id || null,
-      taskId,
-      'working',
-      ctx.consecutive_epic_tasks,
-      ctx.current_island_id || null,
-    );
-  }
+  terminalContextStore.markWorking(terminal, taskId);
 }
 
 export function markTerminalIdle(terminal: string): void {
-  const ctx = getTerminalContext(terminal);
-  if (ctx?.current_island_id) {
-    throw new LegacyCompletionRefusedError(
-      `Direct idle transition refused for island-scoped task ${ctx.current_island_id}/${terminal}/${ctx.current_task_id || 'unknown'}`,
-    );
-  }
-  setContextTaskCompleted.run(terminal);
+  terminalContextStore.markIdle(terminal);
 }
 
 export function markTerminalBlocked(terminal: string): void {
-  setContextStatus.run('blocked', terminal);
+  terminalContextStore.markBlocked(terminal);
 }
 
 // ─── Task Queue ─────────────────────────────────────────────────────────────
@@ -601,7 +571,7 @@ function commitTaskCompletion(
     markTaskCompleted(messageId);
     const nextConsecutiveTasks = (ctx?.consecutive_epic_tasks || 0) + 1;
 
-    setTerminalContext(
+    terminalContextStore.replaceAfterOwnedTransition(
       terminal,
       epicId,
       ctx?.current_project_id || null,
@@ -648,18 +618,19 @@ function commitTaskCompletion(
  * Dispatch a task to terminal
  */
 export function dispatchTask(terminal: string, task: QueuedTask): void {
-  // Mark task as dispatched
-  markTaskDispatched(task.id);
-
-  // Update terminal context
-  setTerminalContext(
-    terminal,
-    task.epic_id || null,
-    task.project_id || null,
-    task.message_id,
-    'working',
-    0 // will increment on completion
-  );
+  db.transaction(() => {
+    terminalContextStore.assertGenericMutationAllowed(terminal);
+    markTaskDispatched(task.id);
+    terminalContextStore.replaceAfterOwnedTransition(
+      terminal,
+      task.epic_id || null,
+      task.project_id || null,
+      task.message_id,
+      'working',
+      0,
+      null,
+    );
+  })();
 
   log(`[EpicRouter] Dispatched task ${task.message_id} to ${terminal} (epic: ${task.epic_id || 'none'})`);
 }

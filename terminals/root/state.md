@@ -7,8 +7,8 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A REVIEW-JAVÍTÁS KÉSZ, RE-REVIEW VÁR**
-(2026-07-22): az A-szelet első két független review-ja jogos izolációs és
+**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A P1 CAS-JAVÍTÁS KÉSZ, REVIEW 3 VÁR**
+(2026-07-22): az A-szelet review-i jogos izolációs és
 tartóssági réseket talált. A claim most tartósan rögzíti a hitelesített islandet;
 claim/release/complete csak pontos terminal+island egyezéssel működik, root
 cross-terminal felülírás nincs. A legacy REST és file-DONE út nem zárhat le
@@ -16,14 +16,23 @@ island-scoped taskot receipt nélkül. A replay az islandet is validálja, curso
 kulcsa az island- és credential-rotációt elkülöníti; a cursor csak sikeres
 atomi fájlcsere után lép előre. A checkpoint ID literális regex-illesztést kapott.
 Valós auth-middleware-es negatív integrációs teszt fedi a token island-rotációt.
-Typecheck/build/lint, 7 célzott suite / 142 teszt, teljes coverage (41,76 / 36,29
-/ 41,25 / 42,20%), audit/secret/link/task/size és az élő DEV/3466 lánc PASS;
+Typecheck/build/lint, 7 célzott suite / 144 teszt, teljes suite 1342 PASS + 1 skipped és
+coverage (41,82 / 36,29 / 41,55 / 42,26%), audit/secret/link/task/size PASS;
 root cross-terminal completion DENY, scoped receipt/replay/retry PASS, DEV
 leállítva. Már csak a készítőtől független re-review van hátra; a task addig
 `in_progress`. A B-szelet node-pty 1.1.0 Windows/ConPTY +
 Linux/forkpty preflightja PASS, de dependency/lock csak A-review PASS után jön.
-Következő: re-review PASS → Linux-lock + kétplatformos PTY
-smoke/CI → router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
+Következő: review 3 PASS → Linux-lock + kétplatformos PTY smoke/CI →
+router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
+
+A második re-review további P1 TOCTOU hibát talált: az async inbox-read utáni
+feltétel nélküli upsert és a legacy setterek felülírhatták a scoped tuple-t.
+Javítva külön `TerminalContextStore`-ral: tranzakciós claim/release CAS,
+scoped tuple-immutabilitás, legacy dispatch queue+context rollback. Két
+párhuzamos claimből egy nyer; generic/dispatch clobber fail-closed. Célzott 7
+suite / 144 teszt, teljes suite 1342 PASS + 1 skipped és minden quality-kapu PASS. Élő
+DEV/3466 CAS: két párhuzamos claim `200+409`, root completion DENY, nyertes
+receipt/retry PASS; DEV leállítva. Már csak review 3 következik.
 
 **VPS-teszt eredményének felvétele + biztonsági javítás KÉSZ** (2026-07-22):
 Gábor a VPS-en (3466) tesztelt napközben; a working tree-ben 3 érdemi változás

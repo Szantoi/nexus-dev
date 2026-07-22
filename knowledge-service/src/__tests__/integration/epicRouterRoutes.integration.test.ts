@@ -408,9 +408,9 @@ describe('dispatch/complete routing flow', () => {
   });
 
   it('legacy REST completion cannot finish an island-scoped runner claim', async () => {
-    epicRouter.setTerminalContext(
-      'explorer', null, null, 'MSG-SCOPED-REST', 'working', 0, 'island-a',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'explorer', 'MSG-SCOPED-REST', 'island-a', null, null,
+    )).toBe('claimed');
 
     const res = await request(app)
       .post('/api/epic-router/task/explorer/complete')
@@ -454,6 +454,38 @@ describe('dispatch/complete routing flow', () => {
     epicRouter.handleTaskCompletion('explorer', 'MSG-SCOPED-REST', null, {
       islandId: 'island-a', source: 'mcp_complete_task',
     });
+  });
+
+  it('rejects generic context writes and legacy dispatch over a scoped claim', () => {
+    expect(() => epicRouter.setTerminalContext(
+      'explorer', null, null, 'MSG-SCOPED-IMMUTABLE', 'working', 0, 'island-a',
+    )).toThrow(/cannot establish a scoped claim/);
+    expect(epicRouter.claimTerminalTask(
+      'explorer', 'MSG-SCOPED-IMMUTABLE', 'island-a', null, null,
+    )).toBe('claimed');
+    const before = epicRouter.getTerminalContext('explorer');
+
+    expect(() => epicRouter.setTerminalContext(
+      'explorer', null, null, 'MSG-LEGACY-CLOBBER', 'working', 0,
+    )).toThrow(epicRouter.ScopedClaimMutationRefusedError);
+
+    epicRouter.queueTask('MSG-LEGACY-DISPATCH', 'explorer', null, null, 'high');
+    const queued = epicRouter.getQueueForTerminal('explorer')
+      .find((task) => task.message_id === 'MSG-LEGACY-DISPATCH')!;
+    expect(() => epicRouter.dispatchTask('explorer', queued))
+      .toThrow(epicRouter.ScopedClaimMutationRefusedError);
+    expect(epicRouter.getTerminalContext('explorer')).toMatchObject({
+      current_task_id: before!.current_task_id,
+      current_island_id: before!.current_island_id,
+      status: before!.status,
+    });
+    expect(epicRouter.getQueueForTerminal('explorer')
+      .some((task) => task.message_id === 'MSG-LEGACY-DISPATCH')).toBe(true);
+
+    epicRouter.handleTaskCompletion('explorer', 'MSG-SCOPED-IMMUTABLE', null, {
+      islandId: 'island-a', source: 'mcp_complete_task',
+    });
+    epicRouter.cancelQueuedTask('MSG-LEGACY-DISPATCH');
   });
 });
 
@@ -558,7 +590,9 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     const decision = epicRouter.getNextTaskForTerminal('conductor');
     expect(decision.task!.message_id).toBe('MSG-MCP-1');
     epicRouter.dispatchTask('conductor', decision.task!);
-    epicRouter.setTerminalContext('conductor', null, null, 'MSG-MCP-1', 'working', 0, 'island-mcp-test');
+    expect(epicRouter.claimTerminalTask(
+      'conductor', 'MSG-MCP-1', 'island-mcp-test', null, null,
+    )).toBe('claimed');
 
     const res = await routes.fetchTaskForMcp('conductor', 'MSG-MCP-1');
     expect(res.success).toBe(true);
@@ -625,9 +659,9 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     epicRouter.queueTask('MSG-ATOMIC-ROLLBACK', 'explorer', null, null, 'high');
     const decision = epicRouter.getNextTaskForTerminal('explorer');
     epicRouter.dispatchTask('explorer', decision.task!);
-    epicRouter.setTerminalContext(
-      'explorer', null, null, 'MSG-ATOMIC-ROLLBACK', 'working', 0, 'island-rollback',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'explorer', 'MSG-ATOMIC-ROLLBACK', 'island-rollback', null, null,
+    )).toBe('claimed');
 
     expect(() => epicRouter.handleTaskCompletion(
       'explorer',
@@ -648,9 +682,9 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
   it('fetch/ack report a missing file for a dispatched task with no markdown', async () => {
     const decision = epicRouter.getNextTaskForTerminal('conductor');
     epicRouter.dispatchTask('conductor', decision.task!); // MSG-MCP-NEXT has no file
-    epicRouter.setTerminalContext(
-      'conductor', null, null, 'MSG-MCP-NEXT', 'working', 0, 'island-mcp-test',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'conductor', 'MSG-MCP-NEXT', 'island-mcp-test', null, null,
+    )).toBe('claimed');
 
     const fetch = await routes.fetchTaskForMcp('conductor', 'MSG-MCP-NEXT');
     expect(fetch).toEqual({ success: false, error: 'Task MSG-MCP-NEXT not found in conductor inbox' });

@@ -303,6 +303,14 @@ egyezést, amelyben az állapot és a receipt készül. Minden régi REST/file-D
 út, amely ezt nem tudja bizonyítani, island-scoped tasknál kötelezően fail-closed;
 egy privilegizált `root` név sem jogosít hallgatólagos cross-terminal írásra.
 
+A route-szintű „read, majd async I/O, majd write” ellenőrzés nem ownership:
+TOCTOU ablakot hagy két claim között. A claim és release kötelezően adatbázis-
+tranzakciós CAS (`WHERE` + affected-row check); az aktív
+`(island, terminal, task)` tuple-t csak matching scoped release vagy completion
+módosíthatja. A generikus context setter nem létesíthet scoped claimet és nem
+írhat felül meglévőt. A legacy dispatch queue- és context-változásának is egy
+tranzakcióban kell történnie, hogy a fail-closed guard ne hagyjon félállapotot.
+
 A receipt feed elkészülte önmagában még nem indokol PTY-nudge-ot: a runner
 főciklus csak a későbbi lifecycle-szeletben kapcsolhatja össze a matching
 receiptet a stabil provider-idle feltétellel.

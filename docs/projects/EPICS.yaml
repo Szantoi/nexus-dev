@@ -617,7 +617,10 @@ epics:
       A 3A első review-ja claim/island, legacy bypass és cursor-rotációs réseket
       talált; a terminal+task+island ownership, fail-closed legacy utak és a
       scope/credential-kötött replay korrekciója elkészült. A teljes quality és
-      élő DEV/3466 evidence PASS; re-review még kötelező, ezért in_progress;
+      élő DEV/3466 evidence PASS. A második review P1 claim-TOCTOU/legacy
+      clobber findingje tranzakciós claim/release CAS-sal és immutable scoped
+      contexttel javítva; teljes quality és élő DEV CAS evidence PASS. Harmadik
+      review még kötelező, ezért in_progress;
       node-pty 1.1.0 kétplatformos
       preflight PASS, dependency/lock még nincs beemelve.
 

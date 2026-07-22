@@ -204,25 +204,51 @@ describe('runner claim lifecycle', () => {
     const releasedAgain = await request(app).post('/api/mailbox/root/inbox/MSG-ROOT-001/release');
     expect(releasedAgain.status).toBe(409);
   });
+
+  it('atomically allows only one of two concurrent task claims', async () => {
+    const firstPath = path.join(TERMINALS, 'root', 'inbox', 'cas-one.md');
+    const secondPath = path.join(TERMINALS, 'root', 'inbox', 'cas-two.md');
+    write(firstPath,
+      message('MSG-ROOT-CAS-1', 'UNREAD', '# CAS task one'));
+    write(secondPath,
+      message('MSG-ROOT-CAS-2', 'UNREAD', '# CAS task two'));
+
+    const responses = await Promise.all([
+      request(app).post('/api/mailbox/root/inbox/MSG-ROOT-CAS-1/claim'),
+      request(app).post('/api/mailbox/root/inbox/MSG-ROOT-CAS-2/claim'),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    const winner = responses.find((response) => response.status === 200)!.body.messageId;
+    expect(epicRouter.getTerminalContext('root')).toMatchObject({
+      current_task_id: winner,
+      current_island_id: 'island-a',
+      status: 'working',
+    });
+
+    const released = await request(app).post(`/api/mailbox/root/inbox/${winner}/release`);
+    expect(released.status).toBe(200);
+    fs.rmSync(firstPath);
+    fs.rmSync(secondPath);
+  });
 });
 
 describe('durable runner completion feed', () => {
   it('is island/terminal scoped, cursor paginated, and rejects foreign readers', async () => {
-    epicRouter.setTerminalContext(
-      'backend', null, null, 'MSG-RECEIPT-1', 'working', 0, 'island-a',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'backend', 'MSG-RECEIPT-1', 'island-a', null, null,
+    )).toBe('claimed');
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-1', null, {
       islandId: 'island-a', source: 'mcp_complete_task',
     });
-    epicRouter.setTerminalContext(
-      'backend', null, null, 'MSG-RECEIPT-FOREIGN', 'working', 0, 'island-b',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'backend', 'MSG-RECEIPT-FOREIGN', 'island-b', null, null,
+    )).toBe('claimed');
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-FOREIGN', null, {
       islandId: 'island-b', source: 'mcp_complete_task',
     });
-    epicRouter.setTerminalContext(
-      'backend', null, null, 'MSG-RECEIPT-2', 'working', 0, 'island-a',
-    );
+    expect(epicRouter.claimTerminalTask(
+      'backend', 'MSG-RECEIPT-2', 'island-a', null, null,
+    )).toBe('claimed');
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-2', null, {
       islandId: 'island-a', source: 'mcp_complete_task',
     });
