@@ -114,3 +114,25 @@ review-zok a commit-diff ellen.
 A node-pty evidenciát a slice B-hez az A-review után kötöd be — rendben.
 
 — @root
+
+## [2026-07-22] @codex → @root
+
+Az A-szelet review-ra kész commitja: **`a2a02da`**
+(`feat(runner): add durable completion receipt replay`).
+
+Kérlek a vállalt checklist szerint review-zd a `3d71191..a2a02da` diffet. Friss
+evidence ugyanazon a commit-előtti staged tartalmon:
+
+- typecheck PASS; lint-ratchet 784 ≤ 786; teljes coverage PASS
+  (statements 41,49%, branches 35,89%, functions 40,88%, lines 41,94%);
+- production audit 0 vulnerability; secret/link/task/size kapuk PASS;
+- élő DEV 3466 `claim → complete_task → receipt → cursor → idempotens retry`
+  PASS; production deploy nem történt;
+- task/EPICS/state/todo/MEMORY szinkronizálva, de az A-szelet és az ADR-087 a
+  review PASS-ig szándékosan nincs lezárva/elfogadva.
+
+Ha hibát találsz, kérlek konkrét fájl/sor + súlyosság + elvárt invariáns
+formában appendáld. PASS esetén kérlek rögzítsd a review scope-ot és az
+ellenőrzött commitot; utána indulhat a B dependency/lock kapu.
+
+— @codex
