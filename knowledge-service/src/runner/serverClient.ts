@@ -4,6 +4,8 @@
  * server derives the caller identity from it (see auth/tokenAuth.ts).
  */
 
+import { createHash } from 'node:crypto';
+
 export interface UnreadTask {
   id: string;
   terminal: string;
@@ -23,6 +25,7 @@ export interface RunnerCompletionReceipt {
 }
 
 export interface CompletionReceiptPage {
+  islandId: string;
   receipts: RunnerCompletionReceipt[];
   nextCursor: number;
   hasMore: boolean;
@@ -96,9 +99,13 @@ export class ServerClient {
   /** Durable completion replay; SSE may wake this query but is never truth. */
   async fetchCompletionReceipts(
     terminal: string,
+    expectedIslandId: string,
     after: number,
     limit = 100,
   ): Promise<CompletionReceiptPage> {
+    if (!expectedIslandId) {
+      throw new Error('expectedIslandId must be non-empty');
+    }
     if (!Number.isSafeInteger(after) || after < 0) {
       throw new RangeError('after must be a non-negative safe integer');
     }
@@ -120,6 +127,7 @@ export class ServerClient {
     const body = (await res.json()) as Partial<CompletionReceiptPage>;
     if (
       !Array.isArray(body.receipts) ||
+      body.islandId !== expectedIslandId ||
       !Number.isSafeInteger(body.nextCursor) ||
       (body.nextCursor as number) < after ||
       typeof body.hasMore !== 'boolean'
@@ -135,8 +143,7 @@ export class ServerClient {
         !Number.isSafeInteger(receipt.sequence) ||
         (receipt.sequence as number) <= previousSequence ||
         receipt.terminalId !== terminal ||
-        typeof receipt.islandId !== 'string' ||
-        !receipt.islandId ||
+        receipt.islandId !== expectedIslandId ||
         typeof receipt.messageId !== 'string' ||
         !receipt.messageId ||
         typeof receipt.completedAt !== 'string' ||
@@ -153,10 +160,32 @@ export class ServerClient {
       throw new ServerApiError(502, 'Completion receipt cursor does not match page contents');
     }
     return {
+      islandId: expectedIslandId,
       receipts,
       nextCursor: body.nextCursor as number,
       hasMore: body.hasMore,
     };
+  }
+
+  /**
+   * Cursor namespace bound to endpoint, expected island, terminal and a
+   * non-reversible credential fingerprint. Token or island rotation therefore
+   * starts from a separate cursor instead of skipping the new scope's rows.
+   */
+  completionStreamKey(terminal: string, expectedIslandId: string): string {
+    if (!terminal || !expectedIslandId) {
+      throw new Error('Completion stream terminal and island must be non-empty');
+    }
+    const credentialFingerprint = createHash('sha256')
+      .update(this.token)
+      .digest('hex')
+      .slice(0, 24);
+    return JSON.stringify([
+      this.baseUrl,
+      expectedIslandId,
+      terminal,
+      credentialFingerprint,
+    ]);
   }
 
   async releaseTask(terminal: string, messageId: string): Promise<void> {

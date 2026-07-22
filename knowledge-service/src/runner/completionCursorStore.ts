@@ -58,19 +58,21 @@ export class CompletionCursorStore {
     }
     if (cursor === current) return;
 
-    const hadCurrent = Object.getOwnPropertyDescriptor(this.cursors, streamKey) !== undefined;
-    this.cursors[streamKey] = cursor;
-    const payload: CompletionCursorFile = { version: 1, cursors: this.cursors };
-    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const nextCursors = Object.assign(
+      Object.create(null) as Record<string, number>,
+      this.cursors,
+      { [streamKey]: cursor },
+    );
+    const payload: CompletionCursorFile = { version: 1, cursors: nextCursors };
     const temporaryPath = `${this.filePath}.tmp`;
-    fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2), 'utf-8');
     try {
+      fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+      fs.writeFileSync(temporaryPath, JSON.stringify(payload, null, 2), 'utf-8');
       fs.renameSync(temporaryPath, this.filePath);
     } catch (error) {
-      if (hadCurrent) this.cursors[streamKey] = current;
-      else delete this.cursors[streamKey];
       try { fs.rmSync(temporaryPath, { force: true }); } catch { /* best effort */ }
       throw error;
     }
+    this.cursors = nextCursors;
   }
 }

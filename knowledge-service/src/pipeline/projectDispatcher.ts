@@ -22,10 +22,10 @@ import { secrets } from '../config/env';
 import { updateProjectStatus } from './statusUpdater';
 import {
   getNextTaskForTerminal,
-  handleTaskCompletion,
+  handleLegacyTaskCompletion,
+  LegacyCompletionRefusedError,
   dispatchTask as epicDispatchTask,
   getTerminalContext,
-  markTerminalIdle,
   queueTask,
   QueuedTask,
   RoutingDecision,
@@ -262,11 +262,25 @@ export class ProjectDispatcher {
    */
   private async processProjectDone(done: DoneMessage): Promise<void> {
     // ── Epic-aware routing: handle task completion ──
-    const routingDecision = handleTaskCompletion(
-      done.from,
-      done.task_id,
-      done.epic_id || null
-    );
+    let routingDecision: RoutingDecision;
+    try {
+      routingDecision = handleLegacyTaskCompletion(
+        done.from,
+        done.task_id,
+        done.epic_id || null,
+      );
+    } catch (error) {
+      // File-DONE is never allowed to complete a task carrying an
+      // authenticated runner island claim. The MCP complete_task path must
+      // create the durable receipt first; fail closed without YAML triggers.
+      if (error instanceof LegacyCompletionRefusedError) {
+        logger.warn(
+          `[ProjectDispatcher] Ignoring non-authoritative DONE for ${done.from}/${done.task_id}: ${error.message}`,
+        );
+        return;
+      }
+      throw error;
+    }
 
     logger.info(`[ProjectDispatcher] Epic routing decision: ${routingDecision.nextAction} - ${routingDecision.reason}`);
 

@@ -5,6 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { CompletionReceiptStore } from '../../pipeline/completionReceiptStore';
 import { CompletionCursorStore } from '../../runner/completionCursorStore';
+import { ServerClient } from '../../runner/serverClient';
 
 const temporaryPaths: string[] = [];
 
@@ -81,20 +82,44 @@ describe('CompletionCursorStore', () => {
     temporaryPaths.push(root);
     const file = path.join(root, 'cursors.json');
     const store = new CompletionCursorStore(file);
+    const client = new ServerClient('https://server', 'credential-a');
+    const streamKey = client.completionStreamKey('backend', 'island-a');
+    const rotatedKey = new ServerClient('https://server', 'credential-b')
+      .completionStreamKey('backend', 'island-a');
 
     expect(store.load()).toBe('missing');
-    store.advance('https://server::backend', 12);
-    expect(store.get('https://server::backend')).toBe(12);
-    expect(() => store.advance('https://server::backend', 11)).toThrow(/regression/);
-    store.advance('https://server::backend', 13);
+    store.advance(streamKey, 12);
+    expect(store.get(streamKey)).toBe(12);
+    expect(store.get(rotatedKey)).toBe(0);
+    expect(() => store.advance(streamKey, 11)).toThrow(/regression/);
+    store.advance(streamKey, 13);
 
     const reloaded = new CompletionCursorStore(file);
     expect(reloaded.load()).toBe('loaded');
-    expect(reloaded.get('https://server::backend')).toBe(13);
+    expect(reloaded.get(streamKey)).toBe(13);
+    expect(reloaded.get(rotatedKey)).toBe(0);
 
     fs.writeFileSync(file, '{"version":1,"cursors":{"backend":-1}}', 'utf-8');
     const corrupt = new CompletionCursorStore(file);
     expect(corrupt.load()).toBe('corrupt');
     expect(corrupt.get('backend')).toBe(0);
+  });
+
+  it('does not advance the in-memory cursor when durable persistence fails', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'completion-cursor-failure-'));
+    temporaryPaths.push(root);
+    const blockedParent = path.join(root, 'not-a-directory');
+    fs.writeFileSync(blockedParent, 'block mkdir', 'utf-8');
+    const file = path.join(blockedParent, 'cursors.json');
+    const store = new CompletionCursorStore(file);
+
+    expect(() => store.advance('island-a/backend', 7)).toThrow();
+    expect(store.get('island-a/backend')).toBe(0);
+
+    fs.rmSync(blockedParent);
+    store.advance('island-a/backend', 7);
+    const reloaded = new CompletionCursorStore(file);
+    expect(reloaded.load()).toBe('loaded');
+    expect(reloaded.get('island-a/backend')).toBe(7);
   });
 });

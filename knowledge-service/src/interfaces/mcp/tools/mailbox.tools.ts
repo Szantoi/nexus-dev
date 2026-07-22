@@ -562,16 +562,19 @@ export function registerMailboxTools(): void {
       const messageId = String(args.message_id || '');
       const summary = args.summary ? String(args.summary) : undefined;
       const callerTerminal = context.terminal;
+      const callerIsland = context.island;
 
-      if (!callerTerminal) {
-        return error('Caller terminal not identified. Check MCP token configuration.');
+      if (!callerTerminal || !callerIsland) {
+        return error('Caller terminal/island not identified. Check MCP token configuration.');
       }
 
-      if (callerTerminal !== 'root' && callerTerminal !== terminal) {
+      // Completion is execution authority, not administration: root has no
+      // implicit cross-terminal override without an explicit audited policy.
+      if (callerTerminal !== terminal) {
         return error(`Terminal ${callerTerminal} cannot complete tasks for terminal ${terminal}`);
       }
 
-      const result = await completeTaskForMcp(terminal, messageId, summary, context.island);
+      const result = await completeTaskForMcp(terminal, messageId, summary, callerIsland);
       return success(result);
     }
   );

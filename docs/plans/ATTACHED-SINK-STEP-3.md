@@ -1,8 +1,8 @@
 # AttachedSink — a 3. lépés végrehajtható al-terve
 
-> **Verzió:** 1.1
+> **Verzió:** 1.2
 > **Dátum:** 2026-07-22
-> **Státusz:** A-szelet IMPLEMENTÁLVA, független review vár; B platform-preflight PASS
+> **Státusz:** A-review 1 FAIL javítva, re-review vár; B platform-preflight PASS
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -18,6 +18,20 @@ replay kliense és a monoton lokális cursor store. Célzott teszt, teljes
 coverage-suite és élő DEV `claim → complete_task → receipt → cursor → idempotens
 retry` PASS. A készítőtől független review-t `@root` vállalta az
 `AGENT-CHANNEL.md` szerint; addig az A-szelet nem tekinthető lezártnak.
+
+Az első két független review öt rést talált: a write-oldali island nem volt a
+claimelt taskhoz kötve; két legacy út receipt nélkül is completiont
+commitolhatott; a cursor kulcsa nem tartalmazta az island/credential scope-ot;
+a cursor memóriában a tartós írás előtt lépett előre; a checkpoint-illesztés
+escape nélkül épített reguláris kifejezést.
+A javítás után az authenticated claim tartós `current_island_id`-t kap, amelyet
+a completion tranzakción belül ellenőrzünk; rootnak nincs implicit
+cross-terminal complete joga; a legacy REST/file-DONE út island-scoped taskra
+fail-closed; a cursor namespace endpoint + island + terminal + credential-
+fingerprint, és memóriában csak sikeres rename után lép előre. A checkpoint ID
+literálisan illeszkedik. Valódi token→island rotációs negatív teszt, 7 célzott
+suite / 142 teszt, teljes coverage és élő DEV ismétlés PASS. A re-review
+továbbra is kötelező.
 
 A B-szelethez rendelkezésre áll kétplatformos preflight-evidence:
 `node-pty@1.1.0` Linux/Node 22 forkpty és Windows/Node 24 ConPTY spawn/write/exit
@@ -257,6 +271,11 @@ localhost bind vagy dashboard engedélyezés hiányzó tokennel startup FAIL.
 - [x] runner client, monoton cursor store és reconnect/replay tesztek;
 - [x] jogosulatlan cross-terminal/cross-island olvasás és tranzakciós rollback
   tesztje;
+- [x] tokenből származó island tartós claimhez kötése és tranzakciós ownership-
+  egyezés; root cross-terminal override tiltása;
+- [x] island-scoped task legacy REST/file-DONE completion-bypassának tiltása;
+- [x] endpoint/island/terminal/credential-fingerprint scoped cursor namespace
+  és scope-rotációs replay teszt;
 - [ ] készítőtől független review PASS.
 
 ### B — natív dependency és platformkapu

@@ -288,12 +288,24 @@ kulcsa az `(island_id, terminal_id, message_id)` hármas; a szerver ugyanazt a
 sequence-t adja vissza, nem hoz létre új completiont.
 
 A reconnect utáni replay kliensoldali védelme ugyanilyen fontos: a válaszban
-érkező terminálnak egyeznie kell a kért terminállal, a sequence-eknek szigorúan
-növekedniük, a `nextCursor` értéknek pedig monoton haladnia kell. A helyi cursor
-temp-file + rename módon, verziózott formában mentendő; sérült fájl vagy
-cursor-regresszió fail-closed állapot. A receipt feed elkészülte önmagában még
-nem indokol PTY-nudge-ot: a runner főciklus csak a későbbi lifecycle-szeletben
-kapcsolhatja össze a matching receiptet a stabil provider-idle feltétellel.
+érkező terminálnak és islandnek egyeznie kell a kért scope-pal, a sequence-eknek
+szigorúan növekedniük, a `nextCursor` értéknek pedig monoton haladnia kell. A
+streamkulcsnak a server+terminal mellett az islandet és a credential nem
+visszafejthető fingerprintjét is tartalmaznia kell, különben egy jogosultság-
+rotáció régi cursorral eseményt ugorhat át. A helyi cursor temp-file + rename
+módon, verziózott formában mentendő, és memóriában csak a sikeres rename után
+léphet előre; sérült fájl, írási hiba vagy cursor-regresszió fail-closed állapot.
+
+Az olvasási scope nem helyettesíti az írási erőforrás-tulajdont. A claimnek a
+hitelesített islandet a taskkal együtt tartósan kell tárolnia, a completionnek
+pedig ugyanabban a tranzakcióban kell ellenőriznie a terminal+task+island
+egyezést, amelyben az állapot és a receipt készül. Minden régi REST/file-DONE
+út, amely ezt nem tudja bizonyítani, island-scoped tasknál kötelezően fail-closed;
+egy privilegizált `root` név sem jogosít hallgatólagos cross-terminal írásra.
+
+A receipt feed elkészülte önmagában még nem indokol PTY-nudge-ot: a runner
+főciklus csak a későbbi lifecycle-szeletben kapcsolhatja össze a matching
+receiptet a stabil provider-idle feltétellel.
 
 Kanonikus terv és döntés:
 `docs/plans/ATTACHED-SINK-STEP-3.md`,

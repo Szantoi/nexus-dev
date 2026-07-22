@@ -178,3 +178,50 @@ Koordináció: az `AGENT-CHANNEL.md` szerint @codex az implementáló, @root a
 független reviewer. A B-szelet előzetes natív bizonyítéka rendelkezésre áll:
 `node-pty` 1.1.0 Windows/ConPTY és Linux/forkpty install+spawn PASS; a dependency
 és a Linuxon regenerált lock azonban csak az A-review után kerül a repóba.
+
+### 2026-07-22 — AttachedSink 3A első review és korrekció
+
+Az első két, egymástól független review **FAIL / changes required** eredményt
+adott. A read-oldali island-szűrés önmagában nem volt elég: a claim nem kötötte
+az aktív taskot tartósan a hitelesített islandhez, a legacy REST/file-DONE út
+pedig nyugta nélkül is lezárhatott volna ilyen taskot. Emellett a runner cursor
+kulcsa nem választotta szét az island- és credential-rotációkat, a cursor
+memóriában a tartós fájlírás előtt lépett előre, a checkpoint-illesztés pedig
+escape nélkül épített reguláris kifejezést.
+
+Korrekció:
+
+- a `terminal_context.current_island_id` a claimben rögzíti a hitelesített
+  erőforrás-tulajdont; claim, release és completion csak pontos
+  terminal+island egyezéssel engedélyezett, root cross-terminal felülírás nincs;
+- az MCP completion ugyanabban a SQLite-tranzakcióban ellenőrzi a tárolt
+  task+island kötést, amelyben az állapotot és a receiptet commitolja;
+- a legacy REST és a ProjectDispatcher file-DONE út fail-closed megtagadja az
+  island-scoped task lezárását, ezért nincs receipt nélküli kerülőút;
+- a replay válasz minden receiptjén ellenőrzi az elvárt islandet, streamkulcsa
+  server+terminal+island+credential-fingerprint; rotáció új cursort kap;
+- a cursor csak sikeres temp-write+rename után lép előre memóriában;
+- a checkpoint message ID regex-metakarakterei escape-elve, literálisan
+  illeszkednek;
+- valós `authenticateMcp`/`authenticateRest` integrációs teszt bizonyítja, hogy
+  ugyanazon token island-mappingjének rotációja után a régi claim nem írható és
+  nem olvasható kereszt-szigetből.
+
+Ellenőrzési bizonyíték a korrekció után:
+
+- typecheck, build és lint-ratchet PASS (`784 ≤ 786`);
+- 7 célzott suite / 142 teszt PASS;
+- teljes coverage PASS: statements 41,76%, branches 36,29%, functions 41,25%,
+  lines 42,20%;
+- production audit 0 vulnerability; secret, link, task és méretkapu PASS;
+- a méretkapu miatt a checkpoint-projekció külön
+  `checkpointStatusUpdater.ts` modulba került, új allowlist nélkül;
+- élő DEV/3466 PASS: saját conductor tokennel claim, root cross-terminal
+  completion DENY, `island-live-a` sequence=1 receipt, `after=1` üres replay,
+  idempotens retry ugyanazzal a sequence-szel; a DEV szerver leállítva,
+  production deploy nem történt.
+
+**Állapot:** a teljes kapu- és élő DEV-kör kész; a készítőtől független re-review
+még kötelező. A runner főciklusba kötött receipt+idle döntés szándékosan a C–D
+szelet scope-ja, ezért a 3A infrastruktúra és a teljes AttachedSink továbbra is
+`in_progress`.

@@ -96,14 +96,21 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
 - `src/pipeline/completionReceiptStore.ts` — append-only, scope-olt receipt store.
 - `src/pipeline/epicRouter.ts` — task-completion + receipt közös tranzakciója.
 - `src/interfaces/http/routes/mailbox.routes.ts` — auth-derived island és saját
-  terminálra szűkített cursoros feed.
-- Élő DEV evidence (2026-07-22): `verify-island/backend`, sequence 1; cursoros
-  replay és azonos sequence-et adó idempotens retry PASS.
+  terminálra szűkített cursoros feed; a claim tartós island-kötése.
+- `src/__tests__/integration/completionAuth.integration.test.ts` — valódi
+  token→terminal/island mapping, root-override és island-rotáció negatív teszt.
+- `src/runner/serverClient.ts` — expected-island ellenőrzés és endpoint/island/
+  terminal/credential-fingerprint alapú cursor namespace.
+- Élő DEV evidence (2026-07-22): `island-live-a/conductor`, sequence 1; root
+  cross-terminal completion DENY, cursoros replay, üres `after=1` oldal és
+  azonos sequence-et adó idempotens retry PASS. A DEV szerver a 3466-os porton
+  futott, majd le lett állítva; production deploy nem történt.
 
 ## Nyitott kérdések
 
-- A vállalt független `@root` security/architecture review elfogadja-e a durable
-  receipt sémát és a runner-owned gateway topológiát?
+- Az első két független review findingjainak javítását elfogadja-e a re-review
+  (claim island-kötés, legacy bypass tiltás, credential-scoped és íráshiba-álló
+  cursor, literális checkpoint-illesztés)?
 - A három CLI mely verzióján és mely screen-markerrel igazolható stabil
   interaktív readiness Windowson és Linuxon?
 - A dashboard későbbi központi relay-je szükséges-e, vagy a localhost +

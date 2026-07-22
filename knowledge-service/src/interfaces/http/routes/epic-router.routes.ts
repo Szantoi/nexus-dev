@@ -17,7 +17,6 @@ import * as crypto from 'crypto';
 import {
   TERMINALS_PATH as TERMINALS_DIR,
   EPICS_PATH as DEFAULT_EPICS_PATH,
-  ISLAND_ID,
 } from '../../../config/paths';
 import { secrets, SELF_BASE_URL } from '../../../config/env';
 import {
@@ -28,6 +27,8 @@ import {
   getQueueForEpic,
   getNextTaskForTerminal,
   handleTaskCompletion,
+  handleLegacyTaskCompletion,
+  LegacyCompletionRefusedError,
   dispatchTask,
   queueTask,
   syncFromEpicsYaml,
@@ -346,7 +347,10 @@ router.post('/task/:terminal/complete', requireTerminalAuth, (req: Request, res:
       return;
     }
 
-    const decision = handleTaskCompletion(terminal, messageId, epicId || null);
+    // Compatibility route for pre-runner, unscoped task flows. The domain
+    // function refuses any task carrying an authenticated runner island claim,
+    // so this endpoint cannot bypass the durable complete_task receipt path.
+    const decision = handleLegacyTaskCompletion(terminal, messageId, epicId || null);
 
     res.json({
       success: true,
@@ -355,6 +359,10 @@ router.post('/task/:terminal/complete', requireTerminalAuth, (req: Request, res:
       decision,
     });
   } catch (error) {
+    if (error instanceof LegacyCompletionRefusedError) {
+      res.status(409).json({ success: false, error: error.message });
+      return;
+    }
     logger.error('[EpicRouter API] Error completing task:', error);
     res.status(500).json({ success: false, error: (error as Error).message });
   }
@@ -787,8 +795,8 @@ export async function ackTaskForMcp(terminal: string, messageId: string): Promis
 export async function completeTaskForMcp(
   terminal: string,
   messageId: string,
-  summary?: string,
-  islandId: string = ISLAND_ID,
+  summary: string | undefined,
+  islandId: string,
 ): Promise<{
   success: boolean;
   error?: string;
@@ -798,6 +806,9 @@ export async function completeTaskForMcp(
   completionSequence?: number;
   idempotent?: boolean;
 }> {
+  if (!islandId) {
+    return { success: false, error: 'Authenticated island identity is required' };
+  }
   const ctx = getTerminalContext(terminal);
 
   if (!ctx || ctx.current_task_id !== messageId) {

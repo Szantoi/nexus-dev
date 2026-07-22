@@ -128,6 +128,7 @@ router.get(
 
       const page = listRunnerCompletionReceipts(island, terminal, after, limit);
       res.json({
+        islandId: island,
         terminal,
         after,
         count: page.receipts.length,
@@ -173,6 +174,20 @@ router.get('/:terminal/inbox', validate(TerminalParamSchema, 'params'), async (r
 router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, 'params'), async (req: Request, res: Response) => {
   const terminal = String(req.params.terminal);
   const messageId = String(req.params.messageId);
+  const caller = req.mcpTerminal;
+  const island = req.mcpIsland;
+
+  // Claims establish the durable ownership scope used by complete_task.
+  // Root has no implicit cross-terminal override: a runner token must identify
+  // exactly the terminal and island that will later complete the task.
+  if (!caller || !island) {
+    res.status(401).json({ success: false, error: 'Authenticated terminal and island identity required' });
+    return;
+  }
+  if (caller !== terminal) {
+    res.status(403).json({ success: false, error: `Forbidden: ${caller} cannot claim tasks for ${terminal}` });
+    return;
+  }
 
   try {
     const current = getTerminalContext(terminal);
@@ -182,6 +197,10 @@ router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, '
     }
     if (current.current_task_id && current.current_task_id !== messageId) {
       res.status(409).json({ success: false, error: 'Terminal already has another claimed task' });
+      return;
+    }
+    if (current.current_task_id === messageId && current.current_island_id !== island) {
+      res.status(409).json({ success: false, error: 'Task is already claimed in another island scope' });
       return;
     }
 
@@ -199,8 +218,9 @@ router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, '
       messageId,
       'working',
       current.consecutive_epic_tasks,
+      island,
     );
-    logger.info(`[RunnerClaim] claimed ${terminal}/${messageId}`);
+    logger.info(`[RunnerClaim] claimed ${island}/${terminal}/${messageId}`);
     res.json({ success: true, terminal, messageId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -211,6 +231,17 @@ router.post('/:terminal/inbox/:messageId/claim', validate(TerminalParamSchema, '
 router.post('/:terminal/inbox/:messageId/release', validate(TerminalParamSchema, 'params'), (req: Request, res: Response) => {
   const terminal = String(req.params.terminal);
   const messageId = String(req.params.messageId);
+  const caller = req.mcpTerminal;
+  const island = req.mcpIsland;
+
+  if (!caller || !island) {
+    res.status(401).json({ success: false, error: 'Authenticated terminal and island identity required' });
+    return;
+  }
+  if (caller !== terminal) {
+    res.status(403).json({ success: false, error: `Forbidden: ${caller} cannot release tasks for ${terminal}` });
+    return;
+  }
   const current = getTerminalContext(terminal);
 
   if (!current) {
@@ -221,6 +252,10 @@ router.post('/:terminal/inbox/:messageId/release', validate(TerminalParamSchema,
     res.status(409).json({ success: false, error: 'Task is not currently claimed by terminal' });
     return;
   }
+  if (!current.current_island_id || current.current_island_id !== island) {
+    res.status(409).json({ success: false, error: 'Task claim belongs to another island scope' });
+    return;
+  }
   setTerminalContext(
     terminal,
     current.current_epic_id || null,
@@ -228,8 +263,9 @@ router.post('/:terminal/inbox/:messageId/release', validate(TerminalParamSchema,
     null,
     'idle',
     current.consecutive_epic_tasks,
+    null,
   );
-  logger.warn(`[RunnerClaim] released ${terminal}/${messageId}`);
+  logger.warn(`[RunnerClaim] released ${island}/${terminal}/${messageId}`);
   res.json({ success: true, terminal, messageId });
 });
 

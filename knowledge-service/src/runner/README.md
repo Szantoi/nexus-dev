@@ -61,11 +61,14 @@ A runner a Bearer-tokenből származtatott island/terminal scope-ban kérdezi:
 GET /api/mailbox/:terminal/completions?after=<cursor>&limit=<1..500>
 ```
 
-A [`ServerClient.fetchCompletionReceipts()`](serverClient.ts) elutasítja a
-hibás, nem monoton vagy más terminálhoz tartozó választ. A
-`CompletionCursorStore` cursor-regressziót nem enged és temp-file + rename
-írást használ. A main loop még nem fogyasztja ezt a feedet; a bekötés a
-`AttachedSessionManager` C/D szeletének része.
+A [`ServerClient.fetchCompletionReceipts(terminal, expectedIslandId, after)`](serverClient.ts)
+elutasítja a hibás, nem monoton, más terminálhoz vagy más islandhez tartozó
+választ. A `completionStreamKey()` az endpointot, a várt islandet, a terminált
+és a token nem visszafejthető fingerprintjét köti össze, ezért credential- vagy
+island-rotáció nem örökölhet régi magas cursort. A `CompletionCursorStore`
+cursor-regressziót nem enged és temp-file + rename írást használ. A main loop
+még nem fogyasztja ezt a feedet; a bekötés az `AttachedSessionManager` C/D
+szeletének része.
 
 ## Függőségi irány
 

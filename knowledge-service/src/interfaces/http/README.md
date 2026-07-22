@@ -35,6 +35,14 @@ Route-fájl másik route-fájltól nem függ; az auth-middleware-eket
 (`auth/tokenAuth.ts`) az app-factory fűzi be, a route-ok már hitelesített
 kérést kapnak (`req.mcpTerminal`, `req.mcpIsland`).
 
+A mailbox claim az aktív task mellé tartósan eltárolja ezt a hitelesített
+terminal+island scope-ot. Release és MCP completion csak ugyanezzel a pontos
+identitással írhat; a root név nem ad hallgatólagos cross-terminal felülírást.
+Az islandet nem igazoló legacy REST/file-DONE completion island-scoped tasknál
+409/fail-closed. A durable completion feed válasza visszaadja a szerver által
+használt `islandId`-t is, hogy a runner minden receiptet a várt scope-pal
+ellenőrizhessen.
+
 ## Konfiguráció
 
 Közvetlen env-olvasás nincs; minden a [`config`](../../config/README.md)

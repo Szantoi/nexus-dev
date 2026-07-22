@@ -406,6 +406,55 @@ describe('dispatch/complete routing flow', () => {
     expect(dispatch.body.success).toBe(false);
     expect(dispatch.body.nextAction).toBe('stop');
   });
+
+  it('legacy REST completion cannot finish an island-scoped runner claim', async () => {
+    epicRouter.setTerminalContext(
+      'explorer', null, null, 'MSG-SCOPED-REST', 'working', 0, 'island-a',
+    );
+
+    const res = await request(app)
+      .post('/api/epic-router/task/explorer/complete')
+      .set(asRoot)
+      .send({ messageId: 'MSG-SCOPED-REST' });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toContain('Legacy completion refused');
+    expect(epicRouter.getTerminalContext('explorer')).toMatchObject({
+      current_task_id: 'MSG-SCOPED-REST',
+      current_island_id: 'island-a',
+      status: 'working',
+    });
+    expect(epicRouter.listRunnerCompletionReceipts('island-a', 'explorer', 0).receipts)
+      .toHaveLength(0);
+
+    const { ProjectDispatcher } = await import('../../pipeline/projectDispatcher');
+    const dispatcher = new ProjectDispatcher({
+      enabled: false,
+      projectsDir: path.join(ROOT, 'legacy-projects'),
+      terminalsDir: TERMINALS,
+    });
+    await (dispatcher as unknown as {
+      processProjectDone(done: Record<string, unknown>): Promise<void>;
+    }).processProjectDone({
+      from: 'explorer',
+      task_id: 'MSG-SCOPED-REST',
+      timestamp: new Date(),
+      filePath: '',
+      content: '',
+    });
+    expect(epicRouter.getTerminalContext('explorer')).toMatchObject({
+      current_task_id: 'MSG-SCOPED-REST',
+      current_island_id: 'island-a',
+      status: 'working',
+    });
+    expect(() => epicRouter.markTerminalIdle('explorer')).toThrow(
+      /Direct idle transition refused/,
+    );
+
+    epicRouter.handleTaskCompletion('explorer', 'MSG-SCOPED-REST', null, {
+      islandId: 'island-a', source: 'mcp_complete_task',
+    });
+  });
 });
 
 // ─── Fetch/ack mailbox endpoints ─────────────────────────────────────────────
@@ -468,7 +517,7 @@ describe('GET /fetch and POST /ack', () => {
   });
 
   it('404 when the assigned task has no backing inbox file', async () => {
-    epicRouter.handleTaskCompletion('explorer', 'MSG-FETCH-1', 'EPIC-F');
+    epicRouter.handleLegacyTaskCompletion('explorer', 'MSG-FETCH-1', 'EPIC-F');
     epicRouter.queueTask('MSG-GONE', 'explorer', null, null, 'medium');
     const decision = epicRouter.getNextTaskForTerminal('explorer');
     epicRouter.dispatchTask('explorer', decision.task!);
@@ -477,7 +526,7 @@ describe('GET /fetch and POST /ack', () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Task MSG-GONE not found in explorer inbox');
 
-    epicRouter.handleTaskCompletion('explorer', 'MSG-GONE', null); // leave terminal idle
+    epicRouter.handleLegacyTaskCompletion('explorer', 'MSG-GONE', null); // leave terminal idle
   });
 });
 
@@ -509,6 +558,7 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     const decision = epicRouter.getNextTaskForTerminal('conductor');
     expect(decision.task!.message_id).toBe('MSG-MCP-1');
     epicRouter.dispatchTask('conductor', decision.task!);
+    epicRouter.setTerminalContext('conductor', null, null, 'MSG-MCP-1', 'working', 0, 'island-mcp-test');
 
     const res = await routes.fetchTaskForMcp('conductor', 'MSG-MCP-1');
     expect(res.success).toBe(true);
@@ -528,7 +578,9 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
   it('complete: continuous-mode terminal finishes without session termination', async () => {
     epicRouter.queueTask('MSG-MCP-NEXT', 'conductor', null, null, 'medium');
 
-    const wrong = await routes.completeTaskForMcp('conductor', 'MSG-WRONG');
+    const wrong = await routes.completeTaskForMcp(
+      'conductor', 'MSG-WRONG', undefined, 'island-mcp-test',
+    );
     expect(wrong.success).toBe(false);
     expect(wrong.error).toContain('not assigned');
 
@@ -573,24 +625,32 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     epicRouter.queueTask('MSG-ATOMIC-ROLLBACK', 'explorer', null, null, 'high');
     const decision = epicRouter.getNextTaskForTerminal('explorer');
     epicRouter.dispatchTask('explorer', decision.task!);
+    epicRouter.setTerminalContext(
+      'explorer', null, null, 'MSG-ATOMIC-ROLLBACK', 'working', 0, 'island-rollback',
+    );
 
     expect(() => epicRouter.handleTaskCompletion(
       'explorer',
       'MSG-ATOMIC-ROLLBACK',
       null,
       { islandId: '', source: 'mcp_complete_task' },
-    )).toThrow(/scope and message ID must be non-empty/);
+    )).toThrow(/island scope must be non-empty/);
     expect(epicRouter.getTerminalContext('explorer')).toMatchObject({
       current_task_id: 'MSG-ATOMIC-ROLLBACK',
       status: 'working',
     });
 
-    epicRouter.handleTaskCompletion('explorer', 'MSG-ATOMIC-ROLLBACK', null);
+    epicRouter.handleTaskCompletion('explorer', 'MSG-ATOMIC-ROLLBACK', null, {
+      islandId: 'island-rollback', source: 'mcp_complete_task',
+    });
   });
 
   it('fetch/ack report a missing file for a dispatched task with no markdown', async () => {
     const decision = epicRouter.getNextTaskForTerminal('conductor');
     epicRouter.dispatchTask('conductor', decision.task!); // MSG-MCP-NEXT has no file
+    epicRouter.setTerminalContext(
+      'conductor', null, null, 'MSG-MCP-NEXT', 'working', 0, 'island-mcp-test',
+    );
 
     const fetch = await routes.fetchTaskForMcp('conductor', 'MSG-MCP-NEXT');
     expect(fetch).toEqual({ success: false, error: 'Task MSG-MCP-NEXT not found in conductor inbox' });
@@ -598,7 +658,9 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     const ack = await routes.ackTaskForMcp('conductor', 'MSG-MCP-NEXT');
     expect(ack).toEqual({ success: false, error: 'Task MSG-MCP-NEXT not found' });
 
-    const done = await routes.completeTaskForMcp('conductor', 'MSG-MCP-NEXT');
+    const done = await routes.completeTaskForMcp(
+      'conductor', 'MSG-MCP-NEXT', undefined, 'island-mcp-test',
+    );
     expect(done.success).toBe(true);
     expect(done.nextTask).toBeNull();
   });
@@ -614,7 +676,7 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     expect(res.task!.frontmatter).toEqual({});
     expect(res.task!.content).toContain('Plain body without markers');
 
-    epicRouter.handleTaskCompletion('conductor', 'MSG-PLAIN', null);
+    epicRouter.handleLegacyTaskCompletion('conductor', 'MSG-PLAIN', null);
   });
 });
 
@@ -783,14 +845,35 @@ describe('pipeline/epicRouter direct API', () => {
     );
 
     // Completing an unrelated message leaves the file untouched
-    epicRouter.handleTaskCompletion('backend', 'MSG-NOT-IN-YAML', 'EPIC-CP');
+    epicRouter.handleLegacyTaskCompletion('backend', 'MSG-NOT-IN-YAML', 'EPIC-CP');
     expect(fs.readFileSync(EPICS, 'utf-8')).not.toContain('status: done');
 
     // Completing the checkpoint-bound message updates only its checkpoint
-    epicRouter.handleTaskCompletion('backend', 'MSG-CP-1', 'EPIC-CP');
+    epicRouter.handleLegacyTaskCompletion('backend', 'MSG-CP-1', 'EPIC-CP');
     const updated = fs.readFileSync(EPICS, 'utf-8');
     const cpxBlock = updated.slice(updated.indexOf('CP-X'), updated.indexOf('CP-Y'));
     expect(cpxBlock).toContain('status: done');
     expect(updated.match(/status: pending/g)).toHaveLength(1); // CP-Y untouched
+  });
+
+  it('matches checkpoint message IDs literally when they contain regex metacharacters', () => {
+    fs.writeFileSync(
+      EPICS,
+      [
+        'epics:',
+        '  - id: EPIC-CP',
+        '    checkpoints:',
+        '      - id: CP-LITERAL',
+        '        condition: "MSG-CP-[1] status=DONE"',
+        '        status: pending',
+      ].join('\n'),
+      'utf-8'
+    );
+
+    epicRouter.handleLegacyTaskCompletion('backend', 'MSG-CP-1', 'EPIC-CP');
+    expect(fs.readFileSync(EPICS, 'utf-8')).toContain('status: pending');
+
+    epicRouter.handleLegacyTaskCompletion('backend', 'MSG-CP-[1]', 'EPIC-CP');
+    expect(fs.readFileSync(EPICS, 'utf-8')).toContain('status: done');
   });
 });

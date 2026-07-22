@@ -309,6 +309,7 @@ describe('ServerClient', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        islandId: 'island-a',
         receipts: [{
           sequence: 7,
           islandId: 'island-a',
@@ -323,20 +324,29 @@ describe('ServerClient', () => {
     });
     const client = new ServerClient('http://srv/', 'tok', fetchMock as unknown as typeof fetch);
 
-    const page = await client.fetchCompletionReceipts('backend', 4, 25);
+    const page = await client.fetchCompletionReceipts('backend', 'island-a', 4, 25);
 
     expect(fetchMock).toHaveBeenCalledWith(
       'http://srv/api/mailbox/backend/completions?after=4&limit=25',
       { headers: { Authorization: 'Bearer tok' } },
     );
     expect(page.receipts[0].messageId).toBe('MSG-7');
+    expect(page.islandId).toBe('island-a');
     expect(page.nextCursor).toBe(7);
+
+    const same = client.completionStreamKey('backend', 'island-a');
+    expect(same).toBe(client.completionStreamKey('backend', 'island-a'));
+    expect(same).not.toBe(client.completionStreamKey('backend', 'island-b'));
+    expect(same).not.toContain('tok');
+    const rotated = new ServerClient('http://srv/', 'rotated-token', fetchMock as unknown as typeof fetch);
+    expect(rotated.completionStreamKey('backend', 'island-a')).not.toBe(same);
   });
 
   it('fails closed on malformed or cross-terminal completion pages', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
+        islandId: 'island-a',
         receipts: [{
           sequence: 1,
           islandId: 'island-a',
@@ -351,8 +361,12 @@ describe('ServerClient', () => {
     });
     const client = new ServerClient('http://srv', 'tok', fetchMock as unknown as typeof fetch);
 
-    await expect(client.fetchCompletionReceipts('backend', 0)).rejects.toMatchObject({ status: 502 });
-    await expect(client.fetchCompletionReceipts('backend', -1)).rejects.toThrow(RangeError);
+    await expect(client.fetchCompletionReceipts('backend', 'island-a', 0))
+      .rejects.toMatchObject({ status: 502 });
+    await expect(client.fetchCompletionReceipts('backend', 'island-b', 0))
+      .rejects.toMatchObject({ status: 502 });
+    await expect(client.fetchCompletionReceipts('backend', 'island-a', -1))
+      .rejects.toThrow(RangeError);
   });
 });
 

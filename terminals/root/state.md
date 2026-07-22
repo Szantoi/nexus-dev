@@ -7,19 +7,23 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A IMPLEMENTÁLVA, REVIEW-RA VÁR**
-(2026-07-22): az `1ac43f6` TerminalSink-alapra elkészült az ADR-087 szerinti
-durable completion A-szelet. A `complete_task` állapotváltás és az
-island/terminal/message scoped nyugta egy SQLite-tranzakció; az ismétlés
-idempotens. A saját terminálra szűkített REST feed cursorosan újrajátszható, a
-runner kliens és az atomi/monoton cursor store fail-closed validál. Typecheck,
-lint-ratchet, célzott 110 teszt, teljes coverage, audit/secret/link/task/size
-kapuk és az élő DEV `claim → complete → receipt → replay → retry` lánc PASS.
-Az `AGENT-CHANNEL.md` munkamegosztása szerint @codex a készítő, @root a
-független reviewer; a task addig `in_progress`. A B-szelet node-pty 1.1.0
-Windows/ConPTY + Linux/forkpty preflightja PASS, de dependency/lock még nincs
-beemelve. Következő: A-review PASS → Linuxon regenerált lock és kétplatformos
-`npm ci` → router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
+**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A REVIEW-JAVÍTÁS KÉSZ, RE-REVIEW VÁR**
+(2026-07-22): az A-szelet első két független review-ja jogos izolációs és
+tartóssági réseket talált. A claim most tartósan rögzíti a hitelesített islandet;
+claim/release/complete csak pontos terminal+island egyezéssel működik, root
+cross-terminal felülírás nincs. A legacy REST és file-DONE út nem zárhat le
+island-scoped taskot receipt nélkül. A replay az islandet is validálja, cursor-
+kulcsa az island- és credential-rotációt elkülöníti; a cursor csak sikeres
+atomi fájlcsere után lép előre. A checkpoint ID literális regex-illesztést kapott.
+Valós auth-middleware-es negatív integrációs teszt fedi a token island-rotációt.
+Typecheck/build/lint, 7 célzott suite / 142 teszt, teljes coverage (41,76 / 36,29
+/ 41,25 / 42,20%), audit/secret/link/task/size és az élő DEV/3466 lánc PASS;
+root cross-terminal completion DENY, scoped receipt/replay/retry PASS, DEV
+leállítva. Már csak a készítőtől független re-review van hátra; a task addig
+`in_progress`. A B-szelet node-pty 1.1.0 Windows/ConPTY +
+Linux/forkpty preflightja PASS, de dependency/lock csak A-review PASS után jön.
+Következő: re-review PASS → Linux-lock + kétplatformos PTY
+smoke/CI → router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
 
 **VPS-teszt eredményének felvétele + biztonsági javítás KÉSZ** (2026-07-22):
 Gábor a VPS-en (3466) tesztelt napközben; a working tree-ben 3 érdemi változás

@@ -10,10 +10,16 @@
 ## Aktív
 
 - [ ] **AttachedSink 3. lépés (`TASK-ISL-007`):** az 1–2. lépés `1ac43f6`
-  commitban mainen, CI PASS; az A-szelet durable completion-receipt
-  implementációja, tesztjei és élő DEV bizonyítéka kész. `complete_task` +
-  receipt egy tranzakció, az API island/terminal scoped és cursoros, a runner
-  cursor store atomi/monoton. Következő kapu: @root független review PASS.
+  commitban mainen, CI PASS. A 3A durable completion-receipt első review-ja
+  FAIL lett: hiányzott a claimelt task tartós island-kötése, volt legacy
+  completion-kerülőút, a cursor nem választotta szét az island/credential
+  rotációt és írási hiba előtt memóriában előrelépett. A korrekció elkészült:
+  tranzakciósan ellenőrzött terminal+task+island ownership, fail-closed legacy
+  utak, scope-validált replay, rotációbiztos streamkulcs, tartós írás utáni
+  cursor-advance és literális checkpoint-illesztés. Typecheck/build/lint, 7
+  célzott suite / 142 teszt, teljes coverage, audit/secret/link/task/size és
+  élő DEV/3466 scoped claim→DENY→receipt→replay→retry PASS; DEV leállítva.
+  Következő kapu: @root független re-review PASS.
   Utána: (B) stabil node-pty dependency, Linuxon regenerált lock, ugyanazzal
   Windows/Linux `npm ci` és natív smoke (előzetes 1.1.0 preflight mindkét OS-en
   PASS); (C) mixed-mode router + PTY state machine;

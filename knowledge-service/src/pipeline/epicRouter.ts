@@ -20,6 +20,7 @@ import * as fs from 'fs';
 import { Terminal } from '../graph/types';
 import { log } from './common';
 import { emitOutboxEvent } from './eventBus';
+import { updateCheckpointStatus } from './checkpointStatusUpdater';
 import {
   CompletionReceiptStore,
   type CompletionReceiptPage,
@@ -29,7 +30,7 @@ import {
 
 // ─── Database Setup ─────────────────────────────────────────────────────────
 
-import { DATA_DIR, getEpicsPath } from '../config/paths';
+import { DATA_DIR } from '../config/paths';
 const DB_PATH = path.join(DATA_DIR, 'epic_router.db');
 
 // Ensure data directory exists
@@ -81,6 +82,7 @@ db.exec(`
   -- Terminal context: tracks current epic/project for each terminal
   CREATE TABLE IF NOT EXISTS terminal_context (
     terminal TEXT PRIMARY KEY,
+    current_island_id TEXT,
     current_epic_id TEXT,
     current_project_id TEXT,
     current_task_id TEXT,
@@ -118,6 +120,16 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_context_epic ON terminal_context(current_epic_id);
 `);
 
+// Additive migration for databases created before durable runner claims bound
+// the active task to the token-derived island. Existing active contexts remain
+// NULL and therefore cannot use the canonical completion path until reclaimed.
+const terminalContextColumns = db.prepare('PRAGMA table_info(terminal_context)').all() as Array<{
+  name: string;
+}>;
+if (!terminalContextColumns.some((column) => column.name === 'current_island_id')) {
+  db.exec('ALTER TABLE terminal_context ADD COLUMN current_island_id TEXT');
+}
+
 const completionReceiptStore = new CompletionReceiptStore(db);
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -146,6 +158,7 @@ export interface Epic {
 
 export interface TerminalContext {
   terminal: string;
+  current_island_id?: string;
   current_epic_id?: string;
   current_project_id?: string;
   current_task_id?: string;
@@ -179,6 +192,13 @@ export interface RoutingDecision {
 export interface CompletionReceiptContext {
   islandId: string;
   source: CompletionReceiptSource;
+}
+
+export class LegacyCompletionRefusedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'LegacyCompletionRefusedError';
+  }
 }
 
 export function getRunnerCompletionReceipt(
@@ -293,9 +313,13 @@ export function setEpicStatus(epicId: string, status: Epic['status']): void {
 // ─── Terminal Context ───────────────────────────────────────────────────────
 
 const upsertContext = db.prepare(`
-  INSERT INTO terminal_context (terminal, current_epic_id, current_project_id, current_task_id, status, consecutive_epic_tasks)
-  VALUES (?, ?, ?, ?, ?, ?)
+  INSERT INTO terminal_context (
+    terminal, current_island_id, current_epic_id, current_project_id,
+    current_task_id, status, consecutive_epic_tasks
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?)
   ON CONFLICT(terminal) DO UPDATE SET
+    current_island_id = excluded.current_island_id,
     current_epic_id = excluded.current_epic_id,
     current_project_id = excluded.current_project_id,
     current_task_id = excluded.current_task_id,
@@ -325,9 +349,10 @@ export function setTerminalContext(
   projectId: string | null,
   taskId: string | null,
   status: TerminalContext['status'] = 'idle',
-  consecutiveTasks: number = 0
+  consecutiveTasks: number = 0,
+  islandId: string | null = null,
 ): void {
-  upsertContext.run(terminal, epicId, projectId, taskId, status, consecutiveTasks);
+  upsertContext.run(terminal, islandId, epicId, projectId, taskId, status, consecutiveTasks);
 }
 
 export function markTerminalWorking(terminal: string, taskId: string): void {
@@ -339,12 +364,19 @@ export function markTerminalWorking(terminal: string, taskId: string): void {
       ctx.current_project_id || null,
       taskId,
       'working',
-      ctx.consecutive_epic_tasks
+      ctx.consecutive_epic_tasks,
+      ctx.current_island_id || null,
     );
   }
 }
 
 export function markTerminalIdle(terminal: string): void {
+  const ctx = getTerminalContext(terminal);
+  if (ctx?.current_island_id) {
+    throw new LegacyCompletionRefusedError(
+      `Direct idle transition refused for island-scoped task ${ctx.current_island_id}/${terminal}/${ctx.current_task_id || 'unknown'}`,
+    );
+  }
   setContextTaskCompleted.run(terminal);
 }
 
@@ -518,6 +550,28 @@ export function handleTaskCompletion(
   terminal: string,
   messageId: string,
   epicId: string | null,
+  receiptContext: CompletionReceiptContext,
+): RoutingDecision {
+  return commitTaskCompletion(terminal, messageId, epicId, receiptContext);
+}
+
+/**
+ * Compatibility-only completion for legacy, unscoped project automation.
+ * A task claimed through the authenticated runner always has current_island_id
+ * and is therefore refused here: only complete_task may finish that resource.
+ */
+export function handleLegacyTaskCompletion(
+  terminal: string,
+  messageId: string,
+  epicId: string | null,
+): RoutingDecision {
+  return commitTaskCompletion(terminal, messageId, epicId);
+}
+
+function commitTaskCompletion(
+  terminal: string,
+  messageId: string,
+  epicId: string | null,
   receiptContext?: CompletionReceiptContext,
 ): RoutingDecision {
   const completedAt = new Date().toISOString();
@@ -525,9 +579,26 @@ export function handleTaskCompletion(
     // Task state and the durable receipt must commit atomically. Otherwise a
     // crash could clear current_task_id while leaving an attached runner with
     // no proof that complete_task succeeded.
-    markTaskCompleted(messageId);
-
     const ctx = getTerminalContext(terminal);
+    if (receiptContext) {
+      if (!receiptContext.islandId) {
+        throw new Error('Completion receipt island scope must be non-empty');
+      }
+      if (!ctx || ctx.current_task_id !== messageId) {
+        throw new Error(`Task ${messageId} is not claimed by terminal ${terminal}`);
+      }
+      if (!ctx.current_island_id || ctx.current_island_id !== receiptContext.islandId) {
+        throw new Error(
+          `Completion scope mismatch for ${terminal}/${messageId}: claimed island does not match caller`,
+        );
+      }
+    } else if (ctx?.current_island_id) {
+      throw new LegacyCompletionRefusedError(
+        `Legacy completion refused for island-scoped task ${ctx.current_island_id}/${terminal}/${messageId}`,
+      );
+    }
+
+    markTaskCompleted(messageId);
     const nextConsecutiveTasks = (ctx?.consecutive_epic_tasks || 0) + 1;
 
     setTerminalContext(
@@ -537,6 +608,7 @@ export function handleTaskCompletion(
       null, // clear current task
       'idle',
       epicId === ctx?.current_epic_id ? nextConsecutiveTasks : 1,
+      null,
     );
 
     if (receiptContext) {
@@ -558,10 +630,10 @@ export function handleTaskCompletion(
   // This is the DB-authoritative event, not file-based
   emitOutboxEvent('outbox:done', terminal, messageId, {
     epicId: epicId || undefined,
-    source: 'mcp_complete_task',  // Mark as MCP-originated (not file-watcher)
+    source: receiptContext ? 'mcp_complete_task' : 'legacy_file_done',
     completedAt,
   });
-  log(`[EpicRouter] Emitted outbox:done for ${messageId} (MCP-authoritative)`);
+  log(`[EpicRouter] Emitted outbox:done for ${messageId} (${receiptContext ? 'MCP-authoritative' : 'legacy-unscoped'})`);
 
   // ADR-053: Update checkpoint status in EPICS.yaml if this task triggers one
   if (epicId) {
@@ -570,66 +642,6 @@ export function handleTaskCompletion(
 
   // Get next task decision
   return getNextTaskForTerminal(terminal);
-}
-
-/**
- * ADR-053: Update checkpoint status in EPICS.yaml
- * Checks if the completed messageId matches any checkpoint condition
- */
-function updateCheckpointStatus(epicId: string, messageId: string): void {
-  const epicsPath = getEpicsPath();
-
-  try {
-    const content = fs.readFileSync(epicsPath, 'utf-8');
-
-    // Check if this messageId is referenced in any checkpoint condition
-    // Format: condition: "MSG-FRONTEND-084 status=DONE"
-    const conditionPattern = new RegExp(`condition:\\s*["']${messageId}\\s+status=DONE["']`);
-
-    if (!conditionPattern.test(content)) {
-      return; // No checkpoint matches this messageId
-    }
-
-    log(`[EpicRouter] Checkpoint found for ${messageId} in ${epicId}`);
-
-    // Find the checkpoint and update its status to done
-    // We need to find the checkpoint block and change status: pending to status: done
-    const lines = content.split('\n');
-    const updatedLines: string[] = [];
-    let inTargetCheckpoint = false;
-    let updated = false;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Check if this line contains the condition for our messageId
-      if (line.includes(`condition:`) && line.includes(messageId) && line.includes('status=DONE')) {
-        inTargetCheckpoint = true;
-      }
-
-      // If we're in the target checkpoint block and find status: pending, update it
-      if (inTargetCheckpoint && line.includes('status:') && line.includes('pending')) {
-        updatedLines.push(line.replace('pending', 'done'));
-        inTargetCheckpoint = false;
-        updated = true;
-        log(`[EpicRouter] Updated checkpoint status to done for ${messageId}`);
-      } else {
-        updatedLines.push(line);
-      }
-
-      // Reset if we hit a new checkpoint (- id:)
-      if (inTargetCheckpoint && line.trim().startsWith('- id:') && !line.includes(messageId)) {
-        inTargetCheckpoint = false;
-      }
-    }
-
-    if (updated) {
-      fs.writeFileSync(epicsPath, updatedLines.join('\n'), 'utf-8');
-      log(`[EpicRouter] EPICS.yaml checkpoint updated for ${messageId}`);
-    }
-  } catch (error) {
-    log(`[EpicRouter] Error updating checkpoint: ${error}`);
-  }
 }
 
 /**

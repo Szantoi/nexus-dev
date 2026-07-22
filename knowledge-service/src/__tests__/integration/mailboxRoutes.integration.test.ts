@@ -184,9 +184,20 @@ describe('runner claim lifecycle', () => {
     const claimed = await request(app).post('/api/mailbox/root/inbox/MSG-ROOT-001/claim');
     expect(claimed.status).toBe(200);
     expect(claimed.body).toMatchObject({ success: true, terminal: 'root', messageId: 'MSG-ROOT-001' });
+    expect(epicRouter.getTerminalContext('root')?.current_island_id).toBe('island-a');
+
+    const wrongIslandClaim = await request(app)
+      .post('/api/mailbox/root/inbox/MSG-ROOT-001/claim')
+      .set('x-test-island', 'island-b');
+    expect(wrongIslandClaim.status).toBe(409);
 
     const conflicting = await request(app).post('/api/mailbox/root/inbox/MSG-ROOT-002/claim');
     expect(conflicting.status).toBe(409);
+
+    const wrongIslandRelease = await request(app)
+      .post('/api/mailbox/root/inbox/MSG-ROOT-001/release')
+      .set('x-test-island', 'island-b');
+    expect(wrongIslandRelease.status).toBe(409);
 
     const released = await request(app).post('/api/mailbox/root/inbox/MSG-ROOT-001/release');
     expect(released.status).toBe(200);
@@ -197,12 +208,21 @@ describe('runner claim lifecycle', () => {
 
 describe('durable runner completion feed', () => {
   it('is island/terminal scoped, cursor paginated, and rejects foreign readers', async () => {
+    epicRouter.setTerminalContext(
+      'backend', null, null, 'MSG-RECEIPT-1', 'working', 0, 'island-a',
+    );
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-1', null, {
       islandId: 'island-a', source: 'mcp_complete_task',
     });
+    epicRouter.setTerminalContext(
+      'backend', null, null, 'MSG-RECEIPT-FOREIGN', 'working', 0, 'island-b',
+    );
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-FOREIGN', null, {
       islandId: 'island-b', source: 'mcp_complete_task',
     });
+    epicRouter.setTerminalContext(
+      'backend', null, null, 'MSG-RECEIPT-2', 'working', 0, 'island-a',
+    );
     epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-2', null, {
       islandId: 'island-a', source: 'mcp_complete_task',
     });
@@ -212,6 +232,7 @@ describe('durable runner completion feed', () => {
       .set('x-test-terminal', 'backend')
       .set('x-test-island', 'island-a');
     expect(first.status).toBe(200);
+    expect(first.body.islandId).toBe('island-a');
     expect(first.body.count).toBe(1);
     expect(first.body.receipts[0]).toMatchObject({
       terminalId: 'backend', messageId: 'MSG-RECEIPT-1', source: 'mcp_complete_task',

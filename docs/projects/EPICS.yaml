@@ -614,9 +614,12 @@ epics:
       Codex, Claude Code és Antigravity adapter Windows/Linux bizonyítékkal.
       A headless/attached TerminalSink varrat kész; az attached lifecycle,
       durable completion és runner-owned dashboard ADR-087 szerint tervezett.
-      A 3A durable completion-receipt szelet implementálva és teljes/élő
-      kapukkal igazolva, de a független review lezárásáig in_progress; node-pty
-      1.1.0 kétplatformos preflight PASS, dependency/lock még nincs beemelve.
+      A 3A első review-ja claim/island, legacy bypass és cursor-rotációs réseket
+      talált; a terminal+task+island ownership, fail-closed legacy utak és a
+      scope/credential-kötött replay korrekciója elkészült. A teljes quality és
+      élő DEV/3466 evidence PASS; re-review még kötelező, ezért in_progress;
+      node-pty 1.1.0 kétplatformos
+      preflight PASS, dependency/lock még nincs beemelve.
 
   - id: ISL-CROSS-PLATFORM-HOSTS
     name: "Windows és Linux runner hostok"
