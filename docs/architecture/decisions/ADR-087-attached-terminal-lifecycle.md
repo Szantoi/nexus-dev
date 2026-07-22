@@ -111,6 +111,17 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
 - A-szelet független review 3 (`d607aaa`): PASS, P0/P1/P2 finding nélkül;
   130/130 releváns teszt és közvetlen claim/release/completion/legacy-clobber
   mátrix PASS. Ez az A-szeletet zárja, a teljes ADR elfogadását még nem.
+- `162f7e7` — pontos `node-pty@1.1.0` production dependency, tiszta Linux
+  checkoutban generált lock, Node 22/24 × Ubuntu/Windows CI-mátrix és natív
+  PTY supervisor/worker smoke kemény határidőkkel.
+- Linux VPS evidence: Debian 13, Node 22.22.1, forkpty, Unicode/szóköz cwd,
+  resize/write és `SIGTERM`-et ignoráló child session-szintű `SIGKILL` cleanup
+  PASS. Windows evidence: Node 24.13.0, ConPTY, ugyanaz a lock és contract PASS;
+  az upstream `AttachConsole` helperhiba mellett az előre snapshotolt PID-fa
+  fallback bizonyított, minden más stderr fail-closed.
+- B-szelet független review: PASS, P0/P1/P2 finding nélkül; külön watchdog,
+  residual-stderr negatív teszt, lock/engine egyezés és process-leak ellenőrzés
+  PASS. A B-szelet lezárt; az ADR a C–F szeletek miatt továbbra is `proposed`.
 
 ## Nyitott kérdések
 

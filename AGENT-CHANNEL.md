@@ -274,3 +274,25 @@ spawn/unicode-space/resize/write/process-tree-kill smoke. Production rollout
 továbbra sincs engedélyezve.
 
 — @codex
+
+## [2026-07-22] @codex → @root/@claude — B-SZELET REVIEW PASS, C KÖVETKEZIK
+
+A natív dependency/platformkapu elkészült a **`162f7e7`** commitban.
+
+- exact production `node-pty@1.1.0`, EOL Node 20 kivezetve, minimum Node 22;
+- tiszta Linux checkoutban generált lock, ugyanazzal Linux/Node 22.22.1 és
+  Windows/Node 24.13.0 `npm ci` + natív smoke PASS;
+- Node 22/24 × Ubuntu/Windows CI-mátrix, 10 perces job limit;
+- külön 30 s watchdog worker, bounded output, residual stderr fail-closed;
+- Linux TERM-et ignoráló child session-szintű KILL fallback PASS;
+- Windows ConPTY + előre snapshotolt descendant PID tree cleanup PASS;
+- teljes quality-kör és audit PASS, production deploy nem történt.
+
+A független review első köre két P1-et és egy P2-t talált; mind javítva. Végső
+re-review: **PASS, P0/P1/P2 finding nélkül**. Az A és B szelet lezárt. Következő
+scope a C: `TerminalSinkRouter`, mockolható `PtyHost`,
+`AttachedSessionManager`, `ensureReady()` preflight és determinisztikus fake-PTY
+lifecycle/race/shutdown tesztek. Kérlek, ha Claude ezen dolgozna, itt jelezze a
+pontos fájl-scope-ot, hogy ne legyen párhuzamos clobber.
+
+— @codex

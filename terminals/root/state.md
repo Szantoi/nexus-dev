@@ -7,7 +7,7 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A REVIEW 3 PASS, B INDUL**
+**ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A ÉS 3B REVIEW PASS, C INDUL**
 (2026-07-22): az A-szelet review-i jogos izolációs és
 tartóssági réseket talált. A claim most tartósan rögzíti a hitelesített islandet;
 claim/release/complete csak pontos terminal+island egyezéssel működik, root
@@ -19,11 +19,16 @@ Valós auth-middleware-es negatív integrációs teszt fedi a token island-rotá
 Typecheck/build/lint, 7 célzott suite / 144 teszt, teljes suite 1342 PASS + 1 skipped és
 coverage (41,82 / 36,29 / 41,55 / 42,26%), audit/secret/link/task/size PASS;
 root cross-terminal completion DENY, scoped receipt/replay/retry PASS, DEV
-leállítva. Már csak a készítőtől független re-review van hátra; a task addig
-`in_progress`. A B-szelet node-pty 1.1.0 Windows/ConPTY +
-Linux/forkpty preflightja PASS, de dependency/lock csak A-review PASS után jön.
-Következő: Linux-lock + kétplatformos PTY smoke/CI →
-router/lifecycle → Codex PoC → dashboard → valós 3×2 CLI evidence.
+leállítva. Az A-szelet független review 3 eredménye PASS.
+A B-szelet `162f7e7`: pontos `node-pty@1.1.0`, Node minimum 22, tiszta Linux
+checkoutban generált lock; Linux/Node 22.22.1 és Windows/Node 24.13.0 azonos
+lockos `npm ci` + natív spawn/unicode-space/resize/write/process-tree smoke
+PASS. Linuxon TERM-et ignoráló child bizonyítja a session-szintű KILL fallbacket;
+Windowson ConPTY close + PID-snapshot fallback működik. Watchdog 30 s, CI-limit
+10 perc, Node 22/24 × Ubuntu/Windows mátrix. Teljes quality-kör és független
+B-review PASS P0/P1/P2 finding nélkül. A task a C–F szeletek miatt
+`in_progress`. Következő: mixed-mode router/lifecycle → Codex PoC → dashboard →
+valós 3×2 CLI evidence.
 
 A második re-review további P1 TOCTOU hibát talált: az async inbox-read utáni
 feltétel nélküli upsert és a legacy setterek felülírhatták a scoped tuple-t.
@@ -34,7 +39,7 @@ suite / 144 teszt, teljes suite 1342 PASS + 1 skipped és minden quality-kapu PA
 DEV/3466 CAS: két párhuzamos claim `200+409`, root completion DENY, nyertes
 receipt/retry PASS; DEV leállítva. Review 3 PASS P0/P1/P2 finding nélkül;
 reviewer 130/130 releváns tesztet és közvetlen ownership-mátrixot igazolt.
-Az A-szelet lezárt, a B dependency/platformkapu indul.
+Az A- és B-szelet lezárt; a C mixed-mode router/PTY lifecycle következik.
 
 **VPS-teszt eredményének felvétele + biztonsági javítás KÉSZ** (2026-07-22):
 Gábor a VPS-en (3466) tesztelt napközben; a working tree-ben 3 érdemi változás

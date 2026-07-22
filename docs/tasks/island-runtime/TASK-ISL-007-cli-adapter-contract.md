@@ -264,3 +264,63 @@ retry-t, `1×200 + 1×409` párhuzamos claimet, minden generic/legacy clobber
 tiltását, rossz release/completion utáni változatlan tuple+queue állapotot,
 majd a matching release és matching completion sikerét receipt létrejöttével.
 Az A-szelet lezárt; a teljes TASK-ISL-007 a B–F szeletek miatt `in_progress`.
+
+### 2026-07-22 — AttachedSink 3B natív dependency és platformkapu
+
+- **Goal:** reprodukálható, stabil és fail-closed natív PTY-alapot létrehozni
+  ugyanazzal a lockfile-lal Windows ConPTY és Linux forkpty környezethez.
+- **Sikerkritérium:** pontos stabil production dependency; tiszta Linux
+  checkoutban generált lock; ugyanazzal Windows/Linux `npm ci`; spawn,
+  Unicode/szóköz cwd, resize, write és teljes process-tree cleanup smoke;
+  build-fallback dokumentáció; támogatott Node-vonalak CI-mátrixa.
+- **Kilépési feltétel:** mindkét valós platform smoke PASS, teljes quality-kör
+  PASS, nincs maradt processz, és a készítőtől független reviewer P0/P1/P2
+  finding nélkül elfogadja a watchdog-, stderr- és tree-kill invariánsokat.
+- **Erőforráskeret:** legfeljebb három elsődleges Linux cleanup-kísérlet után
+  diagnózis/escalation; production deploy és `/opt/nexus-dev` módosítás nélkül;
+  minden lockművelet külön `/tmp` clean checkoutban.
+
+Megvalósult a `162f7e7` commitban:
+
+- `node-pty@1.1.0` pontos production dependency; beta és lebegő tartomány
+  tiltott. A service minimum runtime-ja az EOL Node 20 kivezetése után Node 22;
+- `package-lock.json` tiszta VPS Linux checkoutban, npm 10.9.4-gyel regenerálva;
+- `smoke-node-pty.mjs` külső watchdog és bounded output; külön natív worker,
+  30 másodperces hard timeout és teljes worker-tree takarítás;
+- Linux forkpty cleanup: a session ID TERM előtt rögzül, descendant-first
+  `SIGTERM`, grace, majd `SIGKILL`. A fixture child ignorálja a TERM-et, ezért a
+  fallback ténylegesen tesztelt;
+- Windows cleanup: ConPTY close rendezi a natív workert, az előre snapshotolt
+  descendant PID-fa `taskkill /T /F` fallbackje eltávolítja a túlélő childot;
+- az ismert upstream `conpty_console_list_agent` / `AttachConsole failed` blokk
+  csak pontos sorstruktúra-egyezéssel lesz strukturált INFO. Bármely residual
+  stderr 1-es exit; injektált stderr negatív tesztje PASS;
+- CI: Node 22 és 24 × `ubuntu-latest` és `windows-latest`, jobonként 10 perces
+  hard timeout. A Linux source-build fallbackhez Python 3 + make + g++ explicit;
+- runner README: prebuild/source-build prerequisites, reprodukció és fail-closed
+  platform-szemantika dokumentálva. Konfigurációs mező nem változott.
+
+Platform- és minőségi evidence:
+
+- Linux VPS: Debian 13 x64, Node 22.22.1, npm 10.9.4; `npm ci
+  --prefer-offline` + `npm run smoke:pty` PASS, `node-pty` 1.1.0, Unicode/space,
+  `32x100`, process-tree cleanup PASS;
+- Windows x64: Node 24.13.0, npm 11.6.2; ugyanazzal a Linux lockkal `npm ci
+  --prefer-offline` + `npm run smoke:pty` PASS, ConPTY contract és PID fallback
+  PASS; smoke/helper leak nem maradt;
+- negatív Windows stderr-injekció: a contract-output PASS mellett is exit 1,
+  tehát váratlan natív diagnosztika nem lehet hamis zöld;
+- typecheck, build, lint-ratchet (`784 ≤ 786`), file-size, teljes coverage-suite,
+  production audit (0 vulnerability), secret-scan, link- és task-séma kapu PASS;
+- független review: az első kör két P1-et talált (spawn watchdog hiánya; Linux
+  SID elvesztése TERM után) és P2 Node-runtime rést. A javítások után a végső
+  verdict **PASS**, P0/P1/P2 finding nélkül; syntax/Biome, YAML parse, lock/
+  engine, Windows/Linux cleanup, hard timeout, residual stderr és leak-check
+  közvetlenül reprodukálva.
+
+Rollback: a `162f7e7` commit visszavonása eltávolítja a dependencyt, lock-
+bejegyzést, smoke- és CI-jobot; az `attached` mód továbbra is a meglévő
+fail-closed preflightnál áll meg, a default `headless` VPS-üzem változatlan.
+Production deploy nem történt. A B-szelet lezárt; a TASK-ISL-007 a C–F
+szeletek és a teljes Codex/Claude/Antigravity × Windows/Linux evidence miatt
+továbbra is `in_progress`.

@@ -620,10 +620,13 @@ epics:
       élő DEV/3466 evidence PASS. A második review P1 claim-TOCTOU/legacy
       clobber findingje tranzakciós claim/release CAS-sal és immutable scoped
       contexttel javítva; teljes quality és élő DEV CAS evidence PASS. Harmadik
-      review 3 PASS P0/P1/P2 finding nélkül; az A-szelet lezárt, a B dependency/
-      platformkapu indul. Az epic a további B–F szeletek miatt in_progress;
-      node-pty 1.1.0 kétplatformos
-      preflight PASS, dependency/lock még nincs beemelve.
+      review 3 PASS P0/P1/P2 finding nélkül; az A-szelet lezárt. A B-szelet a
+      pontos node-pty 1.1.0 production dependencyvel, tiszta Linux checkoutban
+      generált lockkal, Node 22/24 × Ubuntu/Windows CI-mátrixszal és natív
+      spawn/unicode-cwd/resize/write/process-tree smoke-kapuval elkészült.
+      Linux Node 22 és Windows Node 24 valós futás, teljes quality-kör és
+      független B-review PASS. Az epic a további C–F szeletek miatt in_progress;
+      következő a mixed-mode router és az AttachedSessionManager lifecycle.
 
   - id: ISL-CROSS-PLATFORM-HOSTS
     name: "Windows és Linux runner hostok"

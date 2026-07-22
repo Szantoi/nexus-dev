@@ -1,8 +1,8 @@
 # AttachedSink — a 3. lépés végrehajtható al-terve
 
-> **Verzió:** 1.2
+> **Verzió:** 1.3
 > **Dátum:** 2026-07-22
-> **Státusz:** A-szelet review 3 PASS; B dependency/platformkapu indul
+> **Státusz:** A- és B-szelet független review PASS; C router/lifecycle következik
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -48,10 +48,16 @@ PASS. A harmadik, készítőtől független review a teljes ownership-mátrixot 
 reprodukálta és **PASS** verdiktet adott P0/P1/P2 finding nélkül; az A-szelet
 lezárt, a receipt+idle poll wiring továbbra is a C–D szelet része.
 
-A B-szelethez rendelkezésre áll kétplatformos preflight-evidence:
-`node-pty@1.1.0` Linux/Node 22 forkpty és Windows/Node 24 ConPTY spawn/write/exit
-PASS. A dependency és a lockfile még nincs a working tree-ben; a reprodukálható
-install/lock kapu az A-review után következik.
+A B-szelet elkészült a `162f7e7` commitban: a production dependency pontosan
+`node-pty@1.1.0`, a lock tiszta Linux checkoutban készült, majd ugyanaz a lock
+Linux/Node 22.22.1 és Windows/Node 24.13.0 alatt `npm ci` + natív smoke PASS.
+A smoke Unicode/szóköz cwd-t, resize-t, write-ot és process-tree terminálást
+ellenőriz. Linuxon bizonyítja a `SIGTERM`-et ignoráló child session-szintű
+`SIGKILL` fallbackjét; Windowson ConPTY close + előre snapshotolt PID-fa
+fallbacket használ. Külön worker-watchdog 30 másodpercnél, a CI-job 10 percnél
+fail-closed leáll. A CI Node 22/24 × Ubuntu/Windows mátrix. A független B-review
+PASS, P0/P1/P2 finding nélkül; a teljes quality-kör és production audit PASS.
+Az EOL Node 20 kikerült, a service engine minimuma Node 22.
 
 ## 1. Goal, sikerkritérium és kilépési feltétel
 
@@ -297,13 +303,14 @@ localhost bind vagy dashboard engedélyezés hiányzó tokennel startup FAIL.
 
 ### B — natív dependency és platformkapu
 
-- a 2026-07-22-én aktuális stabil `node-pty@1.1.0` pontos verziója production
+- [x] a 2026-07-22-én aktuális stabil `node-pty@1.1.0` pontos verziója production
   dependencyként; beta kiadás tilos, implementációkor az upstream állapot újra
   ellenőrzendő;
-- lockfile regenerálás tiszta Linux checkoutban, majd ugyanazzal a lockkal
+- [x] lockfile regenerálás tiszta Linux checkoutban, majd ugyanazzal a lockkal
   `npm ci` Linuxon és Windowson;
-- build prerequisite és prebuild/fallback dokumentáció;
-- natív minimál smoke: spawn, unicode/space workdir, resize, write, kill tree.
+- [x] build prerequisite és prebuild/fallback dokumentáció;
+- [x] natív minimál smoke: spawn, unicode/space workdir, resize, write, kill tree;
+- [x] készítőtől független review PASS (`162f7e7`; P0/P1/P2 finding nélkül).
 
 ### C — router, PTY port és lifecycle
 

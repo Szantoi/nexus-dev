@@ -318,3 +318,33 @@ receiptet a stabil provider-idle feltétellel.
 Kanonikus terv és döntés:
 `docs/plans/ATTACHED-SINK-STEP-3.md`,
 `docs/architecture/decisions/ADR-087-attached-terminal-lifecycle.md`.
+
+---
+
+## 2026-07-22 — Natív PTY platform- és leállítási tanulságok
+
+A natív dependency reprodukálhatóságához a pontos production verzió önmagában
+nem elég: a lockot tiszta Linux checkoutban kell generálni, majd ugyanazt a
+lockot minden támogatott OS- és Node-vonalon `npm ci`-jal telepíteni. 2026
+júliusában a Node 20 már EOL, ezért release-kapu csak Node 22/24-re épülhet; az
+engine minimum is Node 22. A prebuild kényelmi út, de a source-build
+prerequisite-eket és fallbacket dokumentálni/CI-ben biztosítani kell.
+
+A `node-pty.kill()` nem egységes process-tree supervisor. Linuxon az interaktív
+háttér-job külön process groupba kerülhet, miközben ugyanabban a forkpty
+sessionben marad. A helyes cleanup: a session ID rögzítése a TERM előtt,
+descendant-first `SIGTERM`, rövid grace, majd session-szintű `SIGKILL` — ezt
+TERM-et ignoráló fixture-rel kell tesztelni. Windowson a ConPTY close rendezi a
+natív output-workert, de child túlélhet; ezért a lezárás előtt snapshotolt PID-
+fát külön, gyermek-először kell ellenőrizni és `taskkill /T /F` fallbackkel
+takarítani.
+
+Natív spawn maga is blokkolhat, ezért a smoke belső timeoutja nem elég: külön
+watchdog processz és CI-s hard timeout kell. A kapu stdout/stderr-e bounded.
+Ismert upstream helperhiba csak pontos blokk-illesztéssel minősíthető
+dokumentált fallbacknek; a teljes stderr lenullázása hamis zöldet okozna.
+Bármely maradék stderr fail-closed, és ezt külön injekciós negatív tesztnek kell
+bizonyítania.
+
+Kanonikus evidence: `162f7e7`,
+`docs/plans/ATTACHED-SINK-STEP-3.md`, valamint a `TASK-ISL-007` 3B naplója.

@@ -28,9 +28,11 @@
   receipt/retry PASS; DEV leállítva. Következő kapu: @root harmadik független
   review PASS — teljesült: P0/P1/P2 finding nélkül, 130/130 reviewer-teszt és
   közvetlen ownership-mátrix PASS. Az A-szelet lezárt.
-  Utána: (B) stabil node-pty dependency, Linuxon regenerált lock, ugyanazzal
-  Windows/Linux `npm ci` és natív smoke (előzetes 1.1.0 preflight mindkét OS-en
-  PASS); (C) mixed-mode router + PTY state machine;
+  (B) teljesült (`162f7e7`): pontos node-pty 1.1.0 dependency, tiszta Linux
+  checkoutban regenerált lock, Node 22/24 × Ubuntu/Windows CI, Linux/Node 22 és
+  Windows/Node 24 `npm ci` + natív Unicode/resize/write/process-tree smoke,
+  teljes quality-kör és független review PASS. Következő: (C) mixed-mode router
+  + PTY state machine;
   (D) provider readiness, completion+idle+heartbeat és Codex `explorer` PoC;
   (E) localhost-default, autentikált xterm.js dashboard egy controllerrel;
   (F) fokozatos rollout és Codex/Claude/Antigravity × Windows/Linux evidence.
