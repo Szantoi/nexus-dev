@@ -13,6 +13,21 @@ export interface UnreadTask {
   created?: string;
 }
 
+export interface RunnerCompletionReceipt {
+  sequence: number;
+  islandId: string;
+  terminalId: string;
+  messageId: string;
+  completedAt: string;
+  source: 'mcp_complete_task';
+}
+
+export interface CompletionReceiptPage {
+  receipts: RunnerCompletionReceipt[];
+  nextCursor: number;
+  hasMore: boolean;
+}
+
 export class ServerApiError extends Error {
   constructor(
     public readonly status: number,
@@ -76,6 +91,72 @@ export class ServerClient {
 
   async claimTask(terminal: string, messageId: string): Promise<void> {
     await this.postTaskTransition(terminal, messageId, 'claim');
+  }
+
+  /** Durable completion replay; SSE may wake this query but is never truth. */
+  async fetchCompletionReceipts(
+    terminal: string,
+    after: number,
+    limit = 100,
+  ): Promise<CompletionReceiptPage> {
+    if (!Number.isSafeInteger(after) || after < 0) {
+      throw new RangeError('after must be a non-negative safe integer');
+    }
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+      throw new RangeError('limit must be an integer between 1 and 500');
+    }
+
+    const url = `${this.baseUrl}/api/mailbox/${encodeURIComponent(terminal)}/completions?after=${after}&limit=${limit}`;
+    const res = await this.fetchFn(url, {
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!res.ok) {
+      throw new ServerApiError(
+        res.status,
+        `fetchCompletionReceipts(${terminal}, after=${after}) -> HTTP ${res.status}`,
+      );
+    }
+
+    const body = (await res.json()) as Partial<CompletionReceiptPage>;
+    if (
+      !Array.isArray(body.receipts) ||
+      !Number.isSafeInteger(body.nextCursor) ||
+      (body.nextCursor as number) < after ||
+      typeof body.hasMore !== 'boolean'
+    ) {
+      throw new ServerApiError(502, 'Malformed completion receipt page');
+    }
+
+    const receipts: RunnerCompletionReceipt[] = [];
+    let previousSequence = after;
+    for (const value of body.receipts) {
+      const receipt = value as Partial<RunnerCompletionReceipt>;
+      if (
+        !Number.isSafeInteger(receipt.sequence) ||
+        (receipt.sequence as number) <= previousSequence ||
+        receipt.terminalId !== terminal ||
+        typeof receipt.islandId !== 'string' ||
+        !receipt.islandId ||
+        typeof receipt.messageId !== 'string' ||
+        !receipt.messageId ||
+        typeof receipt.completedAt !== 'string' ||
+        receipt.source !== 'mcp_complete_task'
+      ) {
+        throw new ServerApiError(502, 'Malformed or out-of-scope completion receipt');
+      }
+      previousSequence = receipt.sequence as number;
+      receipts.push(receipt as RunnerCompletionReceipt);
+    }
+
+    const expectedCursor = receipts.length > 0 ? receipts[receipts.length - 1].sequence : after;
+    if ((body.nextCursor as number) !== expectedCursor) {
+      throw new ServerApiError(502, 'Completion receipt cursor does not match page contents');
+    }
+    return {
+      receipts,
+      nextCursor: body.nextCursor as number,
+      hasMore: body.hasMore,
+    };
   }
 
   async releaseTask(terminal: string, messageId: string): Promise<void> {

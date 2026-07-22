@@ -14,7 +14,11 @@
 
 import { Router, Request, Response, NextFunction } from 'express';
 import * as crypto from 'crypto';
-import { TERMINALS_PATH as TERMINALS_DIR, EPICS_PATH as DEFAULT_EPICS_PATH } from '../../../config/paths';
+import {
+  TERMINALS_PATH as TERMINALS_DIR,
+  EPICS_PATH as DEFAULT_EPICS_PATH,
+  ISLAND_ID,
+} from '../../../config/paths';
 import { secrets, SELF_BASE_URL } from '../../../config/env';
 import {
   getTerminalContext,
@@ -31,6 +35,7 @@ import {
   listActiveEpics,
   createProject,
   createEpic,
+  getRunnerCompletionReceipt,
   TerminalStatsRow,
   QueueStatsRow,
 } from '../../../pipeline/epicRouter';
@@ -779,16 +784,35 @@ export async function ackTaskForMcp(terminal: string, messageId: string): Promis
  * Complete task for MCP tool
  * 2026-06-24: Added cold session mode support - terminates session after task completion
  */
-export async function completeTaskForMcp(terminal: string, messageId: string, summary?: string): Promise<{
+export async function completeTaskForMcp(
+  terminal: string,
+  messageId: string,
+  summary?: string,
+  islandId: string = ISLAND_ID,
+): Promise<{
   success: boolean;
   error?: string;
   completed?: boolean;
   nextTask?: string | null;
   sessionTerminated?: boolean;
+  completionSequence?: number;
+  idempotent?: boolean;
 }> {
   const ctx = getTerminalContext(terminal);
 
   if (!ctx || ctx.current_task_id !== messageId) {
+    const existingReceipt = getRunnerCompletionReceipt(islandId, terminal, messageId);
+    if (existingReceipt) {
+      const nextTask = getNextTaskForTerminal(terminal);
+      return {
+        success: true,
+        completed: true,
+        nextTask: nextTask?.task?.message_id || null,
+        sessionTerminated: false,
+        completionSequence: existingReceipt.sequence,
+        idempotent: true,
+      };
+    }
     return {
       success: false,
       error: `Task ${messageId} is not assigned to terminal ${terminal}`
@@ -796,8 +820,14 @@ export async function completeTaskForMcp(terminal: string, messageId: string, su
   }
 
   const epicId = ctx.current_epic_id || null;
-  const result = handleTaskCompletion(terminal, messageId, epicId);
-  const nextTask = getNextTaskForTerminal(terminal);
+  const nextTask = handleTaskCompletion(terminal, messageId, epicId, {
+    islandId,
+    source: 'mcp_complete_task',
+  });
+  const receipt = getRunnerCompletionReceipt(islandId, terminal, messageId);
+  if (!receipt) {
+    throw new Error(`Completion receipt missing after successful completion: ${terminal}/${messageId}`);
+  }
 
   // Cold session mode: terminate session after task completion
   const sessionMode = getSessionMode(terminal);
@@ -815,6 +845,8 @@ export async function completeTaskForMcp(terminal: string, messageId: string, su
     completed: true,
     nextTask: nextTask?.task?.message_id || null,
     sessionTerminated,
+    completionSequence: receipt.sequence,
+    idempotent: false,
   };
 }
 

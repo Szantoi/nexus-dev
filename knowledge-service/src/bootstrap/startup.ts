@@ -198,6 +198,7 @@ export function startServices(port: number): void {
   logger.info(`   POST /api/knowledge/index    (re-index)`);
   logger.info(`\n   Mailbox Tools:`);
   logger.info(`   GET  /api/mailbox/:terminal/inbox?status=UNREAD|READ|all`);
+  logger.info(`   GET  /api/mailbox/:terminal/completions?after=<cursor>  (durable runner receipts)`);
   logger.info(`   POST /api/mailbox/:terminal/inbox   (send_message)`);
   logger.info(`   POST /api/mailbox/:terminal/outbox  (submit_done)`);
   logger.info(`\n   Tasks:`);

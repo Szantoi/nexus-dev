@@ -1,13 +1,32 @@
 # Attended Terminal Sink — választható végrehajtási módok (headless | attached)
 
-> **Verzió:** 1.0
+> **Verzió:** 1.2
 > **Dátum:** 2026-07-22
-> **Státusz:** TERV
-> **Kapcsolódó:** ADR-081 (single launch authority), `src/runner/`, `src/pipeline/`
+> **Státusz:** 1–2. lépés KÉSZ (`1ac43f6`); 3A implementálva, review vár
+> **Kapcsolódó:** ADR-081 (single launch authority),
+> [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
+> [AttachedSink 3. lépés](ATTACHED-SINK-STEP-3.md), `src/runner/`, `src/pipeline/`
 
 ---
 
 ## 1. Probléma és használati szempont
+
+### Megvalósítási checkpoint (2026-07-22)
+
+Az 1–2. migrációs lépés a `main` ágon, `1ac43f6` commitban elkészült és CI PASS:
+`TerminalSink`, viselkedésazonos headless alias, `mode: headless | attached`,
+fail-closed attached preflight, dokumentáció és tesztek. Az `attached` értéket a
+config-validáció előkészítésként elfogadja, de valódi sink hiányában a runner
+szándékosan nem indul el vele.
+
+A 3. lépés részletes, implementáció előtti szerződése:
+[ATTACHED-SINK-STEP-3.md](ATTACHED-SINK-STEP-3.md). Ez pontosítja a mixed-mode
+routert, a durable completion-receiptet, a session állapotgépet, az idle-kaput,
+a runner-owned dashboardot és a platformteszteket.
+
+A 3A durable completion szelet 2026-07-22-én implementálva és élő DEV-láncon
+igazolva; független review előtt még nem lezárt. A `node-pty` dependency és a
+lockfile ebben a checkpointban még nem változott.
 
 A mai `src/runner/` a feladatokat **headless, egylövetű** CLI-sessionként futtatja
 (`claude -p`, prompt stdinre). Ez tökéletes **felügyelet nélküli, autonóm**
@@ -51,14 +70,14 @@ A poll-hurok marad az **egyetlen indítási autoritás** (ADR-081). Csak a „ho
 írjunk" cserélhető, a provider-adapter mintájára:
 
 ```
-pollLoop (VÁLTOZATLAN)  ──dispatch(terminal, messageId, model)──►  TerminalSink
+pollLoop (VÁLTOZATLAN)  ──dispatch(terminal, messageId, model)──►  TerminalSinkRouter
    claim/release                                                     ├─ HeadlessSink  (mai spawn)
-   busy-guard                                                        └─ AttachedSink  (node-pty)
+   busy-guard                                                        └─ AttachedSink[] (node-pty, terminálonként)
 ```
 
 ```ts
 interface TerminalSink {
-  ensureReady(terminal: string): Promise<void>;   // attached: él-e a session, ha nem, indítsd
+  ensureReady?(): Promise<void> | void;            // router: minden attached session preflightja
   dispatch(req: LaunchRequest): DispatchResult;    // headless: spawn; attached: write a PTY-be
   isBusy(terminal: string): boolean;               // attached: mid-task (nudge → complete_task közt)
   cancel(terminal: string, reason?: string): boolean;
@@ -96,10 +115,14 @@ terminals:
 
 - **node-pty** perzisztens PTY session **terminálonként** (ConPTY Windowson,
   forkpty Linuxon) — az interaktív CLI-t futtatja (NEM `-p`), az él és vár.
-- **Nudge = write a PTY stdin-jébe** (a feladat-prompt beírása) + Enter.
-- **Látható + kétirányú**: a PTY kimenete egy **xterm.js dashboardra** streamel
-  (a szerver már ad SSE-t / websocketet), a dashboard billentyűi **visszamennek
-  ugyanabba a PTY-be** → **beleszólás = beírsz a közös élő sessionbe**.
+- **Nudge = write a PTY stdin-jébe**: rövid, egy soros utasítás a claimelt
+  message id MCP-n történő lekérésére + Enter. A teljes tasktartalom nem kerül
+  közvetlenül a PTY-be.
+- **Látható + kétirányú**: a PTY kimenete egy **xterm.js dashboardra** streamel,
+  a dashboard billentyűi **visszamennek ugyanabba a PTY-be** → **beleszólás =
+  beírsz a közös élő sessionbe**. A knowledge-service ma SSE-t ad, de PTY-
+  WebSocket gatewayt nem; az MVP gateway a runner mellett, localhost-defaulttal
+  épül meg.
 - A session **életben marad**, sorban kapja a nudge-okat, megtartja a kontextust.
 
 ---
@@ -109,17 +132,19 @@ terminals:
 Hosszú életű sessionnél **nincs process-exit feladatonként**, ezért a „kész"
 jelet másképp kell venni:
 
-- **Autoritatív kész-jel:** a tartós MCP **`complete_task`** (ez ma is a döntő).
+- **Autoritatív kész-jel:** a tartós MCP **`complete_task`**, amelyből a szerver
+  terminal/message-id kötött durable receiptet ír. Az SSE csak wake; a runner
+  cursoros lekérdezéssel reconciliál.
 - **Idle-detektálás:** a PTY kimenete elcsendesedett + a prompt visszatért.
 - **Busy-guard:** `attached`-nél a busy = „nudge és `complete_task` közt vagyunk";
   a poll addig nem küld új nudge-ot az adott terminálra. Az egyetlen-autoritás
   elv sértetlen: a poll dönt, a sink csak kézbesít.
 
 > **Újrahasznosítás:** a régi `src/pipeline/` (`watchIdle`, `watchMcpHeartbeat`,
-> `watchDone`, `paneState`) PONT ezt oldotta meg — attended, hosszú életű,
-> idle-detektálás — csak **tmux-on** (Linux-only). A node-pty leváltja a tmux-ot
-> mint hordozót; a detektálási logika fogalmilag átemelhető és cross-platformmá
-> tehető. Ez konvergencia, nem zöldmezős munka.
+> `watchDone`, `paneState`) ugyanennek több fogalmát kezeli tmux-on. Csak a
+> tiszta osztályozási szabályok emelhetők át; az automatikus Enter/kill,
+> értesítés és más provider-/tmux-specifikus mellékhatás nem. A PTY-idle csak a
+> következő nudge kapuja, üzleti completiont nem bizonyít.
 
 ---
 
@@ -163,10 +188,12 @@ platform-optional lock-tanulságot.)
    `HeadlessSink`-ké (viselkedés változatlan, tesztek zöldek).
 2. `mode` mező a `TerminalEntrySchema`-ba (`default: headless` → visszafelé
    kompatibilis; a mai VPS-üzem érintetlen).
-3. `AttachedSink` MVP node-pty-vel **egyetlen terminálra** (proof-of-concept:
-   nudge → élő látható session → beleszólás), Windows + Linux smoke.
+3. `AttachedSink` MVP a külön
+   [3. lépés al-terve](ATTACHED-SINK-STEP-3.md) szerint: durable completion-
+   receipt → mixed-mode router → node-pty lifecycle → idle/heartbeat → helyi
+   xterm.js dashboard → Windows + Linux evidence.
 4. Idle/done/heartbeat detektálás átemelése a `pipeline`-ból, cross-platform.
-5. xterm.js dashboard-panel a szerverben (websocket a PTY-hez).
+5. xterm.js dashboard-panel + autentikált, runner-owned helyi WebSocket gateway.
 6. Fokozatos kiterjesztés a többi terminálra; a `pipeline/` tmux-út
    nyugdíjazása, ha az `attached` mindent lefed.
 
@@ -181,7 +208,8 @@ platform-optional lock-tanulságot.)
   dashboard-hozzáférés és a PTY-megosztás modellje ettől függ.
 - **node-pty natív build:** Windows (ConPTY) + Linux prebuild elérhetőség, a
   CI-lock platform-optional kezelése.
-- **Crash-recovery:** ha egy `attached` session meghal, a poll újraindítja és a
-  félbemaradt feladat retry-store-ból folytatódik-e? (fail-closed elv.)
-- **ADR:** a döntés véglegesítésekor külön ADR rögzítse a launch-authority
-  átértelmezését (spawn-per-task → dispatch-into-live-session).
+- **Crash-recovery:** a PTY nem él túl runner-crasht. Új session indul; a durable
+  completion-receipt és claim/state reconciliáció dönti el, hogy retry vagy
+  csak session-helyreállítás kell. Külön PTY-host daemon nem MVP-scope.
+- **ADR:** az [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md)
+  `proposed`; független architecture/security review után fogadható el.

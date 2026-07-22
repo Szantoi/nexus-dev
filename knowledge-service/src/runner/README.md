@@ -20,6 +20,8 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
   (a `TerminalSink` absztrakció), [`sinkFactory.ts`](sinkFactory.ts)
   (mode → sink feloldás), [`processedStore.ts`](processedStore.ts)
   (feldolgozott üzenetek perzisztens nyilvántartása — duplaindítás ellen),
+  [`completionCursorStore.ts`](completionCursorStore.ts) (monoton, atomikusan
+  mentett durable-completion cursor az attached managerhez),
   [`taskPrompt.ts`](taskPrompt.ts), valamint a provider-adapterek:
   [`cliAdapter.ts`](cliAdapter.ts), [`codexAdapter.ts`](codexAdapter.ts),
   [`claudeAdapter.ts`](claudeAdapter.ts),
@@ -45,6 +47,25 @@ dob** (`AttachedSink not implemented yet (step 3): terminal '<name>'`). A
 [`main.ts`](main.ts) a poll indítása előtt preflightol (`selectRunnerSink`),
 így egy `attached` terminál fail-closed leállítja a runnert — nem esik csendben
 headlessre.
+
+## Durable completion replay (AttachedSink 3A)
+
+A PTY-output és az SSE nem üzleti completion. A sikeres MCP `complete_task` az
+`epic_router.db` append-only `runner_completion_receipts` táblájába ír az
+üzleti taskállapottal **azonos SQLite-tranzakcióban**. Az ismételt
+`complete_task` ugyanazt a `completionSequence` értéket adja vissza.
+
+A runner a Bearer-tokenből származtatott island/terminal scope-ban kérdezi:
+
+```text
+GET /api/mailbox/:terminal/completions?after=<cursor>&limit=<1..500>
+```
+
+A [`ServerClient.fetchCompletionReceipts()`](serverClient.ts) elutasítja a
+hibás, nem monoton vagy más terminálhoz tartozó választ. A
+`CompletionCursorStore` cursor-regressziót nem enged és temp-file + rename
+írást használ. A main loop még nem fogyasztja ezt a feedet; a bekötés a
+`AttachedSessionManager` C/D szeletének része.
 
 ## Függőségi irány
 

@@ -532,11 +532,60 @@ describe('fetchTaskForMcp / ackTaskForMcp / completeTaskForMcp', () => {
     expect(wrong.success).toBe(false);
     expect(wrong.error).toContain('not assigned');
 
-    const done = await routes.completeTaskForMcp('conductor', 'MSG-MCP-1', 'all done');
+    const done = await routes.completeTaskForMcp(
+      'conductor',
+      'MSG-MCP-1',
+      'all done',
+      'island-mcp-test',
+    );
     expect(done.success).toBe(true);
     expect(done.completed).toBe(true);
     expect(done.sessionTerminated).toBe(false); // conductor is continuous, never cold-killed
     expect(done.nextTask).toBe('MSG-MCP-NEXT');
+    expect(done.completionSequence).toEqual(expect.any(Number));
+    expect(done.idempotent).toBe(false);
+
+    const receipts = epicRouter.listRunnerCompletionReceipts('island-mcp-test', 'conductor', 0);
+    expect(receipts.receipts).toHaveLength(1);
+    expect(receipts.receipts[0]).toMatchObject({
+      terminalId: 'conductor',
+      messageId: 'MSG-MCP-1',
+      source: 'mcp_complete_task',
+    });
+
+    const retry = await routes.completeTaskForMcp(
+      'conductor',
+      'MSG-MCP-1',
+      undefined,
+      'island-mcp-test',
+    );
+    expect(retry).toMatchObject({
+      success: true,
+      completed: true,
+      completionSequence: done.completionSequence,
+      idempotent: true,
+    });
+    expect(epicRouter.listRunnerCompletionReceipts('island-mcp-test', 'conductor', 0).receipts)
+      .toHaveLength(1);
+  });
+
+  it('rolls task state back when durable receipt creation fails', () => {
+    epicRouter.queueTask('MSG-ATOMIC-ROLLBACK', 'explorer', null, null, 'high');
+    const decision = epicRouter.getNextTaskForTerminal('explorer');
+    epicRouter.dispatchTask('explorer', decision.task!);
+
+    expect(() => epicRouter.handleTaskCompletion(
+      'explorer',
+      'MSG-ATOMIC-ROLLBACK',
+      null,
+      { islandId: '', source: 'mcp_complete_task' },
+    )).toThrow(/scope and message ID must be non-empty/);
+    expect(epicRouter.getTerminalContext('explorer')).toMatchObject({
+      current_task_id: 'MSG-ATOMIC-ROLLBACK',
+      status: 'working',
+    });
+
+    epicRouter.handleTaskCompletion('explorer', 'MSG-ATOMIC-ROLLBACK', null);
   });
 
   it('fetch/ack report a missing file for a dispatched task with no markdown', async () => {

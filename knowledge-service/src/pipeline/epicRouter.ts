@@ -20,6 +20,12 @@ import * as fs from 'fs';
 import { Terminal } from '../graph/types';
 import { log } from './common';
 import { emitOutboxEvent } from './eventBus';
+import {
+  CompletionReceiptStore,
+  type CompletionReceiptPage,
+  type CompletionReceiptSource,
+  type RunnerCompletionReceipt,
+} from './completionReceiptStore';
 
 // ─── Database Setup ─────────────────────────────────────────────────────────
 
@@ -112,6 +118,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_context_epic ON terminal_context(current_epic_id);
 `);
 
+const completionReceiptStore = new CompletionReceiptStore(db);
+
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface Project {
@@ -166,6 +174,28 @@ export interface RoutingDecision {
   task?: QueuedTask;
   reason: string;
   nextAction: 'dispatch' | 'wait' | 'stop';
+}
+
+export interface CompletionReceiptContext {
+  islandId: string;
+  source: CompletionReceiptSource;
+}
+
+export function getRunnerCompletionReceipt(
+  islandId: string,
+  terminalId: string,
+  messageId: string,
+): RunnerCompletionReceipt | undefined {
+  return completionReceiptStore.get(islandId, terminalId, messageId);
+}
+
+export function listRunnerCompletionReceipts(
+  islandId: string,
+  terminalId: string,
+  after: number,
+  limit?: number,
+): CompletionReceiptPage {
+  return completionReceiptStore.list(islandId, terminalId, after, limit);
 }
 
 // ─── Project Management ─────────────────────────────────────────────────────
@@ -487,24 +517,40 @@ export function getNextTaskForTerminal(terminal: string): RoutingDecision {
 export function handleTaskCompletion(
   terminal: string,
   messageId: string,
-  epicId: string | null
+  epicId: string | null,
+  receiptContext?: CompletionReceiptContext,
 ): RoutingDecision {
-  // Mark task as completed
-  markTaskCompleted(messageId);
+  const completedAt = new Date().toISOString();
+  const { consecutiveTasks } = db.transaction(() => {
+    // Task state and the durable receipt must commit atomically. Otherwise a
+    // crash could clear current_task_id while leaving an attached runner with
+    // no proof that complete_task succeeded.
+    markTaskCompleted(messageId);
 
-  // Update terminal context
-  const ctx = getTerminalContext(terminal);
-  const consecutiveTasks = (ctx?.consecutive_epic_tasks || 0) + 1;
+    const ctx = getTerminalContext(terminal);
+    const nextConsecutiveTasks = (ctx?.consecutive_epic_tasks || 0) + 1;
 
-  // Update context - keep epic but mark idle
-  setTerminalContext(
-    terminal,
-    epicId,
-    ctx?.current_project_id || null,
-    null, // clear current task
-    'idle',
-    epicId === ctx?.current_epic_id ? consecutiveTasks : 1
-  );
+    setTerminalContext(
+      terminal,
+      epicId,
+      ctx?.current_project_id || null,
+      null, // clear current task
+      'idle',
+      epicId === ctx?.current_epic_id ? nextConsecutiveTasks : 1,
+    );
+
+    if (receiptContext) {
+      completionReceiptStore.record({
+        islandId: receiptContext.islandId,
+        terminalId: terminal,
+        messageId,
+        source: receiptContext.source,
+        completedAt,
+      });
+    }
+
+    return { consecutiveTasks: nextConsecutiveTasks };
+  })();
 
   log(`[EpicRouter] Terminal ${terminal} completed task ${messageId} (epic: ${epicId || 'none'}, consecutive: ${consecutiveTasks})`);
 
@@ -513,7 +559,7 @@ export function handleTaskCompletion(
   emitOutboxEvent('outbox:done', terminal, messageId, {
     epicId: epicId || undefined,
     source: 'mcp_complete_task',  // Mark as MCP-originated (not file-watcher)
-    completedAt: new Date().toISOString(),
+    completedAt,
   });
   log(`[EpicRouter] Emitted outbox:done for ${messageId} (MCP-authoritative)`);
 

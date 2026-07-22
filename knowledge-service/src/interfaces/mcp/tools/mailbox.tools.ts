@@ -571,7 +571,7 @@ export function registerMailboxTools(): void {
         return error(`Terminal ${callerTerminal} cannot complete tasks for terminal ${terminal}`);
       }
 
-      const result = await completeTaskForMcp(terminal, messageId, summary);
+      const result = await completeTaskForMcp(terminal, messageId, summary, context.island);
       return success(result);
     }
   );

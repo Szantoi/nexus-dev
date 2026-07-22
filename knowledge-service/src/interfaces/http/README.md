@@ -15,7 +15,7 @@ A [`routes/index.ts`](routes/index.ts) exportálja a routereket; a
 |---|---|
 | `health.routes.ts` | `/health`, `/ready`, `/live` |
 | `knowledge.routes.ts` | `/api/knowledge/*` — RAG-keresés, újraindexelés |
-| `mailbox.routes.ts` | `/api/mailbox/:terminal/*` — inbox/outbox, SSE subscribe, broadcast |
+| `mailbox.routes.ts` | `/api/mailbox/:terminal/*` — inbox/outbox, durable completion feed, SSE subscribe, broadcast |
 | `task.routes.ts`, `kanban.routes.ts` | taskállapot, kanban |
 | `registry.routes.ts`, `agent-messages.routes.ts` | message-registry, agent-üzenetek |
 | `session.routes.ts`, `terminal.routes.ts` | session-kezelés, terminál-állapot |

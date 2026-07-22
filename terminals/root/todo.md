@@ -5,9 +5,23 @@
 > Program/mérföldkő/epic szintű GÉPI állapot: `docs/projects/EPICS.yaml` — task-zárás
 > után oda is szinkronizálni kell (eljárás a fájl fejlécében; TASK-QC-001).
 
-**Utolsó frissítés:** 2026-07-21
+**Utolsó frissítés:** 2026-07-22
 
 ## Aktív
+
+- [ ] **AttachedSink 3. lépés (`TASK-ISL-007`):** az 1–2. lépés `1ac43f6`
+  commitban mainen, CI PASS; az A-szelet durable completion-receipt
+  implementációja, tesztjei és élő DEV bizonyítéka kész. `complete_task` +
+  receipt egy tranzakció, az API island/terminal scoped és cursoros, a runner
+  cursor store atomi/monoton. Következő kapu: @root független review PASS.
+  Utána: (B) stabil node-pty dependency, Linuxon regenerált lock, ugyanazzal
+  Windows/Linux `npm ci` és natív smoke (előzetes 1.1.0 preflight mindkét OS-en
+  PASS); (C) mixed-mode router + PTY state machine;
+  (D) provider readiness, completion+idle+heartbeat és Codex `explorer` PoC;
+  (E) localhost-default, autentikált xterm.js dashboard egy controllerrel;
+  (F) fokozatos rollout és Codex/Claude/Antigravity × Windows/Linux evidence.
+  Kilépés csak teljes dokumentáció, rollback, CI/quality kapuk és független
+  review PASS után. Terv: `docs/plans/ATTACHED-SINK-STEP-3.md`.
 
 - [ ] **NEXUS-DEVELOPMENT-PROCESS program (2026-07-18):** bizonyítható,
   kikényszerített fejlesztési lánc — 11 task a

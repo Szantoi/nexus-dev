@@ -4,7 +4,7 @@ Ez a könyvtár a Nexus knowledge-service architektúra-döntéseit rögzíti
 (QUALITY.md 2.: a döntéseket ÉS a design intentet is dokumentáljuk).
 
 Új döntéshez használd a [TEMPLATE.md](TEMPLATE.md) sablont, a következő szabad
-sorszámmal (jelenleg: **087**).
+sorszámmal (jelenleg: **088**).
 
 ## A számozásról és a rekonstrukcióról
 
@@ -47,6 +47,7 @@ ADR-eket kódból, tesztekből és git-történetből rekonstruáltuk. Ezért:
 | [ADR-084](ADR-084-migration-threat-rollback-plan.md) | Adat-, fenyegetés-, migrációs és rollback terv (sziget-runtime) | **proposed** (független review vár — TASK-ISL-001) | 2026-07-18 |
 | [ADR-085](ADR-085-slo-platform-evidence-strategy.md) | SLO-k és platformbizonyítási stratégia (sziget-runtime) | **proposed** (független review vár — TASK-ISL-001) | 2026-07-18 |
 | [ADR-086](ADR-086-change-provenance-branch-protection.md) | Change provenance — branch/commit/PR-névadás, protected main, bot-commit kapu | **proposed** (branch protection terv, nincs alkalmazva — TASK-DP-006) | 2026-07-18 |
+| [ADR-087](ADR-087-attached-terminal-lifecycle.md) | Attached terminál életciklus és completion-szerződés | **proposed** (architecture/security review vár) | 2026-07-22 |
 
 Kiegészítő: [PHASE1_MCP_TOOLS_REVIEW.md](PHASE1_MCP_TOOLS_REVIEW.md) — elveszett
 architektúra-review helyreállító csonkja (a `phase1-tools-test-plan.md` hivatkozza).

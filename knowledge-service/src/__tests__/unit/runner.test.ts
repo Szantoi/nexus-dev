@@ -304,6 +304,56 @@ describe('ServerClient', () => {
     await expect(client.fetchUnread('backend')).rejects.toThrowError(ServerApiError);
     await expect(client.fetchUnread('backend')).rejects.toMatchObject({ status: 401 });
   });
+
+  it('replays terminal-scoped completion receipts with a validated cursor', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        receipts: [{
+          sequence: 7,
+          islandId: 'island-a',
+          terminalId: 'backend',
+          messageId: 'MSG-7',
+          completedAt: '2026-07-22T10:00:00.000Z',
+          source: 'mcp_complete_task',
+        }],
+        nextCursor: 7,
+        hasMore: false,
+      }),
+    });
+    const client = new ServerClient('http://srv/', 'tok', fetchMock as unknown as typeof fetch);
+
+    const page = await client.fetchCompletionReceipts('backend', 4, 25);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://srv/api/mailbox/backend/completions?after=4&limit=25',
+      { headers: { Authorization: 'Bearer tok' } },
+    );
+    expect(page.receipts[0].messageId).toBe('MSG-7');
+    expect(page.nextCursor).toBe(7);
+  });
+
+  it('fails closed on malformed or cross-terminal completion pages', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        receipts: [{
+          sequence: 1,
+          islandId: 'island-a',
+          terminalId: 'frontend',
+          messageId: 'MSG-1',
+          completedAt: '2026-07-22T10:00:00.000Z',
+          source: 'mcp_complete_task',
+        }],
+        nextCursor: 1,
+        hasMore: false,
+      }),
+    });
+    const client = new ServerClient('http://srv', 'tok', fetchMock as unknown as typeof fetch);
+
+    await expect(client.fetchCompletionReceipts('backend', 0)).rejects.toMatchObject({ status: 502 });
+    await expect(client.fetchCompletionReceipts('backend', -1)).rejects.toThrow(RangeError);
+  });
 });
 
 // ─── SessionLauncher (closed command set) ────────────────────────────────────

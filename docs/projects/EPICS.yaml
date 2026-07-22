@@ -38,7 +38,7 @@
 # Cél: a projekt állapota fájlban él, nem a beszélgetés-kontextusban.
 
 version: "1.1"
-updated: "2026-07-18"
+updated: "2026-07-22"
 
 # ─── PROGRAMOK ───────────────────────────────────────────────────────────────
 
@@ -612,6 +612,11 @@ epics:
     description: >
       Egységes process- és eventszerződés headless/PTY CLI-khez, majd valós
       Codex, Claude Code és Antigravity adapter Windows/Linux bizonyítékkal.
+      A headless/attached TerminalSink varrat kész; az attached lifecycle,
+      durable completion és runner-owned dashboard ADR-087 szerint tervezett.
+      A 3A durable completion-receipt szelet implementálva és teljes/élő
+      kapukkal igazolva, de a független review lezárásáig in_progress; node-pty
+      1.1.0 kétplatformos preflight PASS, dependency/lock még nincs beemelve.
 
   - id: ISL-CROSS-PLATFORM-HOSTS
     name: "Windows és Linux runner hostok"

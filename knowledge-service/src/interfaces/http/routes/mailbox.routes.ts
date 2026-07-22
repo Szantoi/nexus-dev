@@ -19,7 +19,11 @@ import {
 import { validate, TerminalParamSchema, TerminalSchema } from '../../../validation';
 import { triggerImmediatePipelineAsync } from '../../../pipeline/immediatePipeline';
 import { logger } from '../../../core/logger';
-import { getTerminalContext, setTerminalContext } from '../../../pipeline/epicRouter';
+import {
+  getTerminalContext,
+  listRunnerCompletionReceipts,
+  setTerminalContext,
+} from '../../../pipeline/epicRouter';
 
 const router = Router();
 
@@ -75,6 +79,73 @@ function broadcastToTerminal(terminal: string, event: string, data: MailboxEvent
     });
   }
 }
+
+function parseNonNegativeQueryInteger(
+  value: unknown,
+  fallback: number,
+  name: string,
+  maximum = Number.MAX_SAFE_INTEGER,
+): number {
+  if (value === undefined) return fallback;
+  if (typeof value !== 'string' || !/^\d+$/.test(value)) {
+    throw new RangeError(`${name} must be a non-negative integer`);
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed > maximum) {
+    throw new RangeError(`${name} is outside the allowed range`);
+  }
+  return parsed;
+}
+
+// ─── Durable runner completion feed ─────────────────────────────────────────
+
+router.get(
+  '/:terminal/completions',
+  validate(TerminalParamSchema, 'params'),
+  (req: Request, res: Response) => {
+    const terminal = String(req.params.terminal);
+    const caller = req.mcpTerminal;
+    const island = req.mcpIsland;
+
+    // Narrower than the general mailbox policy: conductor/monitor may inspect
+    // other mailboxes, but a completion cursor is runner execution state.
+    if (!caller || !island) {
+      res.status(401).json({ error: 'Authenticated terminal and island identity required' });
+      return;
+    }
+    if (caller !== 'root' && caller !== terminal) {
+      res.status(403).json({ error: `Forbidden: ${caller} cannot read ${terminal} completion receipts` });
+      return;
+    }
+
+    try {
+      const after = parseNonNegativeQueryInteger(req.query.after, 0, 'after');
+      const limit = parseNonNegativeQueryInteger(req.query.limit, 100, 'limit', 500);
+      if (limit < 1) {
+        res.status(400).json({ error: 'limit must be at least 1' });
+        return;
+      }
+
+      const page = listRunnerCompletionReceipts(island, terminal, after, limit);
+      res.json({
+        terminal,
+        after,
+        count: page.receipts.length,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        receipts: page.receipts,
+      });
+    } catch (error) {
+      if (error instanceof RangeError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`[RunnerCompletion] list failed for ${terminal}: ${message}`);
+      res.status(500).json({ error: 'Failed to list completion receipts' });
+    }
+  },
+);
 
 // ─── List Inbox ──────────────────────────────────────────────────────────────
 

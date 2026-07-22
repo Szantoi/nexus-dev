@@ -45,6 +45,7 @@ const TERMINALS = path.join(ROOT, 'terminals');
 let request: typeof import('supertest').default;
 let app: import('express').Express;
 let routes: typeof import('../../interfaces/http/routes/mailbox.routes');
+let epicRouter: typeof import('../../pipeline/epicRouter');
 let triggerMock: ReturnType<typeof vi.fn>;
 let liveServer: http.Server | null = null;
 
@@ -96,6 +97,7 @@ beforeAll(async () => {
   const express = (await import('express')).default;
   const supertest = (await import('supertest')).default;
   routes = await import('../../interfaces/http/routes/mailbox.routes');
+  epicRouter = await import('../../pipeline/epicRouter');
   const pipeline = await import('../../pipeline/immediatePipeline');
   triggerMock = pipeline.triggerImmediatePipelineAsync as unknown as ReturnType<typeof vi.fn>;
 
@@ -103,7 +105,10 @@ beforeAll(async () => {
   server.use(express.json());
   // Stub identity middleware in place of authenticateRest + authorizeMailboxRest
   server.use('/api/mailbox', (req, _res, next) => {
-    (req as typeof req & { mcpTerminal?: string }).mcpTerminal = 'root';
+    const terminal = req.headers['x-test-terminal'];
+    const island = req.headers['x-test-island'];
+    req.mcpTerminal = typeof terminal === 'string' ? terminal : 'root';
+    req.mcpIsland = typeof island === 'string' ? island : 'island-a';
     next();
   }, routes.default);
   app = server;
@@ -187,6 +192,52 @@ describe('runner claim lifecycle', () => {
     expect(released.status).toBe(200);
     const releasedAgain = await request(app).post('/api/mailbox/root/inbox/MSG-ROOT-001/release');
     expect(releasedAgain.status).toBe(409);
+  });
+});
+
+describe('durable runner completion feed', () => {
+  it('is island/terminal scoped, cursor paginated, and rejects foreign readers', async () => {
+    epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-1', null, {
+      islandId: 'island-a', source: 'mcp_complete_task',
+    });
+    epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-FOREIGN', null, {
+      islandId: 'island-b', source: 'mcp_complete_task',
+    });
+    epicRouter.handleTaskCompletion('backend', 'MSG-RECEIPT-2', null, {
+      islandId: 'island-a', source: 'mcp_complete_task',
+    });
+
+    const first = await request(app)
+      .get('/api/mailbox/backend/completions?after=0&limit=1')
+      .set('x-test-terminal', 'backend')
+      .set('x-test-island', 'island-a');
+    expect(first.status).toBe(200);
+    expect(first.body.count).toBe(1);
+    expect(first.body.receipts[0]).toMatchObject({
+      terminalId: 'backend', messageId: 'MSG-RECEIPT-1', source: 'mcp_complete_task',
+    });
+    expect(first.body.hasMore).toBe(true);
+
+    const second = await request(app)
+      .get(`/api/mailbox/backend/completions?after=${first.body.nextCursor}&limit=10`)
+      .set('x-test-terminal', 'backend')
+      .set('x-test-island', 'island-a');
+    expect(second.status).toBe(200);
+    expect(second.body.receipts.map((receipt: { messageId: string }) => receipt.messageId))
+      .toEqual(['MSG-RECEIPT-2']);
+    expect(second.body.hasMore).toBe(false);
+
+    const foreign = await request(app)
+      .get('/api/mailbox/backend/completions')
+      .set('x-test-terminal', 'frontend')
+      .set('x-test-island', 'island-a');
+    expect(foreign.status).toBe(403);
+
+    const malformed = await request(app)
+      .get('/api/mailbox/backend/completions?after=-1')
+      .set('x-test-terminal', 'backend')
+      .set('x-test-island', 'island-a');
+    expect(malformed.status).toBe(400);
   });
 });
 

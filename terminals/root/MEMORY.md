@@ -251,3 +251,50 @@ platformevidence továbbra is kötelező.
 
 Részletes runbook és bizonyíték:
 `docs/knowledge/codex-autonom-runner-vps-uzemeltetes.md`.
+
+---
+
+## 2026-07-22 — Attached PTY completion és tulajdonlási invariánsok
+
+### Tartós architekturális tanulság
+
+Hosszú életű attached CLI-sessionnél a képernyő és az üzleti taskállapot két
+külön igazságforrás. PTY-output, prompt-visszatérés, processz-élet vagy inbox
+`READ` állapot nem bizonyítja a task befejezését. A completion kizárólag a
+szerveroldali `complete_task`-ból létrehozott, terminal/message-id kötött durable
+receipt; az SSE csak wake, ezért reconnect után cursoros reconciliáció kell.
+A következő nudge kapuja: matching receipt **ÉS** stabil, provider-specifikus
+PTY-idle. Az idle önmagában sosem completion.
+
+Vegyes `headless | attached` runnerhez terminálonként delegáló
+`TerminalSinkRouter` szükséges; a sink nem vehet át mailbox-/launch-döntést a
+polltól. A PTY és a helyi dashboard gateway a runner tulajdona, mert ez őrzi az
+outbound-only topológiát. A node-pty session csak a runner folyamatán belül
+hosszú életű; crash után új PTY és durable receipt/claim reconciliáció kell,
+nem „reattach”.
+
+A dashboard távoli billentyűinjektálási felület: alapból tiltott és localhostra
+kötött, egy lejáró controller lease írhat, több viewer olvashat, a replay
+bounded memóriapuffer, a nyers transcript pedig alapból nem perzisztálható. A
+legacy tmux watcherből csak tiszta classifier-logika vihető át, automatikus
+Enter/kill/értesítési mellékhatás nem.
+
+### Tartós implementációs tanulság
+
+A durable nyugta csak akkor bizonyítja az üzleti completiont, ha az üzleti
+állapotváltással **ugyanabban az adatbázis-tranzakcióban** jön létre. Külön
+írásnál a task és a nyugta crash esetén szétcsúszhatna. Az idempotens retry
+kulcsa az `(island_id, terminal_id, message_id)` hármas; a szerver ugyanazt a
+sequence-t adja vissza, nem hoz létre új completiont.
+
+A reconnect utáni replay kliensoldali védelme ugyanilyen fontos: a válaszban
+érkező terminálnak egyeznie kell a kért terminállal, a sequence-eknek szigorúan
+növekedniük, a `nextCursor` értéknek pedig monoton haladnia kell. A helyi cursor
+temp-file + rename módon, verziózott formában mentendő; sérült fájl vagy
+cursor-regresszió fail-closed állapot. A receipt feed elkészülte önmagában még
+nem indokol PTY-nudge-ot: a runner főciklus csak a későbbi lifecycle-szeletben
+kapcsolhatja össze a matching receiptet a stabil provider-idle feltétellel.
+
+Kanonikus terv és döntés:
+`docs/plans/ATTACHED-SINK-STEP-3.md`,
+`docs/architecture/decisions/ADR-087-attached-terminal-lifecycle.md`.

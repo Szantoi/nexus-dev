@@ -6,7 +6,7 @@ project: nexus/knowledge-service
 milestone: ISL-M3
 epic: ISL-CLI-ADAPTERS
 status: in_progress
-updated: 2026-07-21
+updated: 2026-07-22
 priority: critical
 depends_on: [TASK-ISL-001]
 parallel_with: [TASK-ISL-002, TASK-ISL-004]
@@ -96,3 +96,85 @@ Részletes napló és rollback:
 Claude és Antigravity valós adapterbizonyítéka hiányzik; a natív Windows Codex
 smoke sandbox-helper jogosultsági hibán blokkolt. Emiatt a task `in_progress`,
 nem `done`, és független review még szükséges.
+
+### 2026-07-22 — TerminalSink 1–2 kész, AttachedSink 3. lépés tervezési checkpoint
+
+- **Goal:** a már merge-elt végrehajtási varrat után az attached módot olyan
+  részletességgel specifikálni, hogy a natív dependency, completion, PTY-
+  életciklus és dashboard implementációja külön szeletekben, fail-closed módon
+  végrehajtható és review-zható legyen.
+- **Sikerkritérium:** pontos mixed-mode routing; szerverautoritatív durable
+  completion; egzakt session/idle/heartbeat szabály; dashboard auth/control;
+  Windows/Linux dependency- és tesztkapu; rollout/rollback rögzítve.
+- **Kilépési feltétel:** az al-terv és az ADR review-képes, a nyitott
+  architekturális kérdések explicitek, és egyetlen pont sem kezeli a PTY-
+  szöveget vagy az SSE-t completion source of truthként.
+- **Erőforráskeret:** dokumentációs/tervezési kör; production kód, dependency,
+  deploy és külső állapot módosítása nélkül.
+
+Eredmény:
+
+- az 1–2. lépés `1ac43f6` commitban a `main` ágon, CI PASS: `TerminalSink`, a
+  viselkedésazonos `HeadlessSink`, terminálmód config és fail-closed preflight;
+- létrejött a végrehajtható
+  `docs/plans/ATTACHED-SINK-STEP-3.md` A–F megvalósítási szeletekkel;
+- létrejött a proposed `ADR-087`: mixed-mode router, runner-owned PTY/gateway,
+  durable completion receipt, completion+idle kettős kapu, egyíró/többnéző;
+- igazolt korrekció: a szerver ma SSE-t biztosít, PTY WebSocket gatewayt nem;
+  a régi pipeline watcherekből csak tiszta classifier-logika vihető tovább;
+- a `node-pty` session csak a runner élettartamán belül perzisztens. Runner-
+  crash után új PTY és durable receipt/claim reconciliáció szükséges.
+
+**Maradó kapu:** ADR-087 architecture/security review; A szelet (durable receipt)
+után Linuxon regenerált lock és Windows/Linux `npm ci`; majd router/lifecycle,
+Codex PoC, dashboard, végül a teljes valós 3×2 CLI-mátrix. Emiatt a task továbbra
+is `in_progress`.
+
+### 2026-07-22 — AttachedSink 3A durable completion-receipt implementáció
+
+- **Goal:** a PTY-outputtól és SSE-kapcsolattól független, szerverautoritatív
+  completion-nyugta és cursoros runner-replay út létrehozása.
+- **Sikerkritérium:** a `complete_task` állapotváltás és a nyugta egyetlen
+  SQLite-tranzakció; az ismételt hívás idempotens; az island/terminal scope nem
+  kérésparaméterből, hanem hitelesített kontextusból származik; a runner csak
+  monoton cursort ment; hibás vagy más terminálhoz tartozó válasz fail-closed.
+- **Kilépési feltétel:** az implementáció és a regressziós/élő bizonyíték kész,
+  majd a készítőtől független reviewer PASS-t ad a tranzakció, autorizáció,
+  idempotencia és cursor-invariánsokra. A jelen checkpoint az első részt
+  teljesíti; a review miatt a task továbbra is `in_progress`.
+- **Erőforráskeret:** natív dependency nélküli A-szelet; célzott és teljes CI-
+  kapuk; DEV-only élő ellenőrzés a 3466-os porton; production deploy nélkül.
+
+Megvalósult:
+
+- `completionReceiptStore.ts`: append-only, egyedi
+  `(island_id, terminal_id, message_id)` nyugta, növekvő sequence és cursoros
+  lekérdezés;
+- `epicRouter.ts`: a mailbox task completion és a nyugta ugyanabban a
+  `better-sqlite3` tranzakcióban íródik, ezért nyugtahiba esetén az üzleti
+  állapot is rollbackel;
+- MCP `complete_task`: ismétléskor ugyanazt a nyugtát adja vissza
+  `idempotent: true` jelzéssel;
+- `GET /api/mailbox/:terminal/completions`: szerveroldali island-scope,
+  saját-terminál/root autorizáció, validált `after`/`limit`, lapozható replay;
+- `serverClient.ts` és `completionCursorStore.ts`: szigorúan validált receipt-
+  feed, más terminál/hibás sequence elutasítása, atomi és monoton helyi cursor;
+- a runner főciklusa még szándékosan nem fogyasztja a feedet: ezt a C–D szelet
+  köti össze a PTY lifecycle-lal és a `completion + stabil idle` kapuval.
+
+Ellenőrzési bizonyíték:
+
+- `npm run typecheck` — PASS;
+- `npm run lint:ratchet` — PASS, 784 figyelmeztetés ≤ 786 baseline;
+- négy célzott suite — 110 teszt PASS;
+- teljes `npm run test:coverage` — PASS, coverage floorok teljesültek;
+- `npm run audit:prod` — 0 vulnerability;
+- `npm run secret-scan:all`, `npm run check:links`, `npm run check:tasks` és
+  `npm run check:size` — PASS;
+- élő DEV-lánc — PASS: `claim → complete_task → sequence=1 receipt → after=1`
+  üres replay → idempotens retry ugyanazzal a sequence-szel.
+
+Koordináció: az `AGENT-CHANNEL.md` szerint @codex az implementáló, @root a
+független reviewer. A B-szelet előzetes natív bizonyítéka rendelkezésre áll:
+`node-pty` 1.1.0 Windows/ConPTY és Linux/forkpty install+spawn PASS; a dependency
+és a Linuxon regenerált lock azonban csak az A-review után kerül a repóba.
