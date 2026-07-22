@@ -14,6 +14,7 @@
 #   Secret scan     | npm run secret-scan    (= node ../scripts/secret-scan.mjs)
 #   Doc link check  | npm run check:links    (= node ../scripts/check-doc-links.mjs)
 #   Task schema gate| npm run check:tasks    (= node ../scripts/check-tasks.mjs, TASK-DP-003)
+#   Native PTY      | npm run smoke:pty     (Windows ConPTY + Linux forkpty matrix)
 #
 # Gate semantics:
 #   - Lint ratchet: Biome errors always fail; the warning count may not exceed
@@ -46,6 +47,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The exact same Linux-generated lockfile must install and run the native PTY
+  # contract on both supported runner platforms. The smoke covers spawn,
+  # unicode/space cwd, resize, input and descendant process-tree shutdown.
+  native-pty-platform:
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [22, 24]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: knowledge-service
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: knowledge-service/package-lock.json
+
+      # GitHub-hosted Windows images include Python and Visual Studio C++ build
+      # tools. Ubuntu packages are explicit so source-build fallback stays
+      # deterministic if an upstream prebuild is unavailable.
+      - name: Install native build prerequisites (Linux fallback)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y make g++ python3
+
+      - name: Install exact Linux-generated lockfile
+        run: npm ci --prefer-offline
+
+      - name: Native PTY contract smoke
+        run: npm run smoke:pty
+
   knowledge-service:
     runs-on: ubuntu-latest
     defaults:

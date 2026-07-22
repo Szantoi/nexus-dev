@@ -4,7 +4,7 @@
   "description": "SpaceOS Nexus — RAG knowledge service (local embed + optional Voyage AI + ChromaDB)",
   "type": "commonjs",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "preinstall": "echo '📦 Using npm cache at ~/.npm (MSG-NEXUS-011)'",
@@ -24,6 +24,7 @@
     "check:size": "node ../scripts/check-file-size.mjs",
     "check:links": "node ../scripts/check-doc-links.mjs",
     "check:tasks": "node ../scripts/check-tasks.mjs",
+    "smoke:pty": "node scripts/smoke-node-pty.mjs",
     "test:tasks": "node --test ../scripts/__tests__/check-tasks.test.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --reporter=verbose",
@@ -49,6 +50,7 @@
     "gray-matter": "^4.0.3",
     "isomorphic-dompurify": "^3.18.0",
     "js-yaml": "^5.0.0",
+    "node-pty": "1.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -76,6 +76,47 @@ A runner a szolgáltatás **kliense**: csak a `core/logger`-t és a saját
 moduljait használja, a szerver-oldali feature-modulokból nem importál —
 minden adat a HTTP API-n át jön.
 
+## Natív PTY-függőség és platformkapu
+
+Az attached mód natív végrehajtási rétege a production dependencyként pontosan
+rögzített `node-pty@1.1.0`. Windowson ConPTY-t, Linuxon forkpty-t használ; a
+child folyamat a runner operációs rendszerbeli jogosultságaival fut. A verziót
+nem szabad lebegő tartományra vagy beta kiadásra cserélni. Dependency-frissítés
+csak külön upstream-ellenőrzés, tiszta Linux checkoutban regenerált lockfile,
+production audit és kétplatformos smoke után fogadható el.
+
+A kiadás tartalmazhat natív prebuildet. Ha az adott Node/OS/architektúrához nincs
+használható prebuild, az install `node-gyp` source-buildre esik vissza:
+
+- Linux (Debian/Ubuntu): Python 3, `make`, `g++` és a szokásos libc fejlécek;
+- Windows: Python 3, Visual Studio 2022 „Desktop development with C++” workload
+  és megfelelő Windows SDK.
+
+A natív CI-kapu a támogatott LTS-vonalakat (Node 22 és 24) ugyanazzal a
+Linuxon generált `package-lock.json`-nal telepíti `ubuntu-latest` és
+`windows-latest` alatt. Helyi reprodukció mindkét rendszeren:
+
+```text
+cd knowledge-service
+npm ci --prefer-offline
+npm run smoke:pty
+```
+
+A `smoke:pty` ellenőrzi a pontos telepített verziót, a natív spawn működését,
+Unicode- és szóközt tartalmazó munkakönyvtárat, a resize és input útvonalat,
+valamint azt, hogy a supervisor platformfüggő process-tree leállítása a
+létrehozott gyermekfolyamatot sem hagyja életben. A nyers `node-pty.kill()` erre
+Linuxon önmagában nem elég, és az interaktív háttér-jobok külön process groupba
+is kerülhetnek. Ezért a teljes forkpty session folyamatait, gyermek-először,
+kontrollált `SIGTERM` → rövid grace → `SIGKILL` fallbackkel kell lezárni;
+Windowson a ConPTY saját lezárása rendezi a natív output-workert; a lezárás
+előtt rögzített leszármazott PID-fát ezután a supervisor gyermek-először
+ellenőrzi és szükség esetén `taskkill /T /F`-fel takarítja. A smoke belső
+workerét ezen felül egy 30 másodperces külső
+supervisor és a CI-jobot egy 10 perces felső korlát védi, ezért a natív spawn
+beragadása sem teheti végtelenné a kaput. Bármely eltérés fail-closed, nem
+tekinthető támogatott platformnak.
+
 ## Konfiguráció
 
 - **`config/runner.yaml`** (sablon: [`runner.yaml.example`](../../config/runner.yaml.example)):
