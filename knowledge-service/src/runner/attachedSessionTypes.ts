@@ -20,6 +20,15 @@ export interface AttachedTerminalPolicy {
   readyConfirmSamples?: number;
   idleSettleMs: number;
   idleConfirmSamples: number;
+  /** Screen-state reset before each new PTY generation (stale alt-screen guard). */
+  onSessionStart?(): void;
+  /**
+   * Observe EVERY PTY chunk in every state (busy included) so screen state —
+   * especially alternate-screen switches — can never be missed. When present,
+   * the classifiers below must evaluate the observed state and ignore their
+   * data argument; the manager feeds each chunk exactly once.
+   */
+  observeSample?(data: string): void;
   /** Provider-specific screen policy lands in D; C only consumes its verdict. */
   isReadySample(data: string): boolean;
   /** Provider-specific idle/prompt classifier; only draining samples count. */
@@ -99,6 +108,10 @@ export interface RuntimeSession {
   messageId?: string;
   markerGeneration?: number;
   receiptSequence?: number;
+  /** When the current task's nudge was written (stall reference point). */
+  dispatchedAtMs?: number;
+  /** Task id already stall-warned; one audited warning per task. */
+  stallWarnedMessageId?: string;
   completedBeforeExit: boolean;
   lastError?: string;
   readySamples: number;
@@ -143,7 +156,8 @@ export type AttachedAttentionReason =
   | 'cleanup_indeterminate'
   | 'idle_classifier_failed'
   | 'task_crash'
-  | 'stale_marker';
+  | 'stale_marker'
+  | 'completion_idle_timeout';
 
 export type BufferedPtyEvent =
   | { kind: 'data'; data: string }

@@ -19,10 +19,16 @@ import {
 } from './attachedSessionCleanup';
 import { dispatchAttachedTask } from './attachedDispatch';
 import {
+  auditAttachedDeadlines,
+  type AttachedDeadlineEvent,
+  type AttachedDeadlineLimits,
+} from './attachedDeadlines';
+import {
   calculateRestartDelay,
   clearStabilityTimer,
   normalizeRestartPolicy,
   scheduleStabilityReset,
+  transitionAfterAttachedExit,
   type AttachedRestartPolicy,
 } from './attachedRestartPolicy';
 import {
@@ -53,7 +59,7 @@ import type { PtyHost, PtySession } from './ptyHost';
 import type { RunnerCompletionReceipt } from './serverClient';
 import type { LaunchRequest, LaunchResult } from './sessionLauncher';
 import type { TerminalSink } from './terminalSink';
-import { evaluateStableIdleProof } from './attachedStableIdle';
+import { acknowledgeAttachedStableIdle } from './attachedStableIdle';
 import { armAttachedStartupTimeout } from './attachedStartupTimeout';
 import { validateAttachedTerminalPolicy } from './attachedTerminalPolicy';
 export {
@@ -105,7 +111,15 @@ export class AttachedSessionManager implements TerminalSink {
     try {
       for (const terminal of this.policies.keys()) {
         const current = this.requireRuntime(terminal);
-        if (current.state === 'ready' || current.state === 'busy' || current.state === 'draining') {
+        // attention_required here is the reconcilable stale-marker park the
+        // preflight admitted: no session is started for it — reconciliation
+        // via a durable receipt schedules its restart later.
+        if (
+          current.state === 'ready' ||
+          current.state === 'busy' ||
+          current.state === 'draining' ||
+          current.state === 'attention_required'
+        ) {
           continue;
         }
         if ((current.state === 'starting' || current.restartTimer) && current.readiness) {
@@ -146,12 +160,16 @@ export class AttachedSessionManager implements TerminalSink {
       this.policies.get(request.terminal),
       this.markers,
       request,
+      this.now(),
     );
   }
 
+  auditDeadlines(limits: AttachedDeadlineLimits): AttachedDeadlineEvent[] {
+    return auditAttachedDeadlines(this.runtime, limits, this.now());
+  }
+
   isBusy(terminal: string): boolean {
-    const state = this.runtime.get(terminal)?.state;
-    return !state || !['stopped', 'ready'].includes(state);
+    return !['stopped', 'ready'].includes(this.runtime.get(terminal)?.state ?? '');
   }
 
   cancel(terminal: string, reason = 'cancelled'): boolean {
@@ -205,11 +223,7 @@ export class AttachedSessionManager implements TerminalSink {
   }
 
   cancelAll(reason = 'runner-shutdown'): number {
-    let count = 0;
-    for (const terminal of this.runtime.keys()) {
-      if (this.cancel(terminal, reason)) count++;
-    }
-    return count;
+    return [...this.runtime.keys()].filter((terminal) => this.cancel(terminal, reason)).length;
   }
 
   activeCount(): number {
@@ -217,7 +231,6 @@ export class AttachedSessionManager implements TerminalSink {
   }
 
   minimumShutdownGraceMs(): number {
-    // Worst case: a just-started spawn must settle, then its cleanup runs.
     return this.ptyHost.spawnDeadlineMs + this.ptyHost.cleanupDeadlineMs + this.cleanupMarginMs;
   }
 
@@ -304,31 +317,27 @@ export class AttachedSessionManager implements TerminalSink {
   }
 
   acknowledgeStableIdle(proof: AttachedStableIdleProof): boolean {
-    const current = this.runtime.get(proof.terminal);
-    const policy = this.policies.get(proof.terminal);
-    const result = evaluateStableIdleProof(this.markers, current, policy, proof, this.now());
-    if (result.status === 'error' && current) {
-      current.state = 'attention_required';
-      current.attentionReason = 'marker_cleanup_failed';
-      current.lastError = result.error;
-      return false;
-    }
-    if (result.status !== 'released' || !current) return false;
-    clearAttachedTask(current);
-    current.state = 'ready';
-    scheduleStabilityReset(current, this.restartPolicy);
-    return true;
+    return acknowledgeAttachedStableIdle(
+      this.markers,
+      this.runtime.get(proof.terminal),
+      this.policies.get(proof.terminal),
+      proof,
+      this.now(),
+      (current) => {
+        clearAttachedTask(current);
+        current.state = 'ready';
+        scheduleStabilityReset(current, this.restartPolicy);
+      },
+    );
   }
 
   /** Promote an exact server receipt durably; readiness performs the later CAS-clear. */
   reconcileMarker(receipt: RunnerCompletionReceipt): boolean {
     const terminal = receipt.terminalId;
-    const current = this.runtime.get(terminal);
-    const policy = this.policies.get(terminal);
     const result = reconcileCompletionReceipt(
       this.markers,
-      current,
-      policy,
+      this.runtime.get(terminal),
+      this.policies.get(terminal),
       receipt,
       this.createGateToken,
       this.now(),
@@ -341,7 +350,7 @@ export class AttachedSessionManager implements TerminalSink {
 
   snapshot(terminal: string): AttachedSessionSnapshot | undefined {
     const current = this.runtime.get(terminal);
-    return current ? createAttachedSessionSnapshot(terminal, current) : undefined;
+    return current && createAttachedSessionSnapshot(terminal, current);
   }
 
   private startTerminal(terminal: string): Promise<void> {
@@ -403,6 +412,9 @@ export class AttachedSessionManager implements TerminalSink {
     // reconciliation), so a recovered terminal must not fail a later clean
     // shutdown with stale entries.
     drainCleanupErrors(current);
+    // Reset provider screen state: a dead session's alternate-screen flag
+    // must never poison the replacement session's readiness classification.
+    policy.onSessionStart?.();
     current.state = 'starting';
     current.lastError = undefined;
     current.readySamples = 0;
@@ -534,6 +546,25 @@ export class AttachedSessionManager implements TerminalSink {
     current.outputEpoch++;
     current.lastOutputAt = Math.max(current.lastOutputAt, this.now());
     const policy = this.policies.get(terminal)!;
+    // Every chunk reaches the provider's screen tracker in EVERY state, so a
+    // TUI entered while busy can never poison a later idle classification.
+    try {
+      policy.observeSample?.(data);
+    } catch (error) {
+      if (current.state === 'starting') {
+        clearAttachedStartupTimer(current);
+        const failure = appendLifecycleErrors(
+          `screen observer failed: ${errorText(error)}`,
+          disposeAttachedSubscriptions(current),
+        );
+        this.cleanupFailedStart(terminal, session, generation, failure, current.automaticAttempt);
+      } else {
+        current.state = 'attention_required';
+        current.attentionReason = 'idle_classifier_failed';
+        current.lastError = `screen observer failed: ${errorText(error)}`;
+      }
+      return;
+    }
     if (current.state === 'draining') {
       try {
         if (policy.isIdleSample(data)) {
@@ -627,7 +658,9 @@ export class AttachedSessionManager implements TerminalSink {
             );
             return;
           }
-          this.transitionAfterExitedCleanup(terminal, current, previous, exitCode);
+          transitionAfterAttachedExit(terminal, current, previous, exitCode, (reason) =>
+            this.scheduleRestart(terminal, reason),
+          );
         },
         (error) => {
           // Recorded before the currency guard: shutdown must still see it.
@@ -647,37 +680,6 @@ export class AttachedSessionManager implements TerminalSink {
       );
   }
 
-  private transitionAfterExitedCleanup(
-    terminal: string,
-    current: RuntimeSession,
-    previous: RuntimeSession['state'],
-    exitCode: number,
-  ): void {
-    if (previous === 'starting') {
-      this.scheduleRestart(
-        terminal,
-        `attached terminal exited during startup (code=${exitCode}): ${terminal}`,
-      );
-    } else if (previous === 'busy') {
-      current.state = 'attention_required';
-      current.attentionReason = 'task_crash';
-      current.lastError = `PTY exited before completion (code=${exitCode})`;
-    } else if (previous === 'draining') {
-      current.completedBeforeExit = true;
-      this.scheduleRestart(terminal, `PTY exited after completion (code=${exitCode})`);
-    } else if (previous === 'stopping') {
-      rejectAttachedReadiness(
-        current,
-        new Error(`attached terminal stopped during startup: ${terminal}`),
-      );
-      current.state = current.messageId ? 'attention_required' : 'stopped';
-    } else if (previous === 'ready' && !current.messageId) {
-      this.scheduleRestart(terminal, `PTY exited unexpectedly (code=${exitCode})`);
-    } else {
-      current.state = current.messageId ? 'attention_required' : 'failed';
-      current.lastError = `PTY exited unexpectedly (code=${exitCode})`;
-    }
-  }
 
   private scheduleRestart(terminal: string, reason: string): void {
     const current = this.requireRuntime(terminal);

@@ -1,8 +1,8 @@
 # AttachedSink — a 3. lépés végrehajtható al-terve
 
-> **Verzió:** 1.5
+> **Verzió:** 1.6
 > **Dátum:** 2026-07-23
-> **Státusz:** A és B PASS; C: a 3 P1 + a re-review 2 P2-je javítva, kapuk zöldek — friss független záró-review folyamatban
+> **Státusz:** A–C PASS mainen (`6551d0e`); D implementáció + 2 review-kör (review-2 PASS) lokálisan — a valós Codex PoC (explorer, read-only) nyitott kapu
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -383,10 +383,25 @@ localhost bind vagy dashboard engedélyezés hiányzó tokennel startup FAIL.
 
 ### D — provider contract, completion, idle, heartbeat
 
-- `buildInteractiveLaunchSpec` és readiness classifier providerenként;
-- rövid, safe nudge; matching message-id enforcement;
-- completion + idle kettős kapu, stall és `attention_required`;
-- Codex az első valós PoC az `explorer` terminálon, előbb read-only módban.
+- [x] `buildInteractiveLaunchSpec` és readiness classifier providerenként —
+  `attachedProvider.ts` (Codex; Claude/Antigravity dokumentált fail-closed) +
+  `terminalScreen.ts` (inkrementális ANSI/alt-screen state-gép, fail-closed
+  prompt-osztályozás, observe/classify szétválasztva: a manager minden state-ben
+  pontosan egyszer eteti a chunkot);
+- [x] rövid, safe nudge; matching message-id enforcement; session-modell-pin
+  (modell nélküli task a session modelljén fut);
+- [x] completion + idle kettős kapu (`attachedCompletionPump.ts` — cursor csak
+  sikeres kézbesítés után, oldalankénti atomi advance), stall-audit és
+  `completion_idle_timeout` → `attention_required` (`attachedDeadlines.ts`);
+- [x] assembly + main-wiring (`buildAttachedAssembly`, pump a poll ütemén,
+  SSE-wake, shutdown-integráció); futó task alatti restart után a stale-marker
+  terminál parkolva indul és receiptből reconcile-ol (boot-brick fix);
+- [x] 2 friss független adverzáriális review-kör: review-1 FAIL (2 P1 + 4 P2,
+  futtatható reprókkal) → mind javítva; **review-2 PASS, P0/P1/P2-mentes,
+  mutáció-verifikált**; 2 nyitott P3 dokumentálva (README Ismert korlátok);
+- [ ] **Codex az első valós PoC az `explorer` terminálon, előbb read-only
+  módban** — élő környezetet igényel (Windows-natív Codex sandbox-helper
+  BLOCKED → VPS/Linux), a prompt-patternek canary-hangolásával. Emberi kapu.
 
 ### E — helyi xterm.js dashboard
 

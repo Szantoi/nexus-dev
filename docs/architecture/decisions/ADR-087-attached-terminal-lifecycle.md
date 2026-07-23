@@ -161,6 +161,21 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
   kill-lezárása alatti al-ablakban a cancel `false`-t ad és nem előzi meg a
   restart-folytatást. Az ADR a D–F szeletek miatt továbbra is `proposed`.
 
+- D-szelet (2026-07-23 éjjel, @root): provider-contract + completion/idle/stall
+  bekötés implementálva (`attachedProvider`, `terminalScreen`,
+  `attachedCompletionPump`, `attachedDeadlines`, `buildAttachedAssembly`,
+  main-wiring). Két friss független review-kör: review-1 FAIL — 2 P1 (futó task
+  alatti restart boot-brickje: stale-marker park bevezetve; modell nélküli task
+  éhezése: session-modell default) + 4 P2 (busy-fázis screen-bypass fail-open
+  idle: observe/classify szétválasztás; ESC-intermediate szivárgás; parser
+  state-vesztés túlméretes carrynél: teljes state-gép-újraírás; config↔runtime
+  bound-eltérés) — mind javítva; **review-2 PASS, P0/P1/P2-mentes,
+  mutáció-verifikált, a fail-open szcenárió valós policy+manager reproban
+  fail-closed**. Kapuk: 92 fájl / 1564+1 teszt, coverage 46,0%, size/audit/
+  secret/links/tasks PASS, Windows `smoke:pty` PASS. A valós Codex `explorer`
+  PoC (read-only, VPS/Linux, pattern-canary) nyitott emberi kapu; az ADR a
+  D-PoC + E–F szeletek miatt `proposed`.
+
 ## Nyitott kérdések
 
 - A három CLI mely verzióján és mely screen-markerrel igazolható stabil

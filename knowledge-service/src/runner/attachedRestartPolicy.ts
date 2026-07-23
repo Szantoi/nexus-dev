@@ -1,4 +1,5 @@
-import type { RuntimeSession } from './attachedSessionTypes';
+import type { AttachedSessionState, RuntimeSession } from './attachedSessionTypes';
+import { rejectAttachedReadiness } from './attachedSessionRuntime';
 
 const MAX_RESTART_ATTEMPTS = 100;
 const MAX_RESTART_INTERVAL_MS = 24 * 60 * 60 * 1_000;
@@ -74,6 +75,41 @@ export function calculateRestartDelay(
   const exponential = Math.min(policy.maxDelayMs, policy.initialDelayMs * 2 ** (attempt - 1));
   const jitter = (entropy * 2 - 1) * policy.jitterRatio;
   return Math.max(0, Math.round(exponential * (1 + jitter)));
+}
+
+/**
+ * Decide what happens to a terminal whose PTY root exited and whose cleanup
+ * completed without errors. Only taskless or already-completed exits may
+ * restart; a task that died before its completion receipt always parks.
+ */
+export function transitionAfterAttachedExit(
+  terminal: string,
+  current: RuntimeSession,
+  previous: AttachedSessionState,
+  exitCode: number,
+  scheduleRestart: (reason: string) => void,
+): void {
+  if (previous === 'starting') {
+    scheduleRestart(`attached terminal exited during startup (code=${exitCode}): ${terminal}`);
+  } else if (previous === 'busy') {
+    current.state = 'attention_required';
+    current.attentionReason = 'task_crash';
+    current.lastError = `PTY exited before completion (code=${exitCode})`;
+  } else if (previous === 'draining') {
+    current.completedBeforeExit = true;
+    scheduleRestart(`PTY exited after completion (code=${exitCode})`);
+  } else if (previous === 'stopping') {
+    rejectAttachedReadiness(
+      current,
+      new Error(`attached terminal stopped during startup: ${terminal}`),
+    );
+    current.state = current.messageId ? 'attention_required' : 'stopped';
+  } else if (previous === 'ready' && !current.messageId) {
+    scheduleRestart(`PTY exited unexpectedly (code=${exitCode})`);
+  } else {
+    current.state = current.messageId ? 'attention_required' : 'failed';
+    current.lastError = `PTY exited unexpectedly (code=${exitCode})`;
+  }
 }
 
 export function scheduleStabilityReset(

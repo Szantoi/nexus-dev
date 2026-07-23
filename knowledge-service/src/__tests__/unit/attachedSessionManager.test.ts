@@ -564,6 +564,51 @@ describe('AttachedSessionManager', () => {
     });
   });
 
+  it('feeds every PTY chunk to the policy screen observer in every state', async () => {
+    const observed: string[] = [];
+    const policies = new Map([
+      [
+        'backend',
+        policy({
+          observeSample: (data: string) => {
+            observed.push(data);
+          },
+        }),
+      ],
+    ]);
+    const { manager, host } = fixture(policies);
+    const session = await makeReady(manager, host);
+    manager.dispatch({ terminal: 'backend', messageId: 'MSG-1' });
+
+    session.emitData('busy-phase TUI output'); // busy: classifier not called,
+    // but the observer must still see the chunk (alt-screen switches!).
+
+    expect(observed).toEqual(['READY', 'busy-phase TUI output']);
+  });
+
+  it('parks a terminal whose screen observer fails outside startup', async () => {
+    const policies = new Map([
+      [
+        'backend',
+        policy({
+          observeSample: (data: string) => {
+            if (data === 'BOOM') throw new Error('observer crashed');
+          },
+        }),
+      ],
+    ]);
+    const { manager, host } = fixture(policies);
+    const session = await makeReady(manager, host);
+    manager.dispatch({ terminal: 'backend', messageId: 'MSG-1' });
+
+    session.emitData('BOOM');
+
+    expect(manager.snapshot('backend')).toMatchObject({
+      state: 'attention_required',
+      lastError: expect.stringMatching(/screen observer failed: observer crashed/),
+    });
+  });
+
   it('requires consecutive readiness samples and resets the count on a miss', async () => {
     const policies = new Map([['backend', policy({ readyConfirmSamples: 2 })]]);
     const { manager, host } = fixture(policies);
@@ -1151,7 +1196,16 @@ describe('AttachedSessionManager', () => {
       state: 'attention_required',
       messageId: 'MSG-1',
     });
-    await expect(pendingFixture.manager.ensureReady()).rejects.toThrow(/reconciliation/);
+    // Reconcilable stale-marker park: a boot after a mid-task restart must
+    // NOT fail the runner. ensureReady resolves, no session is spawned for
+    // the parked terminal, and the busy-gate keeps new work away until a
+    // durable receipt reconciles it.
+    await pendingFixture.manager.ensureReady();
+    expect(pendingFixture.host.sessions).toHaveLength(0);
+    expect(pendingFixture.manager.snapshot('backend')).toMatchObject({
+      state: 'attention_required',
+    });
+    expect(pendingFixture.manager.isBusy('backend')).toBe(true);
     expect(pendingFixture.manager.reconcileMarker(serverReceipt({ terminalId: 'reviewer' }))).toBe(
       false,
     );

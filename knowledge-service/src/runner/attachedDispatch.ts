@@ -8,6 +8,7 @@ export function dispatchAttachedTask(
   policy: AttachedTerminalPolicy | undefined,
   markers: AttachedTaskMarkerStore,
   request: LaunchRequest,
+  nowMs = Date.now(),
 ): LaunchResult {
   if (!current || !policy) {
     return { started: false, reason: `attached terminal not configured: ${request.terminal}` };
@@ -21,7 +22,7 @@ export function dispatchAttachedTask(
   } catch (error) {
     return { started: false, reason: `attached input encoding failed: ${errorText(error)}` };
   }
-  const now = new Date().toISOString();
+  const now = new Date(nowMs).toISOString();
   const marker = {
     version: 1 as const,
     terminal: request.terminal,
@@ -44,6 +45,9 @@ export function dispatchAttachedTask(
   current.messageId = request.messageId;
   current.markerGeneration = current.generation;
   current.receiptSequence = undefined;
+  current.dispatchedAtMs = nowMs;
+  // A fresh dispatch earns a fresh stall warning even for a re-delivered id.
+  current.stallWarnedMessageId = undefined;
   current.completedBeforeExit = false;
   current.controllerInputPending = true;
   current.state = 'busy';

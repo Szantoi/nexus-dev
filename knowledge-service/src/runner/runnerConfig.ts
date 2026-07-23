@@ -34,6 +34,14 @@ const ProviderConfigSchema = z.object({
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
+// Provider-specific prompt-classifier overrides for one attached terminal.
+// Patterns are compiled bounded and flagless (see terminalScreen.ts); the
+// PoC canary pins the exact per-version values.
+const TerminalAttachedSchema = z.object({
+  ready_pattern: z.string().min(1).max(200).regex(SAFE_LOCAL_ARG).optional(),
+  idle_pattern: z.string().min(1).max(200).regex(SAFE_LOCAL_ARG).optional(),
+});
+
 const TerminalEntrySchema = z
   .object({
     workdir: z.string().min(1),
@@ -44,14 +52,30 @@ const TerminalEntrySchema = z
     credential_env: z.string().regex(SAFE_ENV_NAME).optional(),
     // Execution model for this terminal. `headless` (default) = today's
     // autonomous one-shot CLI session. `attached` = a live node-pty session
-    // (step 3). Config accepts it, while startup still fails closed until the
-    // provider-specific D-slice assembly registers that terminal's sink.
+    // (step 3). Startup fails closed unless the attached assembly can build
+    // a supported provider policy for the terminal.
     mode: z.enum(['headless', 'attached']).default('headless'),
+    attached: TerminalAttachedSchema.optional(),
   })
   .refine((entry) => entry.models.includes(entry.default_model), {
     message: 'default_model must be present in models',
     path: ['default_model'],
   });
+
+// Runtime guards for every attached terminal (plan §8). All values are
+// bounded; the spawn/cleanup deadlines live on the PtyHost, not here.
+const AttachedDefaultsSchema = z.object({
+  startup_timeout_ms: z.coerce.number().int().min(1_000).max(600_000).default(30_000),
+  ready_confirm_samples: z.coerce.number().int().min(1).max(100).default(2),
+  idle_settle_ms: z.coerce.number().int().min(100).max(60_000).default(1_500),
+  // Bounds mirror validateAttachedTerminalPolicy: a schema-valid value must
+  // never crash the later runtime validation.
+  idle_confirm_samples: z.coerce.number().int().min(2).max(10).default(2),
+  completion_idle_timeout_ms: z.coerce.number().int().min(1_000).max(3_600_000).default(30_000),
+  task_stall_timeout_ms: z.coerce.number().int().min(10_000).max(86_400_000).default(600_000),
+  cols: z.coerce.number().int().min(20).max(500).default(120),
+  rows: z.coerce.number().int().min(10).max(200).default(36),
+});
 
 const DEFAULT_PROVIDERS = {
   claude: ProviderConfigSchema.parse({ binary: 'claude', sandbox: 'workspace-write' }),
@@ -74,6 +98,12 @@ export const RunnerConfigSchema = z
     default_provider: z.enum(CLI_PROVIDERS).default('claude'),
     providers: z.partialRecord(z.enum(CLI_PROVIDERS), ProviderConfigSchema).default(DEFAULT_PROVIDERS),
     log_dir: z.string().min(1).default('logs/runner'),
+    // The island this runner expects its terminals to belong to. The server
+    // derives the authoritative island from the token; this local declaration
+    // scopes completion-receipt validation and the cursor namespace, so a
+    // rotated credential can never silently inherit another island's cursor.
+    expected_island_id: z.string().min(1).regex(SAFE_LOCAL_ARG).optional(),
+    attached_defaults: AttachedDefaultsSchema.prefault({}),
     terminals: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), TerminalEntrySchema),
   })
   .superRefine((config, context) => {
@@ -91,6 +121,17 @@ export const RunnerConfigSchema = z
           message: `provider ${provider} is used but not configured`,
         });
       }
+    }
+    const attachedTerminals = Object.entries(config.terminals)
+      .filter(([, entry]) => entry.mode === 'attached')
+      .map(([name]) => name);
+    if (attachedTerminals.length > 0 && !config.expected_island_id) {
+      context.addIssue({
+        code: 'custom',
+        path: ['expected_island_id'],
+        message:
+          `expected_island_id is required when attached terminals exist (${attachedTerminals.join(', ')})`,
+      });
     }
   });
 

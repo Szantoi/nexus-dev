@@ -7,8 +7,35 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK C — P1/P2 JAVÍTVA, FÜGGETLEN REVIEW PASS, LOKÁLIS
-COMMIT KÉSZ** (2026-07-23 este, @root): a leállítási checkpoint 3 nyitott P1-e
+**ATTACHED TERMINAL SINK D — IMPLEMENTÁLVA, REVIEW-2 PASS, LOKÁLIS COMMIT**
+(2026-07-23 éjjel, @root): a C mainre került (`6551d0e`, CI zöld), majd a
+D-szelet (provider contract + completion/idle/stall) elkészült két független
+review-körrel:
+
+- **D-modulok:** `terminalScreen.ts` (inkrementális ANSI/alt-screen state-gép,
+  fail-closed prompt-osztályozás), `attachedProvider.ts` (Codex interaktív
+  spec + safe nudge + classify-only osztályozók; Claude/Antigravity
+  fail-closed), `attachedCompletionPump.ts` (cursoros receipt-fogyasztás — a
+  cursor csak kézbesítés után lép, oldalanként atomi írással; stable-idle
+  proofok), `attachedDeadlines.ts` (stall-audit, completion-idle-timeout),
+  `buildAttachedAssembly` + main-wiring + `attached_defaults`/
+  `expected_island_id` config.
+- **Review-1 FAIL → mind javítva:** 2 P1 (futó task alatti restart
+  boot-brickje → stale-marker park + pump-reconcile; modell nélküli task
+  éhezése → session-modell default) + 4 P2 (busy-fázis screen-bypass fail-open
+  idle → observe/classify szétválasztás minden state-ben; ESC-intermediate
+  szivárgás; parser state-vesztés → teljes state-gép-újraírás; config↔runtime
+  bound-eltérés). **Review-2: PASS, P0/P1/P2-mentes, mutáció-verifikált.**
+- **Kapuk:** typecheck 0; lint tartja; **92 fájl / 1564 PASS + 1 skipped**
+  (+64 új D-teszt összesen); coverage 46,02/41,50/45,99/46,51; size/audit/
+  secret/links/tasks PASS; Windows `smoke:pty` PASS.
+- **Nyitva:** (1) a lokális C+D stack pushja mainre — Gábor kapuja; (2) a
+  valós **Codex `explorer` PoC** (read-only, VPS/Linux — a Windows-natív
+  Codex sandbox-helper BLOCKED), pattern-canary hangolással; (3) E-szelet
+  (xterm.js dashboard) nem indult. 2 dokumentált P3 (README Ismert korlátok).
+
+**ATTACHED TERMINAL SINK C — P1/P2 JAVÍTVA, FÜGGETLEN REVIEW PASS, MAINEN**
+(2026-07-23 este, @root): a leállítási checkpoint 3 nyitott P1-e
 javítva a todo-sorrend szerint, két friss független adverzáriális review-körrel:
 
 1. **Cleanup-hiba-ledger** — minden subscription-/session-cleanup-hiba

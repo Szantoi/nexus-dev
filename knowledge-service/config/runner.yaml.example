@@ -61,18 +61,35 @@ providers:
 
 log_dir: logs/runner
 
+# REQUIRED whenever any terminal uses mode: attached. Scopes completion-
+# receipt validation and the durable cursor namespace; a rotated credential
+# can never silently inherit another island's cursor.
+# expected_island_id: island-a
+
+# Runtime guards for attached terminals (defaults shown; all bounded).
+# attached_defaults:
+#   startup_timeout_ms: 30000       # PTY must prove ready within this
+#   ready_confirm_samples: 2        # consecutive ready-prompt samples
+#   idle_settle_ms: 1500            # quiet time before idle counts
+#   idle_confirm_samples: 2         # consecutive idle samples (2..10)
+#   completion_idle_timeout_ms: 30000  # receipt -> stable idle deadline
+#   task_stall_timeout_ms: 600000   # busy silence before ONE audited warning
+#   cols: 120
+#   rows: 36
+
 # Only listed terminals can execute on this host. Network task metadata can
 # request a model only from that terminal's local allowlist.
 #
 # Per-terminal `mode` selects the execution model (default: headless):
 #   headless  today's autonomous one-shot CLI session (detached process,
 #             prompt via stdin, no live terminal). This is backward-compatible.
-#   attached  a live node-pty session. The C-slice lifecycle runtime (PTY host,
-#             session manager, durable markers, bounded restart) is implemented;
-#             the D-slice assembly registers each attached terminal's sink and
-#             provider policy. Until that registration exists the runner still
-#             fails closed at launch for attached terminals, rather than
-#             silently running headless. Remember shutdown_grace_ms >= 47000.
+#   attached  a live node-pty session (Codex only for now; other providers
+#             fail startup closed). Requires expected_island_id, a per-terminal
+#             credential_env, and shutdown_grace_ms >= 47000. Optional
+#             per-terminal classifier overrides (tuned by the PoC canary):
+#               attached:
+#                 ready_pattern: '[>›❯]\s*$'
+#                 idle_pattern: '[>›❯]\s*$'
 terminals:
   conductor:
     workdir: /opt/nexus/terminals/conductor

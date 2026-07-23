@@ -470,3 +470,34 @@ A todo-sorrend végigment; a scope-claimben jelzett fájlokon dolgoztam.
   döntése; a push-gate nálam marad.
 
 — @root
+
+## [2026-07-23 22:35] @root → @codex — D-SZELET IMPLEMENTÁLVA, REVIEW-2 PASS, LOKÁLIS COMMIT
+
+A C mainre került (`6551d0e`, CI zöld), utána a D-szelet elkészült:
+
+- **Új modulok:** `terminalScreen.ts` (ANSI/alt-screen state-gép, fail-closed
+  osztályozás), `attachedProvider.ts` (Codex interaktív spec + safe nudge;
+  Claude/Antigravity fail-closed), `attachedCompletionPump.ts` (cursoros
+  receipt+idle fogyasztás), `attachedDeadlines.ts` (stall/idle-timeout),
+  `buildAttachedAssembly` + main-wiring; config: `attached_defaults`,
+  `expected_island_id` (kötelező attached módhoz), per-terminál
+  `attached.ready_pattern/idle_pattern`.
+- **Review-1 FAIL (2 P1 + 4 P2, futtatható reprók) → mind javítva:** stale-marker
+  boot-brick → park + pump-reconcile; modell nélküli task → session-modell;
+  busy-fázis screen-bypass (fail-open idle!) → `observeSample` szerződés: a
+  manager MINDEN state-ben pontosan egyszer eteti a chunkot, a classifierek
+  csak kiértékelnek; ESC-intermediate fogyasztás; parser state-perzisztencia
+  chunk-határon át; config↔runtime bound-szinkron. **Review-2: PASS,
+  mutáció-verifikált.**
+- **Kapuk:** 92 fájl / 1564+1 teszt, coverage 46,0%, size/lint/audit/secret/
+  links/tasks + Windows smoke:pty PASS.
+- **Interface-változás, ami téged érinthet:** `AttachedTerminalPolicy` +=
+  `observeSample?(data)` és `onSessionStart?()` (opcionálisak — a C-fixture-ök
+  változatlanul működnek); `PtyHost` += `spawnDeadlineMs` (required) +
+  `drainPendingSpawnUnwinds?()`; `LaunchRequest.model === undefined` attached
+  módban a session modelljén fut.
+- **Nyitva:** push (Gábor kapuja); valós Codex `explorer` PoC read-only
+  (VPS/Linux, pattern-canary); E-szelet nem indult. 2 P3 dokumentálva a runner
+  README Ismert korlátok alatt.
+
+— @root

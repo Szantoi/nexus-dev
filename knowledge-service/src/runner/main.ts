@@ -11,7 +11,13 @@ import { loadRunnerConfig } from './runnerConfig';
 import { ProcessedStore } from './processedStore';
 import { ServerClient } from './serverClient';
 import { clearStaleSessionMarkers, SessionLauncher } from './sessionLauncher';
-import { selectRunnerSink } from './sinkFactory';
+import { buildAttachedAssembly, selectRunnerSink } from './sinkFactory';
+import {
+  AttachedCompletionPump,
+  startAttachedCompletionPump,
+  type AttachedPumpHandle,
+} from './attachedCompletionPump';
+import { CompletionCursorStore } from './completionCursorStore';
 import { startPollLoop } from './pollLoop';
 import { startSseListener, type SseListenerHandle } from './sseListener';
 import { discoverConfiguredClis } from './cliDiscovery';
@@ -47,12 +53,14 @@ async function main(): Promise<void> {
   const client = new ServerClient(config.server_url, config.token);
   clearStaleSessionMarkers(config);
   const launcher = new SessionLauncher(config);
-  // Build the immutable per-terminal router. Until the provider-specific
-  // attached assembly lands, configured attached terminals remain fail-closed
-  // because no attached sink is registered here.
-  const sink = selectRunnerSink(config, launcher);
+  // Attached runtime (one shared PTY host + marker store + manager) for every
+  // mode: attached terminal; unsupported providers or missing credentials
+  // fail startup closed instead of silently degrading to headless.
+  const attached = buildAttachedAssembly(config);
+  const sink = selectRunnerSink(config, launcher, attached.sinks);
   assertRunnerShutdownBudget(sink, config.shutdown_grace_ms);
   const sseListeners: SseListenerHandle[] = [];
+  let pumpHandle: AttachedPumpHandle | undefined;
   const coordinator = new RunnerShutdownCoordinator({
     sink,
     graceMs: config.shutdown_grace_ms,
@@ -91,7 +99,46 @@ async function main(): Promise<void> {
       isBusy: (terminal) => sink.isBusy(terminal),
       store,
     });
-    coordinator.registerIngressStopper(() => stopRunnerIngress(loop, sseListeners));
+    coordinator.registerIngressStopper(async () => {
+      await stopRunnerIngress(loop, sseListeners);
+      // Terminal cleanup may already be running concurrently (the coordinator
+      // starts it alongside ingress draining); that is safe because shutdown
+      // flips every session state synchronously and all manager entry points
+      // then reject. Awaiting here still guarantees the pump is fully stopped
+      // before the coordinator reports the runner drained.
+      await pumpHandle?.stop();
+    });
+
+    // Attached terminals: consume durable completion receipts + stable-idle
+    // proofs on the poll cadence. SSE stays wake-only for the pump as well.
+    // expected_island_id presence is enforced by the config schema and the
+    // assembly whenever attached terminals exist.
+    if (attached.manager && attached.terminals.length > 0 && config.expected_island_id) {
+      const cursors = new CompletionCursorStore(
+        path.join(config.log_dir, 'completion-cursors.json'),
+      );
+      if (cursors.load() === 'corrupt') {
+        // Safe restart from 0: delivery is idempotent and historical receipts
+        // advance the cursor without side effects.
+        logger.warn('[Runner] Completion cursor store was corrupt; replaying from 0');
+      }
+      const pump = new AttachedCompletionPump({
+        terminals: attached.terminals,
+        expectedIslandId: config.expected_island_id,
+        limits: {
+          completionIdleTimeoutMs: config.attached_defaults.completion_idle_timeout_ms,
+          taskStallTimeoutMs: config.attached_defaults.task_stall_timeout_ms,
+        },
+        client,
+        cursors,
+        manager: attached.manager,
+        logger,
+      });
+      pumpHandle = startAttachedCompletionPump(pump, config.poll_interval_ms, logger);
+      logger.info(
+        `[Runner] Attached completion pump started for ${attached.terminals.length} terminal(s)`,
+      );
+    }
 
     // Second-level wake: events only nudge the poll; it remains launch authority.
     if (config.sse_enabled) {
@@ -102,7 +149,10 @@ async function main(): Promise<void> {
             token: config.token,
             terminal,
             maxBackoffMs: config.max_backoff_ms,
-            onWake: () => loop.wake(),
+            onWake: () => {
+              loop.wake();
+              pumpHandle?.wake();
+            },
           }),
         );
       }

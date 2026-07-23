@@ -9,6 +9,14 @@
 
 ## Aktív
 
+- [ ] **AttachedSink D lezárása (`TASK-ISL-007`):** implementáció + review-2
+  PASS lokálisan (2026-07-23 éjjel). HÁTRA VAN: (a) a lokális C+D stack pushja
+  mainre + Linux CI — Gábor kapuja; (b) **valós Codex `explorer` PoC**
+  read-only módban (VPS/Linux; Windows-natív Codex BLOCKED) a
+  ready/idle-pattern canary-hangolásával — emberi kapu; (c) P3 follow-upok:
+  tartósan futtathatatlan task karanténja (explicit modell-mismatch churn),
+  dupla-ESC parser-restart polish. Az E-szelet (dashboard) addig nem indul.
+
 - [x] 2026-07-23 — **AttachedSink C leállítás utáni folytatás (`TASK-ISL-007`)
   KÉSZ:** mind a 3 P1 javítva (cleanup-ledger; pending-spawn timeout utáni
   bounded-restart-folytatás cancel/shutdown-kizárással; spawn hard deadline +

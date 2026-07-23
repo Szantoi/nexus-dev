@@ -125,7 +125,7 @@ terminals: {}
   });
 
   it('defaults terminal mode to headless and accepts an explicit attached mode', () => {
-    const cfg = RunnerConfigSchema.parse({
+    const base = {
       server_url: 'http://localhost:3466',
       token: 'test-token',
       log_dir: path.join(TMP_DIR, 'logs'),
@@ -133,9 +133,35 @@ terminals: {}
         backend: { workdir: WORKDIR, models: ['sonnet'], default_model: 'sonnet' },
         live: { workdir: WORKDIR, models: ['sonnet'], default_model: 'sonnet', mode: 'attached' },
       },
-    });
+    };
+    const cfg = RunnerConfigSchema.parse({ ...base, expected_island_id: 'island-a' });
     expect(cfg.terminals.backend.mode).toBe('headless');
     expect(cfg.terminals.live.mode).toBe('attached');
+    expect(cfg.expected_island_id).toBe('island-a');
+    expect(cfg.attached_defaults).toMatchObject({
+      startup_timeout_ms: 30_000,
+      ready_confirm_samples: 2,
+      idle_settle_ms: 1_500,
+      idle_confirm_samples: 2,
+      completion_idle_timeout_ms: 30_000,
+      task_stall_timeout_ms: 600_000,
+      cols: 120,
+      rows: 36,
+    });
+    // Attached terminals without a declared island scope are refused: the
+    // receipt validation and cursor namespace both depend on it.
+    expect(() => RunnerConfigSchema.parse(base)).toThrow(/expected_island_id/);
+    // Schema bounds mirror the runtime policy validator: a schema-valid value
+    // must never crash the later AttachedSessionManager construction.
+    for (const idle_confirm_samples of [1, 11]) {
+      expect(() =>
+        RunnerConfigSchema.parse({
+          ...base,
+          expected_island_id: 'island-a',
+          attached_defaults: { idle_confirm_samples },
+        }),
+      ).toThrow();
+    }
   });
 
   it('bounds the shutdown grace interval to the coordinator contract', () => {

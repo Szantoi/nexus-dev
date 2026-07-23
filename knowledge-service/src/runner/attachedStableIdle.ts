@@ -61,6 +61,31 @@ export function evaluateStableIdleProof(
   return result.ok ? { status: 'released' } : { status: 'error', error: result.error };
 }
 
+/**
+ * Full stable-idle acknowledgement: evaluate the proof, then either release
+ * the terminal back to ready (with a fresh stability window) or park it when
+ * the durable marker cleanup failed.
+ */
+export function acknowledgeAttachedStableIdle(
+  store: AttachedTaskMarkerStore,
+  current: RuntimeSession | undefined,
+  policy: AttachedTerminalPolicy | undefined,
+  proof: AttachedStableIdleProof,
+  now: number,
+  releaseToReady: (current: RuntimeSession) => void,
+): boolean {
+  const result = evaluateStableIdleProof(store, current, policy, proof, now);
+  if (result.status === 'error' && current) {
+    current.state = 'attention_required';
+    current.attentionReason = 'marker_cleanup_failed';
+    current.lastError = result.error;
+    return false;
+  }
+  if (result.status !== 'released' || !current) return false;
+  releaseToReady(current);
+  return true;
+}
+
 export function armCompletionGate(
   current: RuntimeSession,
   receipt: RunnerCompletionReceipt,

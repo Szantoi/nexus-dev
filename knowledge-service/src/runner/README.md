@@ -50,9 +50,22 @@ hármat nem implementálja.
 - **`headless`** (default): a mai [`SessionLauncher`](sessionLauncher.ts) — egy
   leválasztott, egyszeri CLI-processz taskonként, prompt stdinen, élő terminál
   nélkül. A `dispatch` a `launch` aliasa → **nulla viselkedésváltozás**.
-- **`attached`** (3. lépés, node-pty): a C-szelet routere, PTY-portja, durable
-  markere és lifecycle-managere elkészült. A valódi provider/readiness/receipt/
-  idle bekötés a D-szelet, ezért production assembly még szándékosan nincs.
+- **`attached`** (node-pty): a C-szelet lifecycle-magja + a D-szelet provider-
+  bekötése. A [`buildAttachedAssembly`](sinkFactory.ts) minden `mode: attached`
+  terminálhoz közös PTY-hostot, durable marker-store-t és session-managert
+  épít; **egyelőre csak Codex** provider támogatott (más provider fail-closed
+  indulási hiba). A [`attachedProvider.ts`](attachedProvider.ts) adja az
+  interaktív spawn-specet (`--no-alt-screen`, sandbox, model, cwd; credential
+  env-leképezés), a [`terminalScreen.ts`](terminalScreen.ts)-re épülő
+  fail-closed readiness/idle-osztályozást és a **safe nudge**-ot (szigorúan
+  validált message-id, session-modell-pin; task-TARTALOM soha nem megy a
+  PTY-be). A [`attachedCompletionPump.ts`](attachedCompletionPump.ts) a poll
+  ütemén fogyasztja a durable completion-receipteket és a stable-idle
+  bizonyítékokat (a cursor csak sikeres kézbesítés után lép), és auditálja a
+  stall/completion-idle határidőket ([`attachedDeadlines.ts`](attachedDeadlines.ts)).
+  Futó task alatti restart után a stale-marker terminál **parkolva** indul
+  (attention_required, busy-gatelt) — a runner NEM bukik el, a pump a szerver
+  receiptjéből reconcile-ol és indítja újra.
 
 A [`sinkFactory.ts`](sinkFactory.ts) a terminál `mode` mezője alapján old fel
 sinket: `headless` → a megosztott headless sink; `attached` → a terminálhoz
@@ -226,7 +239,7 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
 
 ## Tesztek
 
-`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/unit/terminalSinkRouter.test.ts src/__tests__/unit/sinkFactory.test.ts src/__tests__/unit/runnerLifecycle.test.ts src/__tests__/unit/ptyHost.test.ts src/__tests__/unit/attachedTaskMarkerStore.test.ts src/__tests__/unit/attachedSessionManager.test.ts src/__tests__/unit/attachedSessionCleanup.test.ts src/__tests__/unit/attachedRestartPolicy.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
+`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/unit/terminalSinkRouter.test.ts src/__tests__/unit/sinkFactory.test.ts src/__tests__/unit/runnerLifecycle.test.ts src/__tests__/unit/ptyHost.test.ts src/__tests__/unit/attachedTaskMarkerStore.test.ts src/__tests__/unit/attachedSessionManager.test.ts src/__tests__/unit/attachedSessionCleanup.test.ts src/__tests__/unit/attachedRestartPolicy.test.ts src/__tests__/unit/attachedDeadlines.test.ts src/__tests__/unit/attachedCompletionPump.test.ts src/__tests__/unit/attachedProvider.test.ts src/__tests__/unit/terminalScreen.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
 
 ## Ismert korlátok
 
@@ -245,3 +258,10 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
   utáni `failed`/backoff állapot viszont már cancellálható. Ugyanez a szemantika
   minden automatikus `cleanupFailedStart` stopping-ablakra is áll (review 2,
   P3 — elfogadott, dokumentált korlát).
+- Attached: egy **explicit** más modellt kérő task minden poll-tickben
+  claim→refusal→release ciklust fut (a `max_attempts` csak indított sessionre
+  számol) — ez minden refusal-okra igaz, pre-existing viselkedés; a végleges
+  gyógyír egy „tartósan futtathatatlan task" karantén (D-review P3 follow-up).
+- A screen-parser a duplázott ESC-et (`ESC ESC [...]`) nem kezeli
+  sequence-restartként — terminfo-vezérelt program ilyet nem ad ki, és a
+  release-t a receipt + outputEpoch + csend-kapu úgyis dominálja (D-review P3).

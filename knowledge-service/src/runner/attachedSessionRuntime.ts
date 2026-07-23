@@ -39,6 +39,12 @@ export function assertAttachedPreflightState(
       throw new Error(`attached terminal has a tracked PTY pending cleanup: ${terminal}`);
     }
     if (current.state === 'attention_required') {
+      // A session-less stale-marker park is RECONCILABLE: the completion pump
+      // can promote it from a durable server receipt once the runner is up,
+      // and the busy-gate keeps new work away meanwhile. Failing startup here
+      // would brick every boot after a mid-task restart (operator file
+      // surgery), exactly what durable receipts exist to avoid.
+      if (current.attentionReason === 'stale_marker' && !current.session) continue;
       throw new Error(`attached terminal requires reconciliation: ${terminal}`);
     }
     if (current.state === 'failed' && current.messageId && !current.completedBeforeExit) {
