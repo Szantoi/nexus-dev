@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type {
-  AttachedTaskMarker,
-  AttachedTaskMarkerStore,
-} from './attachedTaskMarkerStore';
+import type { AttachedTaskMarkerStore } from './attachedTaskMarkerStore';
 import {
   acknowledgeLiveCompletion,
+  clearCompletedMarkerForRestart,
   reconcileCompletionReceipt,
 } from './attachedCompletionReceipt';
 import {
@@ -12,8 +10,12 @@ import {
   clearAttachedTask,
   disposeAttachedSession,
   disposeAttachedSubscriptions,
+  drainCleanupErrors,
+  markCleanupIndeterminate,
   normalizeCleanupMarginMs,
+  recordCleanupError,
   summarizeLifecycleErrors,
+  sweepCleanupLedgers,
 } from './attachedSessionCleanup';
 import { dispatchAttachedTask } from './attachedDispatch';
 import {
@@ -24,6 +26,7 @@ import {
   type AttachedRestartPolicy,
 } from './attachedRestartPolicy';
 import {
+  assertAttachedPreflightState,
   clearAttachedRestartTimer,
   clearAttachedStartupTimer,
   countActiveAttachedSessions,
@@ -73,13 +76,10 @@ export class AttachedSessionManager implements TerminalSink {
   private readonly now: () => number;
   private readonly createGateToken: () => string;
   private readonly cleanupMarginMs: number;
-  private readonly clearRestart = clearAttachedRestartTimer;
-  private readonly clearStartupTimer = clearAttachedStartupTimer;
-  private readonly ensureReadiness = ensureAttachedReadiness;
   private readonly isCurrentSession = createAttachedSessionMatcher(this.runtime);
-  private readonly rejectReadiness = rejectAttachedReadiness;
   private readonly requireRuntime = (terminal: string) => requireAttachedRuntime(this.runtime, terminal);
-  private readonly resolveReadiness = resolveAttachedReadiness;
+  /** Kill failures already pushed to a cleanup ledger; prevents double-report. */
+  private readonly killFailureRecorded = new WeakSet<PtySession>();
   private shuttingDown = false;
   constructor(
     private readonly policies: ReadonlyMap<string, AttachedTerminalPolicy>,
@@ -101,24 +101,7 @@ export class AttachedSessionManager implements TerminalSink {
   async ensureReady(): Promise<void> {
     if (this.shuttingDown) throw new Error('attached session manager is shutting down');
     const startups: Promise<void>[] = [];
-    for (const terminal of this.policies.keys()) {
-      const current = this.requireRuntime(terminal);
-      if (
-        current.session &&
-        !['starting', 'ready', 'busy', 'draining'].includes(current.state)
-      ) {
-        throw new Error(`attached terminal has a tracked PTY pending cleanup: ${terminal}`);
-      }
-      if (current.state === 'attention_required') {
-        throw new Error(`attached terminal requires reconciliation: ${terminal}`);
-      }
-      if (current.state === 'failed' && current.messageId && !current.completedBeforeExit) {
-        throw new Error(`attached terminal has unresolved work: ${terminal}`);
-      }
-      if (current.restartBudgetExhausted) {
-        throw new Error(`attached terminal restart budget exhausted: ${terminal}`);
-      }
-    }
+    assertAttachedPreflightState(this.runtime, this.policies.keys());
     try {
       for (const terminal of this.policies.keys()) {
         const current = this.requireRuntime(terminal);
@@ -137,6 +120,9 @@ export class AttachedSessionManager implements TerminalSink {
         (current) => current.spawnPromise !== undefined && current.session === undefined,
       );
       if (nativeSpawnPending) {
+        // Fire-and-forget: startup already fails with the original error, and
+        // a failed kill keeps its session tracked (activeCount > 0), so only
+        // rollback log detail can be lost here — never a silent exit 0.
         void this.shutdown('preflight-rollback').catch(() => undefined);
         throw error;
       }
@@ -170,9 +156,18 @@ export class AttachedSessionManager implements TerminalSink {
 
   cancel(terminal: string, reason = 'cancelled'): boolean {
     const current = this.runtime.get(terminal);
-    if (!current || current.state === 'stopping') return false;
+    if (!current) return false;
+    if (current.state === 'stopping') {
+      // A session-less stopping terminal with a pending native spawn is the
+      // post-startup-timeout window: without a generation bump the late spawn
+      // would continue its bounded restart against this explicit cancel.
+      if (current.session || current.spawnPromise === undefined) return false;
+      current.generation++;
+      current.lastError = reason;
+      return true;
+    }
     clearStabilityTimer(current);
-    let cancelled = this.clearRestart(current);
+    let cancelled = clearAttachedRestartTimer(current);
     if (!current.session) {
       const pendingSpawn = current.spawnPromise !== undefined || current.state === 'starting';
       cancelled ||= pendingSpawn;
@@ -183,9 +178,9 @@ export class AttachedSessionManager implements TerminalSink {
         current.state = 'stopping';
         current.sessionUsable = false;
         current.lastError = reason;
-        this.rejectReadiness(current, new Error(reason));
+        rejectAttachedReadiness(current, new Error(reason));
       } else if (cancelled) {
-        this.rejectReadiness(current, new Error(reason));
+        rejectAttachedReadiness(current, new Error(reason));
         current.state = current.messageId ? 'attention_required' : 'stopped';
         current.lastError = reason;
       }
@@ -200,11 +195,10 @@ export class AttachedSessionManager implements TerminalSink {
     void session.kill().then(
       () => this.finishStop(terminal, session, generation),
       (error) => {
+        // Recorded before the currency guard: shutdown must still see it.
+        this.recordKillFailure(current, session, `PTY cleanup failed: ${errorText(error)}`);
         if (!this.isCurrentSession(terminal, session, generation)) return;
-        current.state = 'attention_required';
-        current.cleanupIndeterminate = true;
-        current.attentionReason = 'cleanup_indeterminate';
-        current.lastError = `PTY cleanup failed: ${errorText(error)}`;
+        markCleanupIndeterminate(current, `PTY cleanup failed: ${errorText(error)}`);
       },
     );
     return cancelled;
@@ -223,7 +217,8 @@ export class AttachedSessionManager implements TerminalSink {
   }
 
   minimumShutdownGraceMs(): number {
-    return this.ptyHost.cleanupDeadlineMs + this.cleanupMarginMs;
+    // Worst case: a just-started spawn must settle, then its cleanup runs.
+    return this.ptyHost.spawnDeadlineMs + this.ptyHost.cleanupDeadlineMs + this.cleanupMarginMs;
   }
 
   async shutdown(reason = 'runner-shutdown'): Promise<void> {
@@ -231,10 +226,10 @@ export class AttachedSessionManager implements TerminalSink {
     const stops: Promise<void>[] = [];
     const shutdownError = new Error(`attached session manager stopped: ${reason}`);
     for (const [terminal, current] of this.runtime) {
-      this.clearRestart(current);
-      this.clearStartupTimer(current);
+      clearAttachedRestartTimer(current);
+      clearAttachedStartupTimer(current);
       clearStabilityTimer(current);
-      this.rejectReadiness(current, shutdownError);
+      rejectAttachedReadiness(current, shutdownError);
       current.readyPending = false;
       if (current.spawnPromise) stops.push(current.spawnPromise);
       if (!current.session) {
@@ -255,19 +250,15 @@ export class AttachedSessionManager implements TerminalSink {
       stops.push(
         session.kill().then(
           () => {
-            const errors = this.finishStop(terminal, session, generation);
-            if (errors.length > 0) {
-              throw new AttachedLifecycleError('PTY subscription cleanup failed', errors);
-            }
+            // finishStop's dispose failures land in the shared cleanup ledger;
+            // the sweep below propagates them exactly once.
+            this.finishStop(terminal, session, generation);
           },
           (error) => {
+            this.recordKillFailure(current, session, `PTY cleanup failed: ${errorText(error)}`);
             if (this.isCurrentSession(terminal, session, generation)) {
-              current.state = 'attention_required';
-              current.cleanupIndeterminate = true;
-              current.attentionReason = 'cleanup_indeterminate';
-              current.lastError = `PTY cleanup failed: ${errorText(error)}`;
+              markCleanupIndeterminate(current, `PTY cleanup failed: ${errorText(error)}`);
             }
-            throw error;
           },
         ),
       );
@@ -276,12 +267,28 @@ export class AttachedSessionManager implements TerminalSink {
     const failures = results
       .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
       .map((result) => asError(result.reason));
+    try {
+      // Deadline-orphaned spawns may still be unwinding live process trees.
+      await this.ptyHost.drainPendingSpawnUnwinds?.();
+    } catch (error) {
+      failures.push(asError(error));
+    }
+    // Ledger sweep: every cleanup error recorded by any racing continuation
+    // (root exit, cancel, late spawn) is propagated here exactly once.
+    failures.push(...sweepCleanupLedgers(this.runtime));
     if (failures.length > 0) {
       throw new AttachedLifecycleError(
         `attached PTY shutdown failed for ${failures.length} session(s): ${summarizeLifecycleErrors(failures)}`,
         failures,
       );
     }
+  }
+
+  /** Record a kill failure exactly once per PTY session, whichever racing continuation sees it first. */
+  private recordKillFailure(current: RuntimeSession, session: PtySession, message: string): void {
+    if (this.killFailureRecorded.has(session)) return;
+    this.killFailureRecorded.add(session);
+    recordCleanupError(current, new Error(message));
   }
 
   /** Record a server-authoritative, monotonically sequenced completion receipt. */
@@ -362,7 +369,7 @@ export class AttachedSessionManager implements TerminalSink {
     if (current.restartBudgetExhausted) {
       return Promise.reject(new Error(`attached terminal restart budget exhausted: ${terminal}`));
     }
-    const readiness = this.ensureReadiness(current);
+    const readiness = ensureAttachedReadiness(current);
     this.spawnAttempt(terminal, false);
     return readiness;
   }
@@ -379,21 +386,23 @@ export class AttachedSessionManager implements TerminalSink {
   private async runSpawnAttempt(terminal: string, automatic: boolean): Promise<void> {
     const current = this.requireRuntime(terminal);
     if (this.shuttingDown) {
-      this.rejectReadiness(current, new Error('attached session manager is shutting down'));
+      rejectAttachedReadiness(current, new Error('attached session manager is shutting down'));
       return;
     }
     if (current.session) {
-      current.state = 'attention_required';
       const failure = `refusing to spawn while a PTY is still tracked: ${terminal}`;
-      current.lastError = failure;
       current.sessionUsable = false;
-      current.cleanupIndeterminate = true;
-      current.attentionReason = 'cleanup_indeterminate';
-      this.rejectReadiness(current, new Error(failure));
+      markCleanupIndeterminate(current, failure);
+      rejectAttachedReadiness(current, new Error(failure));
       return;
     }
     clearStabilityTimer(current);
     const policy = this.policies.get(terminal)!;
+    // A new generation opens a fresh cleanup transaction. Prior-generation
+    // errors were already delivered (restart reason / readiness rejection /
+    // reconciliation), so a recovered terminal must not fail a later clean
+    // shutdown with stale entries.
+    drainCleanupErrors(current);
     current.state = 'starting';
     current.lastError = undefined;
     current.readySamples = 0;
@@ -407,7 +416,7 @@ export class AttachedSessionManager implements TerminalSink {
       generation,
       policy.startupTimeoutMs,
       (session, failure) => {
-        if (!session) return this.rejectReadiness(current, new Error(failure));
+        if (!session) return rejectAttachedReadiness(current, new Error(failure));
         this.cleanupFailedStart(
           terminal,
           session,
@@ -422,7 +431,7 @@ export class AttachedSessionManager implements TerminalSink {
     try {
       session = await this.ptyHost.spawn(policy.spawn);
     } catch (error) {
-      this.clearStartupTimer(current);
+      clearAttachedStartupTimer(current);
       if (current.generation !== generation || current.state !== 'starting') {
         current.state = current.messageId ? 'attention_required' : 'stopped';
         return;
@@ -431,7 +440,7 @@ export class AttachedSessionManager implements TerminalSink {
       current.state = 'failed';
       current.lastError = failure;
       if (automatic) this.scheduleRestart(terminal, failure);
-      else this.rejectReadiness(current, new Error(failure));
+      else rejectAttachedReadiness(current, new Error(failure));
       return;
     }
     if (this.shuttingDown || current.generation !== generation || current.state !== 'starting') {
@@ -442,18 +451,26 @@ export class AttachedSessionManager implements TerminalSink {
         await session.kill();
       } catch (error) {
         const failure = `late PTY spawn cleanup failed: ${errorText(error)}`;
-        current.state = 'attention_required';
-        current.cleanupIndeterminate = true;
-        current.attentionReason = 'cleanup_indeterminate';
-        current.lastError = failure;
-        this.rejectReadiness(current, new Error(failure));
-        throw new Error(failure);
+        // Recorded (not thrown): the shutdown sweep drains the ledger, so the
+        // spawn promise can settle cleanly for Promise.allSettled callers.
+        this.recordKillFailure(current, session, failure);
+        markCleanupIndeterminate(current, failure);
+        rejectAttachedReadiness(current, new Error(failure));
+        return;
       }
       // Generation mismatch is the intentional cancellation signal here. Only
       // identity is needed to ensure we do not dispose a newer owned session.
       if (current.session === session) disposeAttachedSession(current);
+      // Startup timeout is the only invalidation that keeps the generation and
+      // is not a shutdown: cancel bumps the generation, shutdown sets the flag.
+      // A successful late cleanup of an automatic attempt continues the
+      // bounded restart chain; explicit cancel/shutdown never does.
+      if (!this.shuttingDown && current.generation === generation && automatic) {
+        this.scheduleRestart(terminal, `PTY spawn settled after startup timeout: ${terminal}`);
+        return;
+      }
       current.state = current.messageId ? 'attention_required' : 'stopped';
-      this.rejectReadiness(current, new Error('PTY spawn completed after shutdown or invalidation'));
+      rejectAttachedReadiness(current, new Error('PTY spawn completed after shutdown or invalidation'));
       return;
     }
     current.session = session;
@@ -540,7 +557,7 @@ export class AttachedSessionManager implements TerminalSink {
     try {
       readySample = policy.isReadySample(data);
     } catch (error) {
-      this.clearStartupTimer(current);
+      clearAttachedStartupTimer(current);
       const failure = appendLifecycleErrors(
         `readiness classifier failed: ${errorText(error)}`,
         disposeAttachedSubscriptions(current),
@@ -561,31 +578,14 @@ export class AttachedSessionManager implements TerminalSink {
     // A completed task whose PTY exited is not rerun. Its marker is cleared
     // only after the replacement terminal has proved ready.
     if (current.completedBeforeExit && current.messageId && current.markerGeneration !== undefined) {
-      let marker: AttachedTaskMarker | undefined;
-      let cleared = false;
-      try {
-        marker = this.markers.load(terminal);
-        if (
-          marker?.phase === 'completed' &&
-          marker.messageId === current.messageId &&
-          marker.generation === current.markerGeneration &&
-          marker.receiptSequence === current.receiptSequence
-        ) {
-          cleared = this.markers.clear(terminal, current.messageId, current.markerGeneration);
-        }
-      } catch (error) {
-        current.lastError = `completed marker cleanup failed: ${errorText(error)}`;
-      }
-      if (!cleared) {
-        const error = new Error(
-          current.lastError ?? `completed marker missing after PTY restart: ${terminal}`,
-        );
+      const failure = clearCompletedMarkerForRestart(this.markers, terminal, current);
+      if (failure) {
         current.state = 'attention_required';
         current.attentionReason = 'marker_cleanup_failed';
-        current.lastError = error.message;
+        current.lastError = failure;
         current.readyPending = false;
-        this.clearStartupTimer(current);
-        this.rejectReadiness(current, error);
+        clearAttachedStartupTimer(current);
+        rejectAttachedReadiness(current, new Error(failure));
         return;
       }
     }
@@ -593,9 +593,9 @@ export class AttachedSessionManager implements TerminalSink {
     current.state = 'ready';
     current.lastError = undefined;
     current.readyPending = false;
-    this.clearStartupTimer(current);
+    clearAttachedStartupTimer(current);
     scheduleStabilityReset(current, this.restartPolicy);
-    this.resolveReadiness(current);
+    resolveAttachedReadiness(current);
   }
 
   private handleExit(
@@ -607,7 +607,7 @@ export class AttachedSessionManager implements TerminalSink {
     if (!this.isCurrentSession(terminal, session, generation)) return;
     const current = this.requireRuntime(terminal);
     const previous = current.state;
-    this.clearStartupTimer(current);
+    clearAttachedStartupTimer(current);
     clearStabilityTimer(current);
     const subscriptionErrors = disposeAttachedSubscriptions(current);
     current.readyPending = false;
@@ -621,25 +621,28 @@ export class AttachedSessionManager implements TerminalSink {
           if (!this.isCurrentSession(terminal, session, generation)) return;
           const cleanupErrors = [...subscriptionErrors, ...disposeAttachedSession(current)];
           if (cleanupErrors.length > 0) {
-            current.state = 'attention_required';
-            current.cleanupIndeterminate = true;
-            current.attentionReason = 'cleanup_indeterminate';
-            current.lastError = appendLifecycleErrors('PTY subscription cleanup failed', cleanupErrors);
+            markCleanupIndeterminate(
+              current,
+              appendLifecycleErrors('PTY subscription cleanup failed', cleanupErrors),
+            );
             return;
           }
           this.transitionAfterExitedCleanup(terminal, current, previous, exitCode);
         },
         (error) => {
+          // Recorded before the currency guard: shutdown must still see it.
+          this.recordKillFailure(
+            current,
+            session,
+            `PTY root exited (code=${exitCode}); cleanup failed: ${errorText(error)}`,
+          );
           if (!this.isCurrentSession(terminal, session, generation)) return;
           const failure = appendLifecycleErrors(
             `PTY root exited (code=${exitCode}); cleanup failed: ${errorText(error)}`,
             subscriptionErrors,
           );
-          current.state = 'attention_required';
-          current.cleanupIndeterminate = true;
-          current.attentionReason = 'cleanup_indeterminate';
-          current.lastError = failure;
-          this.rejectReadiness(current, new Error(failure));
+          markCleanupIndeterminate(current, failure);
+          rejectAttachedReadiness(current, new Error(failure));
         },
       );
   }
@@ -663,7 +666,7 @@ export class AttachedSessionManager implements TerminalSink {
       current.completedBeforeExit = true;
       this.scheduleRestart(terminal, `PTY exited after completion (code=${exitCode})`);
     } else if (previous === 'stopping') {
-      this.rejectReadiness(
+      rejectAttachedReadiness(
         current,
         new Error(`attached terminal stopped during startup: ${terminal}`),
       );
@@ -678,17 +681,17 @@ export class AttachedSessionManager implements TerminalSink {
 
   private scheduleRestart(terminal: string, reason: string): void {
     const current = this.requireRuntime(terminal);
-    this.clearStartupTimer(current);
+    clearAttachedStartupTimer(current);
     clearStabilityTimer(current);
     if (this.shuttingDown) {
       current.state = current.messageId ? 'attention_required' : 'stopped';
-      this.rejectReadiness(current, new Error(`restart cancelled during shutdown: ${reason}`));
+      rejectAttachedReadiness(current, new Error(`restart cancelled during shutdown: ${reason}`));
       return;
     }
     if (current.messageId && !current.completedBeforeExit) {
       current.state = 'attention_required';
       current.lastError = reason;
-      this.rejectReadiness(current, new Error(reason));
+      rejectAttachedReadiness(current, new Error(reason));
       return;
     }
     if (current.restartAttempts >= this.restartPolicy.maxAttempts) {
@@ -696,22 +699,22 @@ export class AttachedSessionManager implements TerminalSink {
       current.state = 'failed';
       current.lastError = failure;
       current.restartBudgetExhausted = true;
-      this.rejectReadiness(current, new Error(failure));
+      rejectAttachedReadiness(current, new Error(failure));
       return;
     }
 
-    this.ensureReadiness(current);
+    ensureAttachedReadiness(current);
     const attempt = current.restartAttempts + 1;
     current.restartAttempts = attempt;
     let delay: number;
     try {
-      delay = this.restartDelay(attempt);
+      delay = calculateRestartDelay(this.restartPolicy, attempt, this.random());
     } catch (error) {
       const failure = `attached restart policy failed: ${errorText(error)}`;
       current.state = 'failed';
       current.lastError = failure;
       current.restartBudgetExhausted = true;
-      this.rejectReadiness(current, new Error(failure));
+      rejectAttachedReadiness(current, new Error(failure));
       return;
     }
     current.state = 'failed';
@@ -719,7 +722,7 @@ export class AttachedSessionManager implements TerminalSink {
     current.restartTimer = setTimeout(() => {
       current.restartTimer = undefined;
       if (this.shuttingDown) {
-        this.rejectReadiness(current, new Error('attached restart cancelled during shutdown'));
+        rejectAttachedReadiness(current, new Error('attached restart cancelled during shutdown'));
         return;
       }
       this.spawnAttempt(terminal, true);
@@ -727,25 +730,21 @@ export class AttachedSessionManager implements TerminalSink {
     current.restartTimer.unref();
   }
 
-  private restartDelay(attempt: number): number {
-    return calculateRestartDelay(this.restartPolicy, attempt, this.random());
-  }
-
   private finishStop(terminal: string, session: PtySession, generation: number): Error[] {
     if (!this.isCurrentSession(terminal, session, generation)) return [];
     const current = this.requireRuntime(terminal);
-    this.clearStartupTimer(current);
+    clearAttachedStartupTimer(current);
     clearStabilityTimer(current);
-    this.rejectReadiness(
+    rejectAttachedReadiness(
       current,
       new Error(`attached terminal stopped during startup: ${terminal}`),
     );
     const errors = disposeAttachedSession(current);
     if (errors.length > 0) {
-      current.state = 'attention_required';
-      current.cleanupIndeterminate = true;
-      current.attentionReason = 'cleanup_indeterminate';
-      current.lastError = appendLifecycleErrors('PTY subscription cleanup failed', errors);
+      markCleanupIndeterminate(
+        current,
+        appendLifecycleErrors('PTY subscription cleanup failed', errors),
+      );
       return errors;
     }
     current.state = current.messageId ? 'attention_required' : 'stopped';
@@ -771,26 +770,25 @@ export class AttachedSessionManager implements TerminalSink {
           const cleanupErrors = disposeAttachedSession(current);
           if (cleanupErrors.length > 0) {
             const cleanupFailure = appendLifecycleErrors(failure, cleanupErrors);
-            current.state = 'attention_required';
-            current.cleanupIndeterminate = true;
-            current.attentionReason = 'cleanup_indeterminate';
-            current.lastError = cleanupFailure;
-            this.rejectReadiness(current, new Error(cleanupFailure));
+            markCleanupIndeterminate(current, cleanupFailure);
+            rejectAttachedReadiness(current, new Error(cleanupFailure));
             return;
           }
           current.state = 'failed';
           current.lastError = failure;
           if (automatic) this.scheduleRestart(terminal, failure);
-          else this.rejectReadiness(current, new Error(failure));
+          else rejectAttachedReadiness(current, new Error(failure));
         },
         (error) => {
+          this.recordKillFailure(
+            current,
+            session,
+            `${failure}; PTY cleanup failed: ${errorText(error)}`,
+          );
           if (!this.isCurrentSession(terminal, session, generation)) return;
           const cleanupFailure = `${failure}; PTY cleanup failed: ${errorText(error)}`;
-          current.state = 'attention_required';
-          current.cleanupIndeterminate = true;
-          current.attentionReason = 'cleanup_indeterminate';
-          current.lastError = cleanupFailure;
-          this.rejectReadiness(current, new Error(cleanupFailure));
+          markCleanupIndeterminate(current, cleanupFailure);
+          rejectAttachedReadiness(current, new Error(cleanupFailure));
         },
       );
   }

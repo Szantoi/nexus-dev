@@ -633,6 +633,108 @@ describe('NodePtyHost', () => {
     ).toThrow(/between 1 and 60000/);
   });
 
+  it('validates the spawn deadline and defaults it to 30 seconds', () => {
+    expect(
+      new NodePtyHost({ processTree: makeProcessTree('win32', [], []) }).spawnDeadlineMs,
+    ).toBe(30_000);
+    expect(
+      new NodePtyHost({
+        processTree: makeProcessTree('win32', [], []),
+        spawnDeadlineMs: 60_000,
+      }).spawnDeadlineMs,
+    ).toBe(60_000);
+    for (const spawnDeadlineMs of [0, 60_001, 1.5, Number.NaN]) {
+      expect(
+        () =>
+          new NodePtyHost({
+            processTree: makeProcessTree('win32', [], []),
+            spawnDeadlineMs,
+          }),
+      ).toThrow(/spawn deadline must be an integer between 1 and 60000/);
+    }
+  });
+
+  it('enforces a hard deadline on spawn settlement and unwinds the late winner', async () => {
+    const native = makeNative();
+    const events: string[] = [];
+    let releaseCapture!: () => void;
+    const captureGate = new Promise<void>((resolve) => {
+      releaseCapture = resolve;
+    });
+    const processTree = makeProcessTree('linux', events, [[], []]);
+    processTree.captureRootIdentity = vi.fn(async (pid: number) => {
+      await captureGate;
+      return { pid, parentPid: 1, creationToken: 'created:700', sessionId: 700 };
+    });
+    const host = new NodePtyHost({
+      nativePty: { spawn: vi.fn(() => native) },
+      processTree,
+      terminationGraceMs: 0,
+      spawnDeadlineMs: 25,
+    });
+
+    await expect(host.spawn(SPEC)).rejects.toThrow(
+      /PTY spawn exceeded hard deadline \(25ms\)/,
+    );
+
+    // The late winner resolves afterwards; its full process-tree unwind is
+    // tracked and shutdown can await it via drainPendingSpawnUnwinds.
+    releaseCapture();
+    await host.drainPendingSpawnUnwinds();
+    expect(events).toContain('SIGTERM:700');
+    expect(events).toContain('SIGKILL:700');
+    // Second drain is a no-op once everything settled.
+    await host.drainPendingSpawnUnwinds();
+  });
+
+  it('surfaces a failed late-spawn unwind through drainPendingSpawnUnwinds', async () => {
+    const native = makeNative();
+    let releaseCapture!: () => void;
+    const captureGate = new Promise<void>((resolve) => {
+      releaseCapture = resolve;
+    });
+    const processTree = makeProcessTree('linux', [], [[], []]);
+    processTree.captureRootIdentity = vi.fn(async (pid: number) => {
+      await captureGate;
+      return { pid, parentPid: 1, creationToken: 'created:700', sessionId: 700 };
+    });
+    processTree.signal = vi.fn(async () => {
+      throw new Error('tree survived');
+    });
+    const host = new NodePtyHost({
+      nativePty: { spawn: vi.fn(() => native) },
+      processTree,
+      terminationGraceMs: 0,
+      spawnDeadlineMs: 25,
+    });
+
+    await expect(host.spawn(SPEC)).rejects.toThrow(/hard deadline/);
+    releaseCapture();
+
+    await expect(host.drainPendingSpawnUnwinds()).rejects.toThrow(
+      /late PTY spawn unwind failed.*tree survived/,
+    );
+    // Each unwind failure is reported exactly once.
+    await host.drainPendingSpawnUnwinds();
+  });
+
+  it('does not track an unwind when the spawn itself fails before the deadline', async () => {
+    const processTree = makeProcessTree('linux', [], []);
+    const host = new NodePtyHost({
+      nativePty: {
+        spawn: vi.fn(() => {
+          throw new Error('native PTY unavailable');
+        }),
+      },
+      processTree,
+      terminationGraceMs: 0,
+      spawnDeadlineMs: 25,
+    });
+
+    await expect(host.spawn(SPEC)).rejects.toThrow(/native PTY unavailable/);
+    await host.drainPendingSpawnUnwinds();
+  });
+
   it('starts multiple async captures and cleanups concurrently without starving timers', async () => {
     let nextPid = 700;
     let releaseCapture!: () => void;
@@ -972,6 +1074,23 @@ describe('NodePtyHost', () => {
       'snapshot-failed',
       'SIGKILL-attempt:700',
     ]);
+    expect(native.kill).not.toHaveBeenCalled();
+  });
+
+  it('delegates to control-group termination when the Linux handoff constructor fails', async () => {
+    const native = makeNative();
+    native.onData = vi.fn(() => {
+      throw new Error('handoff subscribe failed');
+    });
+    const processTree = makeProcessTree('linux', [], []);
+    const host = new NodePtyHost({
+      nativePty: { spawn: vi.fn(() => native) },
+      processTree,
+    });
+
+    await expect(host.spawn(SPEC)).rejects.toThrow(
+      /handoff subscribe failed; cleanup ownership indeterminate; runner control-group termination required/,
+    );
     expect(native.kill).not.toHaveBeenCalled();
   });
 

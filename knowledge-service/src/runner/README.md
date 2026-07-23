@@ -19,9 +19,12 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
   process supervisor, busy-követés), [`terminalSink.ts`](terminalSink.ts)
   (a `TerminalSink` absztrakció),
   [`terminalSinkRouter.ts`](terminalSinkRouter.ts) (immutable mixed-mode routing),
+  [`runnerLifecycle.ts`](runnerLifecycle.ts) (shutdown-koordinátor és
+  grace-budget kapu — lásd lent),
   [`ptyHost.ts`](ptyHost.ts) (node-pty és identity-védett processzfa),
-  [`attachedSessionManager.ts`](attachedSessionManager.ts) (perzisztens PTY-
-  lifecycle), [`attachedTaskMarkerStore.ts`](attachedTaskMarkerStore.ts)
+  [`ptyProcessCommand.ts`](ptyProcessCommand.ts) (idő- és bufferkorlátos
+  OS-processztábla-parancsok), [`attachedSessionManager.ts`](attachedSessionManager.ts)
+  (perzisztens PTY-lifecycle), [`attachedTaskMarkerStore.ts`](attachedTaskMarkerStore.ts)
   (durable task-marker), [`sinkFactory.ts`](sinkFactory.ts) (mode → sink
   feloldás), [`processedStore.ts`](processedStore.ts)
   (feldolgozott üzenetek perzisztens nyilvántartása — duplaindítás ellen),
@@ -37,8 +40,12 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
 A poll-hurok az egyetlen indítási autoritás; a **`TerminalSink`**
 ([`terminalSink.ts`](terminalSink.ts)) csak *végrehajt*, nem dönt. A kontraktus:
 `dispatch(req)` (a launch belépési pont), `isBusy`, `cancel`, `cancelAll`,
-`activeCount`, opcionális `ensureReady()` (attached warm-up), valamint opcionális,
-awaitelhető `shutdown()`; a headless sink az utóbbi kettőt nem implementálja.
+`activeCount`, opcionális `minimumShutdownGraceMs()` (a legkisebb biztonságos
+runner-grace, ha a sink natív cleanupot birtokol — induláskor a
+`shutdown_grace_ms` konfigot ez ellen validálja az
+`assertRunnerShutdownBudget`), opcionális `ensureReady()` (attached warm-up),
+valamint opcionális, awaitelhető `shutdown()`; a headless sink az utóbbi
+hármat nem implementálja.
 
 - **`headless`** (default): a mai [`SessionLauncher`](sessionLauncher.ts) — egy
   leválasztott, egyszeri CLI-processz taskonként, prompt stdinen, élő terminál
@@ -78,6 +85,29 @@ az adott store-példányt. A processzfa-leállítás puszta PID helyett Linuxon
 `/proc/<pid>/stat` starttime+SID, Windowson PID+CreationDate identityt ellenőriz,
 így PID-újrahasznosításkor nem jelez idegen folyamatot. Enumerációs hiba mellett
 a natív root-close továbbra is megkísérlődik, és minden cleanup-hiba látható.
+
+**Spawn hard deadline.** A `PtyHost.spawn()` a `spawnDeadlineMs` korláton belül
+kötelezően lezárul (default 30 000 ms, max 60 000). A deadline után befutó
+„késői nyertes" sessiont a host háttérben teljes processzfa-killel bontja;
+a bontási hibák korlátosan megőrződnek, és a manager `shutdown()`-ja a
+`drainPendingSpawnUnwinds()`-szel bevárja + jelenti őket.
+
+**Pending-spawn startup-timeout.** Ha a startup-timeout úgy jár le, hogy natív
+session még nincs, a terminál `stopping`-ba kerül (a generation megmarad). A
+késői spawn sikeres lezárása után egy *automatikus* kísérlet folytatja a
+korlátos restart-láncot; explicit `cancel` (generation-bump) vagy shutdown után
+soha. A session nélküli `stopping`-ablakban érkező `cancel` bumpolja a
+generationt, `true`-t ad, és megelőzi a restartot.
+
+**Cleanup-hiba-ledger.** Minden subscription-/session-cleanup-hiba a keletkezés
+pillanatában terminálonkénti ledgerbe kerül (korlátos: 20 bejegyzés +
+drop-számláló; kill-hibák sessiononként egyszer, WeakSet-deduppal), így a
+root-exit/cancel/shutdown continuation-versenyek egyik sorrendje sem
+veszíthet hibát. A ledger új spawn-generáció induláskor ürül (a már
+kézbesített — restart-reasonként vagy readiness-rejectionként átadott — hibák
+nem buktatják el egy helyreállt terminál későbbi tiszta shutdownját); a
+`shutdown()` végül sweepeli az összes ledgert, és bármely hibánál
+`AttachedLifecycleError`-t dob.
 
 ## Durable completion replay (AttachedSink 3A)
 
@@ -149,6 +179,17 @@ supervisor és a CI-jobot egy 10 perces felső korlát védi, ezért a natív sp
 beragadása sem teheti végtelenné a kaput. Bármely eltérés fail-closed, nem
 tekinthető támogatott platformnak.
 
+## Shutdown és exit-kód szemantika
+
+A [`runnerLifecycle.ts`](runnerLifecycle.ts) `RunnerShutdownCoordinator`-a
+birtokolja a processz-kilépési tranzakciót (SIGINT/SIGTERM a `main.ts`-ből):
+előbb az ingress áll le (poll-abort + SSE-stop + drain), csak utána az
+állapotmentés, majd a sink `shutdown()` (vagy `cancelAll` fallback). **Exit 0
+kizárólag akkor lehetséges, ha nulla hiba gyűlt és `sink.activeCount() === 0`**;
+minden más út exit 1. Egy referenced safety-deadline a grace lejártakor
+kényszerítetten 1-gyel lép ki, így beragadt cleanup sem hagyhat élő sessiont
+csendben.
+
 ## Konfiguráció
 
 - **`config/runner.yaml`** (sablon: [`runner.yaml.example`](../../config/runner.yaml.example)):
@@ -158,6 +199,14 @@ tekinthető támogatott platformnak.
   (`headless` default / `attached` step 3),
   sandbox, timeout és kimeneti limit. Codexnél az automatizálási út
   `codex exec --json --ephemeral`; a prompt stdinre kerül.
+- **`shutdown_grace_ms`** (default 20 000, max 120 000): a shutdown-koordinátor
+  teljes kerete. Induláskor az `assertRunnerShutdownBudget` a sink
+  `minimumShutdownGraceMs()` igénye ellen validálja és **fail-closed elutasítja**
+  az alulméretezett konfigot. Attached terminálnál az igény
+  `spawnDeadlineMs + cleanupDeadlineMs + cleanupMarginMs` (defaultokkal
+  30 000 + 15 000 + 2 000 = **47 000 ms**) — attached módhoz tehát a
+  `shutdown_grace_ms`-t legalább erre kell emelni; 120 000 fölötti igényt a
+  kapu túlméretezett konfigurációként jelent.
 - Env: `RUNNER_TOKEN` (a runner Bearer-tokenje — kötelező), `RUNNER_CONFIG_PATH`
   (default: `<knowledge-service>/config/runner.yaml`). A `runnerConfig.ts`
   saját zod-loader — dokumentált kivétel a config-rétegszabály alól
@@ -177,7 +226,7 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
 
 ## Tesztek
 
-`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/unit/terminalSinkRouter.test.ts src/__tests__/unit/ptyHost.test.ts src/__tests__/unit/attachedTaskMarkerStore.test.ts src/__tests__/unit/attachedSessionManager.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
+`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/unit/terminalSinkRouter.test.ts src/__tests__/unit/sinkFactory.test.ts src/__tests__/unit/runnerLifecycle.test.ts src/__tests__/unit/ptyHost.test.ts src/__tests__/unit/attachedTaskMarkerStore.test.ts src/__tests__/unit/attachedSessionManager.test.ts src/__tests__/unit/attachedSessionCleanup.test.ts src/__tests__/unit/attachedRestartPolicy.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
 
 ## Ismert korlátok
 
@@ -190,3 +239,9 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
   indulhat.
 - Windowson natív `.exe` CLI ajánlott. `.cmd` shim miatt a runner nem kapcsol
   `shell:true` módra; ez szándékos shell-injection elleni fail-closed viselkedés.
+- Attached: a késői spawn *kill-lezárása alatti* rövid al-ablakban (a session már
+  trackelt, a bontás fut, felső korlát `cleanupDeadlineMs`) a `cancel` őszintén
+  `false`-t ad és nem előzi meg az automatikus restart-folytatást; a restart
+  utáni `failed`/backoff állapot viszont már cancellálható. Ugyanez a szemantika
+  minden automatikus `cleanupFailedStart` stopping-ablakra is áll (review 2,
+  P3 — elfogadott, dokumentált korlát).

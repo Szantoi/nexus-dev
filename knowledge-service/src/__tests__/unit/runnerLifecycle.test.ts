@@ -221,4 +221,12 @@ describe('assertRunnerShutdownBudget', () => {
       'invalid shutdown grace requirement',
     );
   });
+
+  it('reports a legitimate over-budget requirement as configuration, not corruption', () => {
+    const sink = { ...makeSink(), minimumShutdownGraceMs: () => 122_000 };
+
+    expect(() => assertRunnerShutdownBudget(sink, 120_000)).toThrow(
+      /requires 122000ms shutdown grace, above the runner maximum 120000/,
+    );
+  });
 });

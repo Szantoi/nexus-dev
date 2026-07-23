@@ -105,6 +105,38 @@ export function reconcileCompletionReceipt(
   return 'live';
 }
 
+/**
+ * Clear a completed task's durable marker once the replacement terminal has
+ * proved ready. Returns the failure text when the exact marker cannot be
+ * verified and cleared; the caller parks the terminal in attention_required.
+ */
+export function clearCompletedMarkerForRestart(
+  store: AttachedTaskMarkerStore,
+  terminal: string,
+  current: RuntimeSession,
+): string | undefined {
+  if (!current.messageId || current.markerGeneration === undefined) {
+    return `completed marker missing after PTY restart: ${terminal}`;
+  }
+  let cleared = false;
+  let failure: string | undefined;
+  try {
+    const marker = store.load(terminal);
+    if (
+      marker?.phase === 'completed' &&
+      marker.messageId === current.messageId &&
+      marker.generation === current.markerGeneration &&
+      marker.receiptSequence === current.receiptSequence
+    ) {
+      cleared = store.clear(terminal, current.messageId, current.markerGeneration);
+    }
+  } catch (error) {
+    failure = `completed marker cleanup failed: ${errorText(error)}`;
+  }
+  if (cleared) return undefined;
+  return failure ?? `completed marker missing after PTY restart: ${terminal}`;
+}
+
 export function validateCompletionReceipt(
   receipt: RunnerCompletionReceipt,
   context: Omit<CompletionReceiptContext, 'markerGeneration'>,

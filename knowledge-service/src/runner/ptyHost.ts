@@ -5,9 +5,14 @@
  * and argv separately; this layer never builds or invokes a shell command.
  * PTYs remain on the runner's event loop because node-pty is not thread-safe.
  */
-import { execFile } from 'node:child_process';
 import * as nodePty from 'node-pty';
 import { EarlyPtyEventHandoff } from './earlyPtyEventHandoff';
+import {
+  boundedError,
+  execFileBounded,
+  parseWindowsProcessTable,
+  WINDOWS_PROCESS_TABLE_COMMAND,
+} from './ptyProcessCommand';
 import {
   parseLinuxProcessIds,
   readLinuxIdentitiesBounded,
@@ -60,7 +65,15 @@ export interface PtySession {
 
 export interface PtyHost {
   readonly cleanupDeadlineMs: number;
+  /** Hard upper bound on spawn settlement; spawn() must settle within it. */
+  readonly spawnDeadlineMs: number;
   spawn(spec: PtySpawnSpec): Promise<PtySession>;
+  /**
+   * Await background unwinds of spawns that settled after their hard deadline.
+   * Rejects if any late unwind failed, so shutdown cannot report a clean exit
+   * while a deadline-orphaned process tree may still be alive.
+   */
+  drainPendingSpawnUnwinds?(): Promise<void>;
 }
 
 interface NativePtyHandle {
@@ -117,6 +130,7 @@ export interface NodePtyHostOptions {
   processTree?: PtyProcessTreeAdapter;
   terminationGraceMs?: number;
   cleanupDeadlineMs?: number;
+  spawnDeadlineMs?: number;
   /** Test seam for the pinned node-pty 1.1.0 ConPTY ownership wrapper. */
   windowsNativeClose?: WindowsNativeCloser;
   /** Test seam for node-pty. Application code should use the default. */
@@ -126,9 +140,8 @@ export interface NodePtyHostOptions {
 const DEFAULT_TERMINATION_GRACE_MS = 250;
 const DEFAULT_CLEANUP_DEADLINE_MS = 15_000;
 const MAX_CLEANUP_DEADLINE_MS = 60_000;
-const PROCESS_COMMAND_TIMEOUT_MS = 5_000;
-const PROCESS_COMMAND_MAX_BUFFER = 4 * 1024 * 1024;
-const CLEANUP_ERROR_MAX_LENGTH = 8_192;
+const DEFAULT_SPAWN_DEADLINE_MS = 30_000;
+const MAX_SPAWN_DEADLINE_MS = 60_000;
 const DEFAULT_NATIVE_PTY: NativePtyFactory = {
   spawn: (executable, args, options) => nodePty.spawn(executable, [...args], options),
 };
@@ -176,64 +189,6 @@ function orderDescendantsFirst(
     .filter((pid) => pid !== rootPid)
     .sort((left, right) => depth(right) - depth(left) || right - left)
     .flatMap((pid) => (byPid.has(pid) ? [byPid.get(pid)!] : []));
-}
-
-const WINDOWS_PROCESS_TABLE_COMMAND = [
-  "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process",
-  "ForEach-Object { [pscustomobject]@{ ProcessId=$_.ProcessId; ParentProcessId=$_.ParentProcessId; CreationDate=$_.CreationDate.ToUniversalTime().ToString('o') } }",
-  'ConvertTo-Json -Compress',
-].join(' | ');
-
-function parseWindowsProcessTable(output: string): ProcessRecord[] {
-  if (!output.trim()) return [];
-  const decoded = JSON.parse(output) as
-    | { ProcessId: number; ParentProcessId: number; CreationDate: string }
-    | Array<{ ProcessId: number; ParentProcessId: number; CreationDate: string }>;
-  return (Array.isArray(decoded) ? decoded : [decoded]).flatMap((record) =>
-    Number.isInteger(record.ProcessId) && record.CreationDate
-      ? [
-          {
-            pid: record.ProcessId,
-            parentPid: record.ParentProcessId,
-            creationToken: `windows:${record.CreationDate}`,
-          },
-        ]
-      : [],
-  );
-}
-
-function execFileBounded(
-  file: string,
-  args: readonly string[],
-  stdin?: string,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      file,
-      [...args],
-      {
-        encoding: 'utf8',
-        windowsHide: true,
-        timeout: PROCESS_COMMAND_TIMEOUT_MS,
-        maxBuffer: PROCESS_COMMAND_MAX_BUFFER,
-      },
-      (error, stdout, stderr) => {
-        const detail = stderr.trim();
-        if (error || detail) {
-          reject(
-            new Error(
-              boundedError(
-                `${error?.message ?? 'Process command emitted stderr'}${detail ? `; stderr: ${detail}` : ''}`,
-              ),
-            ),
-          );
-          return;
-        }
-        resolve(stdout);
-      },
-    );
-    if (stdin !== undefined) child.stdin?.end(stdin);
-  });
 }
 
 class ProcessOwnershipIndeterminateError extends Error {
@@ -413,12 +368,6 @@ async function signalAll(
   }
 }
 
-function boundedError(value: string): string {
-  return value.length <= CLEANUP_ERROR_MAX_LENGTH
-    ? value
-    : `${value.slice(0, CLEANUP_ERROR_MAX_LENGTH)}...[truncated]`;
-}
-
 function cleanupError(errors: readonly unknown[]): Error {
   const detail = errors
     .map((error) => (error instanceof Error ? error.message : String(error)))
@@ -426,14 +375,22 @@ function cleanupError(errors: readonly unknown[]): Error {
   return new Error(`PTY process-tree cleanup failed: ${boundedError(detail)}`);
 }
 
+export class PtyDeadlineExceededError extends Error {
+  constructor(label: string, deadlineMs: number) {
+    super(`${label} exceeded hard deadline (${deadlineMs}ms)`);
+    this.name = 'PtyDeadlineExceededError';
+  }
+}
+
 async function withHardDeadline<T>(
   operation: () => Promise<T>,
   deadlineMs: number,
+  label: string,
 ): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(
-      () => reject(new Error(`PTY cleanup exceeded hard deadline (${deadlineMs}ms)`)),
+      () => reject(new PtyDeadlineExceededError(label, deadlineMs)),
       deadlineMs,
     );
   });
@@ -484,6 +441,7 @@ class NodePtySession implements PtySession {
     this.killPromise ??= withHardDeadline(
       () => this.terminateProcessTree(),
       this.cleanupDeadlineMs,
+      'PTY cleanup',
     );
     return this.killPromise;
   }
@@ -568,14 +526,20 @@ export class NodePtyHost implements PtyHost {
   private readonly processTree: PtyProcessTreeAdapter;
   private readonly terminationGraceMs: number;
   readonly cleanupDeadlineMs: number;
+  readonly spawnDeadlineMs: number;
   private readonly nativePty: NativePtyFactory;
   private readonly windowsNativeClose: WindowsNativeCloser;
+  /** In-flight unwinds of spawns that settled after their deadline. */
+  private readonly pendingSpawnUnwinds = new Set<Promise<void>>();
+  /** Failed late unwinds retained (bounded) until a shutdown drain reports them. */
+  private readonly lateSpawnUnwindFailures: Error[] = [];
 
   constructor(options: NodePtyHostOptions = {}) {
     this.processTree = options.processTree ?? defaultProcessTreeAdapter();
     this.terminationGraceMs =
       options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
     this.cleanupDeadlineMs = options.cleanupDeadlineMs ?? DEFAULT_CLEANUP_DEADLINE_MS;
+    this.spawnDeadlineMs = options.spawnDeadlineMs ?? DEFAULT_SPAWN_DEADLINE_MS;
     this.nativePty = options.nativePty ?? DEFAULT_NATIVE_PTY;
     this.windowsNativeClose = options.windowsNativeClose ?? closePinnedWindowsConpty;
     if (!Number.isInteger(this.terminationGraceMs) || this.terminationGraceMs < 0) {
@@ -591,13 +555,69 @@ export class NodePtyHost implements PtyHost {
         `PTY cleanup deadline must be an integer between 1 and ${MAX_CLEANUP_DEADLINE_MS}`,
       );
     }
+    if (
+      !Number.isInteger(this.spawnDeadlineMs) ||
+      this.spawnDeadlineMs < 1 ||
+      this.spawnDeadlineMs > MAX_SPAWN_DEADLINE_MS
+    ) {
+      throw new Error(
+        `PTY spawn deadline must be an integer between 1 and ${MAX_SPAWN_DEADLINE_MS}`,
+      );
+    }
     if (this.terminationGraceMs >= this.cleanupDeadlineMs) {
       throw new Error('PTY termination grace must be shorter than cleanup deadline');
     }
   }
 
+  /**
+   * Spawn with a hard settlement deadline. If the underlying operation loses
+   * the race but later yields a live session, that session's full process-tree
+   * kill is tracked and surfaced through {@link drainPendingSpawnUnwinds}.
+   */
   async spawn(spec: PtySpawnSpec): Promise<PtySession> {
     validateSpawnSpec(spec);
+    const operation = this.spawnSession(spec);
+    try {
+      return await withHardDeadline(() => operation, this.spawnDeadlineMs, 'PTY spawn');
+    } catch (error) {
+      if (error instanceof PtyDeadlineExceededError) this.trackLateSpawnUnwind(operation);
+      throw error;
+    }
+  }
+
+  async drainPendingSpawnUnwinds(): Promise<void> {
+    while (this.pendingSpawnUnwinds.size > 0) {
+      // These promises never reject; failures land in lateSpawnUnwindFailures.
+      await Promise.all([...this.pendingSpawnUnwinds]);
+    }
+    const failures = this.lateSpawnUnwindFailures.splice(0);
+    if (failures.length > 0) throw cleanupError(failures);
+  }
+
+  private trackLateSpawnUnwind(operation: Promise<PtySession>): void {
+    const unwind: Promise<void> = operation.then(
+      (session) =>
+        session.kill().then(
+          () => undefined,
+          (error) => {
+            if (this.lateSpawnUnwindFailures.length < 20) {
+              this.lateSpawnUnwindFailures.push(
+                new Error(
+                  `late PTY spawn unwind failed: ${error instanceof Error ? error.message : String(error)}`,
+                ),
+              );
+            }
+          },
+        ),
+      // A rejected spawn already unwound itself on its own failure path.
+      () => undefined,
+    );
+    this.pendingSpawnUnwinds.add(unwind);
+    // Successful unwinds must not accumulate for the runner's whole uptime.
+    void unwind.finally(() => this.pendingSpawnUnwinds.delete(unwind));
+  }
+
+  private async spawnSession(spec: PtySpawnSpec): Promise<PtySession> {
     const native = this.nativePty.spawn(spec.executable, [...spec.args], {
       name: spec.name ?? 'xterm-256color',
       cols: spec.cols,
@@ -619,7 +639,13 @@ export class NodePtyHost implements PtyHost {
           unwindError = error;
         }
       }
-      throw cleanupError([handoffError, ...(unwindError ? [unwindError] : [])]);
+      // Linux has no ownership-safe unwind for a handle without a captured
+      // identity; delegate to the runner's control-group termination.
+      const notes =
+        this.processTree.platform === 'linux'
+          ? [new Error('cleanup ownership indeterminate; runner control-group termination required')]
+          : [];
+      throw cleanupError([handoffError, ...notes, ...(unwindError ? [unwindError] : [])]);
     }
     if (this.processTree.platform === 'win32') {
       try {

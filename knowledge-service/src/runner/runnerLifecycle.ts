@@ -75,8 +75,15 @@ export interface RunnerShutdownCoordinatorOptions {
 
 export function assertRunnerShutdownBudget(sink: TerminalSink, configuredGraceMs: number): void {
   const required = sink.minimumShutdownGraceMs?.() ?? 0;
-  if (!Number.isSafeInteger(required) || required < 0 || required > 120_000) {
+  if (!Number.isSafeInteger(required) || required < 0) {
     throw new Error(`Terminal sink reported an invalid shutdown grace requirement: ${required}`);
+  }
+  if (required > 120_000) {
+    // Valid per-component deadlines can legitimately sum above the runner
+    // maximum; report it as an over-budget configuration, not sink corruption.
+    throw new Error(
+      `Terminal cleanup requires ${required}ms shutdown grace, above the runner maximum 120000; lower the sink's spawn/cleanup deadlines`,
+    );
   }
   if (configuredGraceMs < required) {
     throw new Error(

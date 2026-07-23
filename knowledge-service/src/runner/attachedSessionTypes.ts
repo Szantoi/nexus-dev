@@ -116,6 +116,14 @@ export interface RuntimeSession {
   idleConfirmationCount: number;
   lastIdleSampleAt?: number;
   generation: number;
+  /**
+   * Terminal-scoped cleanup-error transaction. Every subscription-/session-
+   * cleanup failure is recorded here at the moment it is observed, so no
+   * shutdown/root-exit continuation ordering can drop it. Drained (exactly
+   * once) by the manager's shutdown sweep.
+   */
+  cleanupLedger: Error[];
+  cleanupLedgerDropped: number;
   readiness?: Promise<void>;
   spawnPromise?: Promise<void>;
   resolveReadiness?: () => void;
@@ -162,6 +170,8 @@ export function createRuntimeSession(marker: AttachedTaskMarker | undefined): Ru
     lastOutputAt: 0,
     idleConfirmationCount: 0,
     generation: 0,
+    cleanupLedger: [],
+    cleanupLedgerDropped: 0,
     restartAttempts: 0,
     restartBudgetExhausted: false,
   };

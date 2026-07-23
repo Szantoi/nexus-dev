@@ -9,20 +9,17 @@
 
 ## Aktív
 
-- [ ] **AttachedSink C leállítás utáni folytatás (`TASK-ISL-007`, elsőbbségi):**
-  a felhasználói stop kérés végrehajtva; minden agent és projektfolyamat leállt.
-  A C implementációs jelöltje commitolatlanul megmaradt, az utolsó független
-  review `FAIL / 3×P1`. Folytatási sorrend:
-  1. session/generation szintű közös cleanup-tranzakcióval megőrizni és a
-     shutdown felé propagálni minden subscription-/session-cleanup hibát;
-  2. automatikus pending-spawn timeout sikeres late cleanupja után folytatni a
-     bounded restartot, de explicit cancel/shutdown után soha;
-  3. a `PtyHost` spawn-fázisára kikényszerített hard deadline, és
-     `minimumShutdownGraceMs >= spawn settlement + cleanup + margin`;
-  4. regressziós tesztek, célzott suite, teljes QUALITY-kapuk és friss,
-     készítőtől független P0/P1/P2-mentes review;
-  5. csak PASS után lokális implementációs és dokumentációs commit, push/deploy
-     nélkül. Addig a C nem kész, a D nem indítható.
+- [x] 2026-07-23 — **AttachedSink C leállítás utáni folytatás (`TASK-ISL-007`)
+  KÉSZ:** mind a 3 P1 javítva (cleanup-ledger; pending-spawn timeout utáni
+  bounded-restart-folytatás cancel/shutdown-kizárással; spawn hard deadline +
+  grace-formula 47 s), review-1 2 P2-je (ledger generáció-szivárgás; cancel
+  no-op a stopping-ablakban) és 3 P3 szintén javítva. **Review-2: PASS,
+  P0/P1/P2-mentes, mutáció-verifikált.** 16 új regressziós teszt; kapuk: 1501
+  teszt, coverage 45,25%, size/audit/secret/tasks/links, valós Windows
+  `smoke:pty` PASS. Docs-sweep 15 lelete javítva (README/STEP-3/ADR-087/
+  ATTENDED-terv/yaml.example). Lokális implementációs+doc commit; **nincs
+  push/deploy** (`origin/main` = `e627495`). Ismert P3-korlát dokumentálva
+  (cancel a késői-kill al-ablakban). A D-szelet indítása külön döntés.
 
 - [ ] **AttachedSink 3. lépés (`TASK-ISL-007`):** az 1–2. lépés `1ac43f6`
   commitban mainen, CI PASS. A 3A durable completion-receipt első review-ja

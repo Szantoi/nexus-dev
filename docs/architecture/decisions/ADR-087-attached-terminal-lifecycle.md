@@ -36,6 +36,17 @@ knowledge-service jelenleg SSE-t ad, de PTY WebSocket gatewayt nem.
    memóriapuffer, a lassú dashboard-klienst bontani kell.
 7. A legacy tmux/pipeline watcherekből csak tiszta osztályozási szabály vehető
    át; automatikus Enter/kill/értesítési mellékhatás nem.
+8. *(kiegészítés, 2026-07-23, C-szelet)* A runner élete alatt kihaló vagy
+   spawn-hibás PTY-t a manager **korlátos automatikus restarttal** állítja
+   helyre, de kizárólag task nélküli vagy már completed-task melletti exitnél:
+   exponenciális backoff + jitter, restart-budget (default 3 kísérlet), a
+   budget folyamatos READY-stabilitás után áll vissza; a budget kimerülése a
+   terminált tartósan `failed`-re parkolja. Completion előtti taskot restart
+   sosem futtat újra (`attention_required`). A spawn-fázis hard deadline-t kap
+   (`spawnDeadlineMs`); a runner minimális shutdown grace-e
+   `spawnDeadline + cleanupDeadline + margin`. Minden cleanup-hiba
+   terminálonkénti ledgerben gyűlik és a shutdown felé propagál; explicit
+   cancel vagy shutdown automatikus restartot soha nem enged tovább.
 
 ## Design intent
 
@@ -132,6 +143,23 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
   commit, push vagy deploy nem történt. Az ADR státusza változatlanul
   `proposed`; C csak javítás + teljes QUALITY + új független PASS után tekinthető
   bizonyítottnak.
+
+- C-szelet P1/P2-javítási kör (2026-07-23 este, @root): mindhárom P1 javítva —
+  cleanup-hiba-ledger (gyűjtéskori rögzítés, WeakSet-dedup, shutdown-sweep +
+  `drainPendingSpawnUnwinds`); pending-spawn timeout utáni bounded
+  restart-folytatás (csak automatikus kísérletnél; cancel generation-bumppal,
+  shutdown flaggel kizárva); `minimumShutdownGraceMs = spawnDeadline +
+  cleanupDeadline + margin` az új `PtyHost.spawnDeadlineMs` hard deadline-nal.
+  Az 1. friss független review (futtatható reprókkal) 2 P2-t talált (ledger
+  generáció-szivárgás; cancel no-op a timeout utáni stopping-ablakban) —
+  javítva; a 2. review **PASS, P0/P1/P2 finding nélkül**, mindkét P2-fix
+  mutáció-verifikált, a méret-kapu miatti kiszervezések
+  (`ptyProcessCommand.ts`, `assertAttachedPreflightState`,
+  `clearCompletedMarkerForRestart`) viselkedés-azonosak. Kapuk: 88 fájl /
+  1500+1 teszt, coverage 45,2%, size/audit/secret/tasks/links PASS, valós
+  Windows `smoke:pty` PASS. Ismert, elfogadott P3-korlát: a késői spawn
+  kill-lezárása alatti al-ablakban a cancel `false`-t ad és nem előzi meg a
+  restart-folytatást. Az ADR a D–F szeletek miatt továbbra is `proposed`.
 
 ## Nyitott kérdések
 

@@ -18,7 +18,11 @@ quarantine_existing_on_first_start: true
 # Lifecycle/resource guards.
 session_timeout_ms: 3600000
 max_output_bytes: 10485760
-shutdown_grace_ms: 10000
+# Total shutdown budget (default 20000, max 120000). Startup validates it
+# against the sink's minimumShutdownGraceMs(): an attached terminal requires
+# spawnDeadline + cleanupDeadline + margin = 47000 ms with the defaults, so
+# raise this to at least 47000 before enabling any attached-mode terminal.
+shutdown_grace_ms: 20000
 
 # Name used in generated MCP tool names: mcp__<name>__fetch_task, etc.
 mcp_server_name: spaceos-knowledge
@@ -63,10 +67,12 @@ log_dir: logs/runner
 # Per-terminal `mode` selects the execution model (default: headless):
 #   headless  today's autonomous one-shot CLI session (detached process,
 #             prompt via stdin, no live terminal). This is backward-compatible.
-#   attached  a live node-pty session (step 3 — NOT YET IMPLEMENTED). Config
-#             validation accepts it, but the runner fails closed at launch
-#             until the attached sink lands, rather than silently running
-#             headless.
+#   attached  a live node-pty session. The C-slice lifecycle runtime (PTY host,
+#             session manager, durable markers, bounded restart) is implemented;
+#             the D-slice assembly registers each attached terminal's sink and
+#             provider policy. Until that registration exists the runner still
+#             fails closed at launch for attached terminals, rather than
+#             silently running headless. Remember shutdown_grace_ms >= 47000.
 terminals:
   conductor:
     workdir: /opt/nexus/terminals/conductor

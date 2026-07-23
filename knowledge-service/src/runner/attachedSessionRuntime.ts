@@ -25,6 +25,31 @@ export function requireAttachedRuntime(
   return current;
 }
 
+/** Fail preflight closed for any terminal that cannot safely (re)start. */
+export function assertAttachedPreflightState(
+  runtime: ReadonlyMap<string, RuntimeSession>,
+  terminals: Iterable<string>,
+): void {
+  for (const terminal of terminals) {
+    const current = requireAttachedRuntime(runtime, terminal);
+    if (
+      current.session &&
+      !['starting', 'ready', 'busy', 'draining'].includes(current.state)
+    ) {
+      throw new Error(`attached terminal has a tracked PTY pending cleanup: ${terminal}`);
+    }
+    if (current.state === 'attention_required') {
+      throw new Error(`attached terminal requires reconciliation: ${terminal}`);
+    }
+    if (current.state === 'failed' && current.messageId && !current.completedBeforeExit) {
+      throw new Error(`attached terminal has unresolved work: ${terminal}`);
+    }
+    if (current.restartBudgetExhausted) {
+      throw new Error(`attached terminal restart budget exhausted: ${terminal}`);
+    }
+  }
+}
+
 export function ensureAttachedReadiness(current: RuntimeSession): Promise<void> {
   if (!current.readiness) {
     current.readiness = new Promise<void>((resolve, reject) => {

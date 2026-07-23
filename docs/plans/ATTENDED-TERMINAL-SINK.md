@@ -1,8 +1,10 @@
 # Attended Terminal Sink — választható végrehajtási módok (headless | attached)
 
-> **Verzió:** 1.2
-> **Dátum:** 2026-07-22
-> **Státusz:** 1–2. lépés KÉSZ (`1ac43f6`); 3A implementálva, review vár
+> **Verzió:** 1.3
+> **Dátum:** 2026-07-23
+> **Státusz:** 1–2. lépés KÉSZ (`1ac43f6`); 3A+3B lezárva mainen (`e627495`,
+> review PASS); 3C P1/P2-javítások után review-2 PASS — részletek:
+> [ATTACHED-SINK-STEP-3.md](ATTACHED-SINK-STEP-3.md)
 > **Kapcsolódó:** ADR-081 (single launch authority),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
 > [AttachedSink 3. lépés](ATTACHED-SINK-STEP-3.md), `src/runner/`, `src/pipeline/`
@@ -27,6 +29,12 @@ a runner-owned dashboardot és a platformteszteket.
 A 3A durable completion szelet 2026-07-22-én implementálva és élő DEV-láncon
 igazolva; független review előtt még nem lezárt. A `node-pty` dependency és a
 lockfile ebben a checkpointban még nem változott.
+
+*(Frissítés 2026-07-23: a 3A három review-kör után PASS és mainen van; a 3B a
+`162f7e7` commitban rögzítette a `node-pty@1.1.0` production dependencyt Linux
+lockkal és Node 22/24 × Ubuntu/Windows CI-mátrixszal; a 3C lifecycle-implementáció
+P1/P2-javítási körei és kapui a
+[ATTACHED-SINK-STEP-3.md](ATTACHED-SINK-STEP-3.md) checkpointjaiban.)*
 
 A mai `src/runner/` a feladatokat **headless, egylövetű** CLI-sessionként futtatja
 (`claude -p`, prompt stdinre). Ez tökéletes **felügyelet nélküli, autonóm**
@@ -76,11 +84,16 @@ pollLoop (VÁLTOZATLAN)  ──dispatch(terminal, messageId, model)──►  Te
 ```
 
 ```ts
+// A leszállított kontraktus (src/runner/terminalSink.ts, 1ac43f6 + C-szelet):
 interface TerminalSink {
-  ensureReady?(): Promise<void> | void;            // router: minden attached session preflightja
-  dispatch(req: LaunchRequest): DispatchResult;    // headless: spawn; attached: write a PTY-be
+  dispatch(req: LaunchRequest): LaunchResult;      // headless: spawn; attached: write a PTY-be
   isBusy(terminal: string): boolean;               // attached: mid-task (nudge → complete_task közt)
   cancel(terminal: string, reason?: string): boolean;
+  cancelAll(reason?: string): number;              // runner-szintű leállítás
+  activeCount(): number;                           // graceful shutdown számláló
+  minimumShutdownGraceMs?(): number;               // natív cleanup grace-igény (budget-kapu)
+  ensureReady?(): void | Promise<void>;            // router: minden attached session preflightja
+  shutdown?(reason?: string): Promise<void>;       // awaitelhető teljes cleanup
 }
 ```
 

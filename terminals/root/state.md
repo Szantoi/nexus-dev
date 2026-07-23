@@ -7,28 +7,38 @@
 
 ## Aktuális fókusz
 
-**ATTACHED TERMINAL SINK C — BIZTONSÁGOSAN LEÁLLÍTVA, ÁTADHATÓ WIP**
-(2026-07-23): Gábor kérésére a folyamatot leállítottuk. A két javító agent
-`interrupted`, a független reviewer befejezte a vizsgálatot, és nincs futó
-Nexus-, Vitest- vagy PTY-folyamat. Az utolsó publikált és implementációs baseline
-az `origin/main` `e627495`; C implementációs commit, push és deploy nem történt.
-A leállítási dokumentáció külön lokális checkpoint commitba menthető, ez nem
-minősíti késznek a C-szeletet.
+**ATTACHED TERMINAL SINK C — P1/P2 JAVÍTVA, FÜGGETLEN REVIEW PASS, LOKÁLIS
+COMMIT KÉSZ** (2026-07-23 este, @root): a leállítási checkpoint 3 nyitott P1-e
+javítva a todo-sorrend szerint, két friss független adverzáriális review-körrel:
 
-A C-szelet implementációs jelöltje a munkafában megmaradt, de **nem lezárt és
-nem release-képes**. A friss független review verdiktje `FAIL`, három nyitott P1:
+1. **Cleanup-hiba-ledger** — minden subscription-/session-cleanup-hiba
+   gyűjtéskor terminálonkénti korlátos ledgerbe kerül (kill-hibák
+   WeakSet-deduppal), a `shutdown()` sweepje + `drainPendingSpawnUnwinds`
+   propagálja; egyik continuation-sorrend sem veszíthet hibát.
+2. **Pending-spawn timeout utáni restart-folytatás** — sikeres late cleanup
+   után az automatikus kísérlet folytatja a bounded restartot; explicit cancel
+   (generation-bump) vagy shutdown után soha.
+3. **Grace-formula** — új `PtyHost.spawnDeadlineMs` hard deadline (default
+   30 s); `minimumShutdownGraceMs = spawnDeadline + cleanupDeadline + margin`
+   (default 47 000 ms), induláskor fail-closed budget-kapu.
 
-1. shutdown/root-exit versenyben elveszhet egy subscription-cleanup hiba;
-2. automatikus restart közbeni pending-spawn startup-timeout után nem indul
-   újabb bounded próbálkozás;
-3. a jelentett minimum shutdown grace nem tartalmazza a pending spawn
-   kikényszerített felső időkorlátját.
+Review-1 (friss, futtatható reprókkal): a P1-fixek magja helyes, de FAIL /
+2×P2 — (a) ledger generáció-szivárgás (helyreállt terminál tiszta shutdownja
+elbukott), (b) cancel no-op a timeout utáni stopping-ablakban. Mindkettő
+javítva + 4 P3-ból 3 javítva, 1 kóddokkal elfogadva. **Review-2: PASS,
+P0/P1/P2 finding nélkül** — mindkét P2-fix mutáció-verifikált, a méret-kapu
+miatti kiszervezések (`ptyProcessCommand.ts`, `assertAttachedPreflightState`,
+`clearCompletedMarkerForRestart`) viselkedés-azonosak. Ismert, dokumentált
+P3-korlát: a késői spawn kill-lezárása alatti al-ablakban a cancel `false`.
 
-A következő session ezek javításával indulhat, majd célzott regressziós teszt,
-teljes QUALITY-kör és új, készítőtől független P0/P1/P2-mentes review szükséges.
-Csak ezután készülhet lokális C-commit; a D-szelet addig nem indul. A részletes
-átadás a `TASK-ISL-007` 2026-07-23-i leállítási checkpointjában, a tervben és az
-`AGENT-CHANNEL.md` legutolsó bejegyzésében található.
+Kapuk: typecheck 0; lint-ratchet 2-vel baseline alatt; **88 fájl / 1501 PASS +
+1 skipped** (+16 új regressziós teszt); coverage 45,25/40,43/45,20/45,74;
+size/audit/secret/tasks/links PASS; **valós Windows `smoke:pty` PASS**.
+Docs-konzisztencia-sweep (5 párhuzamos auditor): 15 lelet javítva (runner
+README, STEP-3 terv v1.5, ADR-087 8. döntéspont + evidence, ATTENDED-terv
+v1.3, runner.yaml.example grace/mode). A C-szelet lokális commitja a mai
+munka lezárása; **push/deploy továbbra sincs** (`origin/main` = `e627495`).
+A D-szelet indítása külön döntés.
 
 **ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A ÉS 3B REVIEW PASS, C INDUL**
 (2026-07-22): az A-szelet review-i jogos izolációs és

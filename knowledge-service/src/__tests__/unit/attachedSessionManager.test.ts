@@ -133,6 +133,7 @@ class FakePtySession implements PtySession {
 
 class FakePtyHost implements PtyHost {
   readonly cleanupDeadlineMs = 5_000;
+  readonly spawnDeadlineMs = 10_000;
   readonly sessions: FakePtySession[] = [];
   nextPid = 100;
   spawnError?: Error;
@@ -274,16 +275,17 @@ afterEach(() => {
 });
 
 describe('AttachedSessionManager', () => {
-  it('exposes native cleanup deadline plus a runner shutdown margin', () => {
+  it('exposes spawn settlement plus native cleanup deadline plus a runner shutdown margin', () => {
     const { manager } = fixture();
 
-    expect(manager.minimumShutdownGraceMs()).toBe(7_000);
+    // spawnDeadline (10 000) + cleanupDeadline (5 000) + margin
+    expect(manager.minimumShutdownGraceMs()).toBe(17_000);
     expect(fixture(undefined, [], { cleanupMarginMs: 1 }).manager.minimumShutdownGraceMs()).toBe(
-      5_001,
+      15_001,
     );
     expect(
       fixture(undefined, [], { cleanupMarginMs: 60_000 }).manager.minimumShutdownGraceMs(),
-    ).toBe(65_000);
+    ).toBe(75_000);
   });
 
   it.each([0, 60_001, 1.5, Number.NaN])(
@@ -355,6 +357,173 @@ describe('AttachedSessionManager', () => {
     expect(host.sessions[0].killCalls).toBe(1);
     expect(manager.activeCount()).toBe(1);
     expect(manager.snapshot('backend')?.lastError).toMatch(/late PTY spawn cleanup failed/);
+  });
+
+  it('continues the bounded restart chain after an automatic pending-spawn timeout cleans up late', async () => {
+    vi.useFakeTimers();
+    let releaseSpawn!: () => void;
+    const policies = new Map([['backend', policy({ startupTimeoutMs: 50 })]]);
+    const { manager, host } = fixture(policies, [], {
+      restart: {
+        maxAttempts: 3,
+        initialDelayMs: 10,
+        maxDelayMs: 40,
+        stabilityResetMs: 10_000,
+        jitterRatio: 0,
+      },
+    });
+    const first = await makeReady(manager, host);
+    host.spawnBarrier = new Promise<void>((resolve) => {
+      releaseSpawn = resolve;
+    });
+    first.emitExit(1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'failed', restartAttempt: 1 });
+
+    await vi.advanceTimersByTimeAsync(10); // automatic attempt starts; native spawn hangs
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'starting' });
+    await vi.advanceTimersByTimeAsync(50); // pending-spawn startup timeout fires
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopping' });
+
+    host.spawnBarrier = undefined;
+    releaseSpawn();
+    await vi.advanceTimersByTimeAsync(0); // flush the late-arrival cleanup chain only
+    expect(host.sessions).toHaveLength(2);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'failed', restartAttempt: 2 });
+    expect(host.sessions[1].killCalls).toBe(1);
+    expect(manager.snapshot('backend')?.lastError).toMatch(/settled after startup timeout/);
+    expect(manager.snapshot('backend')?.lastError).toMatch(/restart 2\/3/);
+
+    await vi.advanceTimersByTimeAsync(20); // exponential backoff: 10 * 2^(2-1)
+    expect(host.sessions).toHaveLength(3);
+    host.sessions[2].emitData('READY');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'ready', pid: 102 });
+    expect(manager.activeCount()).toBe(1);
+  });
+
+  it('honours an explicit cancel inside the post-timeout stopping window', async () => {
+    vi.useFakeTimers();
+    let releaseSpawn!: () => void;
+    const policies = new Map([['backend', policy({ startupTimeoutMs: 50 })]]);
+    const { manager, host } = fixture(policies, [], {
+      restart: { maxAttempts: 3, initialDelayMs: 10, maxDelayMs: 40, jitterRatio: 0 },
+    });
+    const first = await makeReady(manager, host);
+    host.spawnBarrier = new Promise<void>((resolve) => {
+      releaseSpawn = resolve;
+    });
+    first.emitExit(1);
+    await vi.advanceTimersByTimeAsync(10); // automatic attempt starts; native spawn hangs
+    await vi.advanceTimersByTimeAsync(50); // pending-spawn startup timeout fires
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopping' });
+
+    // The cancel arrives AFTER the timeout, while the native spawn is still
+    // settling. It must pre-empt the automatic restart continuation.
+    expect(manager.cancel('backend', 'operator cancel after timeout')).toBe(true);
+    host.spawnBarrier = undefined;
+    releaseSpawn();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(manager.activeCount()).toBe(0);
+    expect(host.sessions).toHaveLength(2);
+    expect(host.sessions[1].killCalls).toBe(1);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopped' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(host.sessions).toHaveLength(2);
+  });
+
+  it('does not fail a later clean shutdown with cleanup errors from a recovered generation', async () => {
+    vi.useFakeTimers();
+    const policies = new Map([
+      [
+        'backend',
+        policy({
+          startupTimeoutMs: 50,
+          isReadySample: (data) => {
+            if (data === 'BROKEN') throw new Error('classifier crashed');
+            return data === 'READY';
+          },
+        }),
+      ],
+    ]);
+    const { manager, host } = fixture(policies, [], {
+      restart: { maxAttempts: 3, initialDelayMs: 10, maxDelayMs: 40, jitterRatio: 0 },
+    });
+    const first = await makeReady(manager, host);
+    first.emitExit(1);
+    await vi.advanceTimersByTimeAsync(10); // automatic replacement spawns
+    const second = host.sessions[1];
+    second.dataDisposeError = new Error('old-generation dispose leak');
+    second.emitData('BROKEN'); // classifier fails; dispose error recorded, kill succeeds
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manager.snapshot('backend')?.lastError).toMatch(/old-generation dispose leak/);
+
+    await vi.advanceTimersByTimeAsync(20); // bounded restart continues
+    host.sessions[2].emitData('READY');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'ready', pid: 102 });
+
+    // The recovered terminal's clean shutdown must not resurrect the already
+    // delivered old-generation cleanup error.
+    await manager.shutdown('clean shutdown after recovery');
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopped' });
+  });
+
+  it('never restarts after an explicit cancel of an automatic pending spawn', async () => {
+    vi.useFakeTimers();
+    let releaseSpawn!: () => void;
+    const policies = new Map([['backend', policy({ startupTimeoutMs: 50 })]]);
+    const { manager, host } = fixture(policies, [], {
+      restart: { maxAttempts: 3, initialDelayMs: 10, maxDelayMs: 40, jitterRatio: 0 },
+    });
+    const first = await makeReady(manager, host);
+    host.spawnBarrier = new Promise<void>((resolve) => {
+      releaseSpawn = resolve;
+    });
+    first.emitExit(1);
+    await vi.advanceTimersByTimeAsync(10); // automatic attempt starts; native spawn hangs
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'starting' });
+
+    expect(manager.cancel('backend', 'operator cancelled automatic attempt')).toBe(true);
+    host.spawnBarrier = undefined;
+    releaseSpawn();
+    await vi.advanceTimersByTimeAsync(0); // flush the late-arrival cleanup chain only
+    expect(manager.activeCount()).toBe(0);
+
+    expect(host.sessions).toHaveLength(2);
+    expect(host.sessions[1].killCalls).toBe(1);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopped' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(host.sessions).toHaveLength(2);
+  });
+
+  it('never restarts when shutdown interrupts an automatic pending spawn', async () => {
+    vi.useFakeTimers();
+    let releaseSpawn!: () => void;
+    const policies = new Map([['backend', policy({ startupTimeoutMs: 50 })]]);
+    const { manager, host } = fixture(policies, [], {
+      restart: { maxAttempts: 3, initialDelayMs: 10, maxDelayMs: 40, jitterRatio: 0 },
+    });
+    const first = await makeReady(manager, host);
+    host.spawnBarrier = new Promise<void>((resolve) => {
+      releaseSpawn = resolve;
+    });
+    first.emitExit(1);
+    await vi.advanceTimersByTimeAsync(10); // automatic attempt starts; native spawn hangs
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'starting' });
+
+    const shutdown = manager.shutdown('test shutdown during automatic spawn');
+    host.spawnBarrier = undefined;
+    releaseSpawn();
+    await shutdown;
+
+    expect(host.sessions).toHaveLength(2);
+    expect(host.sessions[1].killCalls).toBe(1);
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'stopped' });
+    expect(manager.activeCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(host.sessions).toHaveLength(2);
   });
 
   it('keeps a timed-out PTY tracked and blocks restart when cleanup fails', async () => {
@@ -1212,6 +1381,41 @@ describe('AttachedSessionManager', () => {
     });
   });
 
+  it('propagates a dispose failure to shutdown when it races a PTY root exit', async () => {
+    const { manager, host } = fixture();
+    const session = await makeReady(manager, host);
+    session.dataDisposeError = new Error('data dispose leak');
+
+    // handleExit disposes subscriptions synchronously (recording the failure),
+    // then shutdown races it on the same idempotent kill promise. Whichever
+    // continuation wins, the ledger sweep must still surface the error.
+    session.emitExit(0);
+    const failure = await manager.shutdown().catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(AttachedLifecycleError);
+    expect((failure as Error).message).toMatch(/data subscription dispose failed/);
+    expect((failure as Error).message).toMatch(/data dispose leak/);
+    expect(
+      (failure as AttachedLifecycleError).errors.some((error) =>
+        /^backend: PTY data subscription dispose failed: data dispose leak$/.test(error.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('propagates a dispose failure when the PTY root exits during shutdown', async () => {
+    const { manager, host } = fixture();
+    const session = await makeReady(manager, host);
+    session.exitDisposeError = new Error('exit dispose leak');
+
+    const shutdown = manager.shutdown().catch((error: unknown) => error);
+    session.emitExit(0); // arrives while shutdown is already draining this session
+    const failure = await shutdown;
+
+    expect(failure).toBeInstanceOf(AttachedLifecycleError);
+    expect((failure as Error).message).toMatch(/exit subscription dispose failed/);
+    expect((failure as Error).message).toMatch(/exit dispose leak/);
+  });
+
   it('preserves both the preflight failure and rollback cleanup failure', async () => {
     const policies = new Map([
       ['backend', policy()],
@@ -1281,7 +1485,12 @@ describe('AttachedSessionManager', () => {
     expect((failure as Error).message).toContain('first line second line');
     expect((failure as Error).message).toContain('+3 more omitted');
     expect((failure as Error).message.length).toBeLessThanOrEqual(700);
-    expect((failure as AttachedLifecycleError).errors[0].message).toHaveLength(8_023);
+    // Full text preserved through the cleanup ledger: 'terminal-0: ' (12) +
+    // 'PTY cleanup failed: ' (20) + the 8 023-char original kill error.
+    expect((failure as AttachedLifecycleError).errors[0].message).toHaveLength(8_055);
+    expect((failure as AttachedLifecycleError).errors[0].message).toContain(
+      'terminal-0: PTY cleanup failed: first line',
+    );
   });
 
   it('keeps durable work blocked when shutdown cleanup fails', async () => {

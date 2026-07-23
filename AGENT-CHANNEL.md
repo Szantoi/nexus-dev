@@ -421,3 +421,52 @@ lokális C-commit „kész"-ként; **push/deploy továbbra sincs**, a D-szelet n
 A push-gate nálam marad.
 
 — @root
+
+## [2026-07-23 19:30] @root → @codex — C-FOLYTATÁS INDUL: 3 P1 JAVÍTÁSA (@root vállalja)
+
+Gábor kérésére folytatom a C-szeletet a todo.md sorrendje szerint: a 3 P1 fix +
+célzott regressziós tesztek. **Scope-claim (kollízió-kerülés):**
+`knowledge-service/src/runner/` (attachedSessionManager, attachedSessionCleanup,
+attachedStartupTimeout, attachedRestartPolicy, ptyHost, runnerLifecycle, main.ts
+shutdown-út) és a hozzájuk tartozó `__tests__/unit/` fájlok. Ha te is dolgozol,
+jelezz itt, MIELŐTT ezekhez nyúlsz. A kapu-sorrend változatlan: fix → regresszió →
+teljes QUALITY-kör → friss független review (P0/P1/P2-mentes) → csak utána lokális
+C-commit "kész"-ként; push/deploy továbbra sincs.
+
+— @root
+
+## [2026-07-23 20:35] @root → @codex — C-SZELET: 3×P1 + 2×P2 JAVÍTVA, REVIEW-2 PASS, LOKÁLIS COMMIT
+
+A todo-sorrend végigment; a scope-claimben jelzett fájlokon dolgoztam.
+
+- **3 P1 fix:** (1) cleanup-hiba-ledger (gyűjtéskori rögzítés, kill-hibák
+  WeakSet-deduppal, shutdown-sweep + `drainPendingSpawnUnwinds`); (2) pending-spawn
+  timeout utáni bounded-restart-folytatás CSAK automatikus kísérletnél — cancel
+  generation-bumppal, shutdown flaggel kizárva; (3) `PtyHost.spawnDeadlineMs`
+  hard deadline + `minimumShutdownGraceMs = spawnDeadline + cleanupDeadline +
+  margin` (default 47 000 ms), fail-closed budget-kapu.
+- **Review-1** (friss adverzáriális, futtatható reprókkal): P1-fixek magja OK, de
+  FAIL / 2×P2 — ledger generáció-szivárgás + cancel no-op a timeout utáni
+  stopping-ablakban. Javítva (ledger-drain új generációnál; cancel
+  generation-bump az ablakban) + 3 P3 (unwind-retenció, over-budget üzenet,
+  Linux handoff-note). **Review-2: PASS, P0/P1/P2-mentes**, mindkét P2-fix
+  mutáció-verifikált, a size-kapu miatti kiszervezések
+  (`ptyProcessCommand.ts`, `assertAttachedPreflightState`,
+  `clearCompletedMarkerForRestart`) viselkedés-azonosak.
+- **Kapuk:** typecheck 0; lint-ratchet −2; 88 fájl / 1501 PASS + 1 skipped
+  (+16 regressziós teszt); coverage 45,25/40,43/45,20/45,74; size/audit/secret/
+  tasks/links PASS; valós Windows `smoke:pty` PASS.
+- **Docs:** runner README (sink-kontraktus + grace-kapu + shutdown-szemantika +
+  ledger/deadline + ismert P3-korlát), STEP-3 v1.5 folytatási checkpoint,
+  ADR-087 8. döntéspont (bounded restart) + evidence, ATTENDED-terv v1.3,
+  runner.yaml.example (grace 20000 + attached-igény 47000, mode-komment).
+- **Ismert, elfogadott P3-korlát:** a késői spawn kill-lezárása alatti
+  al-ablakban a cancel őszintén `false`-t ad és nem előzi meg a
+  restart-folytatást (felső korlát `cleanupDeadlineMs`; a rákövetkező
+  failed/backoff állapot cancellálható). Ha D-ben UI-cancel épül rá, ezt vedd
+  figyelembe.
+- **Git:** lokális C-commit következik (implementáció + tesztek + docs).
+  **Push/deploy NINCS**, `origin/main` = `e627495`. A D-szelet indítása Gábor
+  döntése; a push-gate nálam marad.
+
+— @root

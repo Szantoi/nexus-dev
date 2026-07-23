@@ -1,8 +1,8 @@
 # AttachedSink — a 3. lépés végrehajtható al-terve
 
-> **Verzió:** 1.4
+> **Verzió:** 1.5
 > **Dátum:** 2026-07-23
-> **Státusz:** A és B PASS; C implementációs jelölt leállítva, re-review FAIL / 3×P1
+> **Státusz:** A és B PASS; C: a 3 P1 + a re-review 2 P2-je javítva, kapuk zöldek — friss független záró-review folyamatban
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -82,6 +82,44 @@ célzott tesztek, teljes QUALITY-kör, valós Windows PTY smoke és új, készí
 független P0/P1/P2-mentes review a kapu. A C csak ezután commitolható; a D-szelet
 addig nem indul.
 
+### Folytatási checkpoint (2026-07-23 este, @root)
+
+A három P1 javítása elkészült a working tree-ben, célzott regressziós
+tesztekkel:
+
+1. **Cleanup-hiba-ledger** (`attachedSessionCleanup.ts` + `attachedSessionTypes.ts`):
+   minden subscription-/session-cleanup-hiba a keletkezéskor terminálonkénti,
+   korlátos ledgerbe kerül (kill-hibák sessiononként egyszer, WeakSet-deduppal);
+   a `shutdown()` végső sweepje + a `drainPendingSpawnUnwinds` propagálja őket —
+   a root-exit/shutdown continuation-verseny egyik sorrendje sem veszíthet hibát.
+2. **Pending-spawn timeout utáni restart-folytatás** (`runSpawnAttempt` késői ág):
+   sikeres late cleanup után az *automatikus* kísérlet folytatja a bounded
+   restart-láncot; explicit cancel (generation-bump) vagy shutdown után soha.
+3. **Grace-formula** (`minimumShutdownGraceMs`): a `PtyHost` új, kikényszerített
+   `spawnDeadlineMs` hard deadline-jával (default 30 000, max 60 000)
+   `spawnDeadline + cleanupDeadline + margin` (defaultokkal 47 000 ms); az
+   `assertRunnerShutdownBudget` az alulméretezett konfigot fail-closed
+   elutasítja, a 120 000 fölötti igényt túlméretezett konfigurációként jelenti.
+
+Az első friss független review (adverzáriális, futtatható reprókkal) a 3 P1-fix
+magját helyesnek találta, de **FAIL / 2×P2**: (a) a ledger generációkon át
+szivárgott — helyreállt terminál későbbi tiszta shutdownja elbukott egy már
+kézbesített hibától; (b) a cancel néma no-op volt a timeout utáni, session
+nélküli `stopping`-ablakban, így az automata restart az operátori szándék
+ellenére lefutott. Mindkettő javítva (ledger-drain új generáció induláskor;
+cancel generation-bumppal ebben az ablakban), a review 4 P3-ából 3 szintén
+(unwind-retenció, over-budget hibaüzenet, Linux handoff-megjegyzés), 1 kóddokkal
+elfogadva. A méret-kapu miatt felelősség-szerinti bontás történt:
+`ptyProcessCommand.ts` (korlátos OS-parancsréteg), `assertAttachedPreflightState`
+(runtime-modul), `clearCompletedMarkerForRestart` (receipt-modul).
+
+Kapuk a javítások után: typecheck 0; lint-ratchet 2-vel baseline alatt; teljes
+suite 88 fájl / 1500 PASS + 1 skipped (+15 új regressziós teszt); coverage
+45,22 / 40,41 / 45,20 / 45,70; size/audit/secret/tasks/links PASS; valós
+Windows `smoke:pty` PASS (node-pty 1.1.0, Node 24, process-tree kill). A
+második, javításokat verifikáló független review folyamatban; C-commit csak
+P0/P1/P2-mentes verdikt után, push/deploy nélkül.
+
 ## 1. Goal, sikerkritérium és kilépési feltétel
 
 **Goal:** egy runneren belül terminálonként választható, Windowson ConPTY-t,
@@ -122,8 +160,9 @@ teljesül.
 
 1. **Vegyes módhoz router kell.** A `TerminalSinkRouter` terminálnév alapján
    delegál a közös `HeadlessSink` vagy a terminálhoz tartozó `AttachedSink`
-   példánynak. A mostani `selectRunnerSink()` csak preflightol és a közös
-   headless sinket adja vissza, ezért valódi vegyes módra nem alkalmas.
+   példánynak. *(A C-szeletben megvalósult: a `selectRunnerSink()` minden
+   konfigurált terminált felold és immutable mixed-mode `TerminalSinkRouter`-t
+   ad vissza; regisztrálatlan attached terminál fail-closed indulási hiba.)*
 2. **A poll az egyetlen launch authority.** A router és a sink nem olvas
    mailboxot és nem választ taskot; csak a poll által már claimelt requestet
    kézbesíti.
