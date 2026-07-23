@@ -137,6 +137,22 @@ terminals: {}
     expect(cfg.terminals.backend.mode).toBe('headless');
     expect(cfg.terminals.live.mode).toBe('attached');
   });
+
+  it('bounds the shutdown grace interval to the coordinator contract', () => {
+    const base = {
+      server_url: 'http://localhost:3466',
+      token: 'test-token',
+      log_dir: path.join(TMP_DIR, 'logs'),
+      terminals: { backend: { workdir: WORKDIR } },
+    };
+
+    expect(RunnerConfigSchema.parse({ ...base, shutdown_grace_ms: 1 }).shutdown_grace_ms).toBe(1);
+    expect(
+      RunnerConfigSchema.parse({ ...base, shutdown_grace_ms: 120_000 }).shutdown_grace_ms,
+    ).toBe(120_000);
+    expect(() => RunnerConfigSchema.parse({ ...base, shutdown_grace_ms: 0 })).toThrow();
+    expect(() => RunnerConfigSchema.parse({ ...base, shutdown_grace_ms: 120_001 })).toThrow();
+  });
 });
 
 // ─── TerminalSink factory ────────────────────────────────────────────────────
@@ -149,10 +165,10 @@ describe('resolveTerminalSink', () => {
     expect(sink).toBeInstanceOf(SessionLauncher);
   });
 
-  it('throws a clear step-3 error for attached terminals', () => {
+  it('fails closed when an attached terminal has no registered sink', () => {
     const launcher = new SessionLauncher(makeConfig());
     expect(() => resolveTerminalSink('live', 'attached', launcher)).toThrow(
-      "AttachedSink not implemented yet (step 3): terminal 'live'",
+      "AttachedSink unavailable for configured terminal 'live'",
     );
   });
 });
@@ -665,5 +681,31 @@ describe('pollOnce', () => {
     expect(res.launched).toBe(0);
     expect(deps.launch).not.toHaveBeenCalled();
     expect(deps.store.get('MSG-1')).toBeUndefined();
+  });
+
+  it('releases the server claim when launch throws', async () => {
+    const cfg = makeConfig();
+    const deps = makeDeps({ backend: [{ id: 'MSG-1' }] });
+    deps.launch.mockImplementation(() => {
+      throw new Error('local sink exploded');
+    });
+
+    await expect(pollOnce(cfg, deps)).rejects.toThrow(
+      'launch threw after claim (backend/MSG-1): local sink exploded; claim released',
+    );
+    expect(deps.releaseTask).toHaveBeenCalledWith('backend', 'MSG-1');
+  });
+
+  it('preserves both launch and claim-release failures', async () => {
+    const cfg = makeConfig();
+    const deps = makeDeps({ backend: [{ id: 'MSG-1' }] });
+    deps.launch.mockImplementation(() => {
+      throw new Error('local sink exploded');
+    });
+    deps.releaseTask.mockRejectedValue(new Error('server release unavailable'));
+
+    await expect(pollOnce(cfg, deps)).rejects.toThrow(
+      'local sink exploded; claim release also failed: server release unavailable',
+    );
   });
 });

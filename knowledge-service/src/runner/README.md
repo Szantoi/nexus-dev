@@ -17,8 +17,13 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
   [`serverClient.ts`](serverClient.ts) (HTTP-hívások Bearer-tokennel),
   [`sessionLauncher.ts`](sessionLauncher.ts) (a **headless** TerminalSink:
   process supervisor, busy-követés), [`terminalSink.ts`](terminalSink.ts)
-  (a `TerminalSink` absztrakció), [`sinkFactory.ts`](sinkFactory.ts)
-  (mode → sink feloldás), [`processedStore.ts`](processedStore.ts)
+  (a `TerminalSink` absztrakció),
+  [`terminalSinkRouter.ts`](terminalSinkRouter.ts) (immutable mixed-mode routing),
+  [`ptyHost.ts`](ptyHost.ts) (node-pty és identity-védett processzfa),
+  [`attachedSessionManager.ts`](attachedSessionManager.ts) (perzisztens PTY-
+  lifecycle), [`attachedTaskMarkerStore.ts`](attachedTaskMarkerStore.ts)
+  (durable task-marker), [`sinkFactory.ts`](sinkFactory.ts) (mode → sink
+  feloldás), [`processedStore.ts`](processedStore.ts)
   (feldolgozott üzenetek perzisztens nyilvántartása — duplaindítás ellen),
   [`completionCursorStore.ts`](completionCursorStore.ts) (monoton, atomikusan
   mentett durable-completion cursor az attached managerhez),
@@ -32,21 +37,47 @@ autoritás; az SSE csak másodperc-szintű ébresztés (nudge), nem indít öná
 A poll-hurok az egyetlen indítási autoritás; a **`TerminalSink`**
 ([`terminalSink.ts`](terminalSink.ts)) csak *végrehajt*, nem dönt. A kontraktus:
 `dispatch(req)` (a launch belépési pont), `isBusy`, `cancel`, `cancelAll`,
-`activeCount`, valamint egy opcionális `ensureReady()` (az attached mód
-warm-upja; a headless sink nem implementálja).
+`activeCount`, opcionális `ensureReady()` (attached warm-up), valamint opcionális,
+awaitelhető `shutdown()`; a headless sink az utóbbi kettőt nem implementálja.
 
 - **`headless`** (default): a mai [`SessionLauncher`](sessionLauncher.ts) — egy
   leválasztott, egyszeri CLI-processz taskonként, prompt stdinen, élő terminál
   nélkül. A `dispatch` a `launch` aliasa → **nulla viselkedésváltozás**.
-- **`attached`** (3. lépés, node-pty — **még nincs implementálva**): élő PTY
-  session terminálonként.
+- **`attached`** (3. lépés, node-pty): a C-szelet routere, PTY-portja, durable
+  markere és lifecycle-managere elkészült. A valódi provider/readiness/receipt/
+  idle bekötés a D-szelet, ezért production assembly még szándékosan nincs.
 
 A [`sinkFactory.ts`](sinkFactory.ts) a terminál `mode` mezője alapján old fel
-sinket: `headless` → a megosztott headless sink; `attached` → **világos hibát
-dob** (`AttachedSink not implemented yet (step 3): terminal '<name>'`). A
-[`main.ts`](main.ts) a poll indítása előtt preflightol (`selectRunnerSink`),
-így egy `attached` terminál fail-closed leállítja a runnert — nem esik csendben
-headlessre.
+sinket: `headless` → a megosztott headless sink; `attached` → a terminálhoz
+explicit regisztrált sink. Hiányzó regisztráció **világos hibát dob**
+(`AttachedSink unavailable for configured terminal '<name>'`). A [`main.ts`](main.ts)
+a backlog és poll indítása előtt `await sink.ensureReady?.()` preflightot futtat,
+így egy még be nem kötött `attached` terminál fail-closed leállítja a runnert —
+nem esik csendben headlessre.
+
+## Attached lifecycle alap (3C)
+
+Az `AttachedSessionManager` állapotgépe terminálonként legfeljebb egy PTY-t
+birtokol. Dispatch előtt `accepted`, sikeres írás után `written`, matching
+szervernyugta után `completed` marker kerül a helyi logkönyvtárba. Új task csak
+akkor indulhat, ha nincs előző tulajdon: PTY-write bizonytalan eredménye,
+receipt előtti processzhalál, markerhiba és cleanup-hiba `attention_required`
+vagy más fail-closed állapot.
+
+A terminál csak matching completion **és** a D-szelet által bizonyított stabil
+idle után lesz újra `ready`. Task nélküli, illetve már completed task melletti
+PTY-exit bounded exponential backoff + jitter + restart-budget szerint
+helyreállhat; completion előtti taskot soha nem futtat újra. Runner-crash után
+az exact, scope-validált `RunnerCompletionReceipt` az `accepted/written` markert
+előbb durable `completed` fázisra emeli, majd a marker csak az új PTY readiness
+után törlődik.
+
+A marker saját fájlja fsyncelt, létrehozás/törlés után POSIX-on a teljes új
+directory-entry lánc is flusholódik; bizonytalan durability ragadósan blokkolja
+az adott store-példányt. A processzfa-leállítás puszta PID helyett Linuxon
+`/proc/<pid>/stat` starttime+SID, Windowson PID+CreationDate identityt ellenőriz,
+így PID-újrahasznosításkor nem jelez idegen folyamatot. Enumerációs hiba mellett
+a natív root-close továbbra is megkísérlődik, és minden cleanup-hiba látható.
 
 ## Durable completion replay (AttachedSink 3A)
 
@@ -66,9 +97,9 @@ elutasítja a hibás, nem monoton, más terminálhoz vagy más islandhez tartoz�
 választ. A `completionStreamKey()` az endpointot, a várt islandet, a terminált
 és a token nem visszafejthető fingerprintjét köti össze, ezért credential- vagy
 island-rotáció nem örökölhet régi magas cursort. A `CompletionCursorStore`
-cursor-regressziót nem enged és temp-file + rename írást használ. A main loop
-még nem fogyasztja ezt a feedet; a bekötés az `AttachedSessionManager` C/D
-szeletének része.
+cursor-regressziót nem enged és temp-file + rename írást használ. A lifecycle
+exact receiptet fogadni képes; a feed folyamatos fogyasztása, provider-readiness
+és stabil-idle bizonyítása a D-szeletben kerül a main loopba.
 
 ## Függőségi irány
 
@@ -110,8 +141,9 @@ Linuxon önmagában nem elég, és az interaktív háttér-jobok külön process
 is kerülhetnek. Ezért a teljes forkpty session folyamatait, gyermek-először,
 kontrollált `SIGTERM` → rövid grace → `SIGKILL` fallbackkel kell lezárni;
 Windowson a ConPTY saját lezárása rendezi a natív output-workert; a lezárás
-előtt rögzített leszármazott PID-fát ezután a supervisor gyermek-először
-ellenőrzi és szükség esetén `taskkill /T /F`-fel takarítja. A smoke belső
+előtt rögzített leszármazottakat PID+CreationDate identityvel, gyermek-először,
+egyenként ellenőrzi és takarítja. A külön platform-smoke a saját snapshot +
+`taskkill` fallback szerződését is ellenőrzi. A smoke belső
 workerét ezen felül egy 30 másodperces külső
 supervisor és a CI-jobot egy 10 perces felső korlát védi, ezért a natív spawn
 beragadása sem teheti végtelenné a kaput. Bármely eltérés fail-closed, nem
@@ -145,7 +177,7 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
 
 ## Tesztek
 
-`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
+`npx vitest run src/__tests__/unit/runner.test.ts src/__tests__/unit/runnerSse.test.ts src/__tests__/unit/terminalSinkRouter.test.ts src/__tests__/unit/ptyHost.test.ts src/__tests__/unit/attachedTaskMarkerStore.test.ts src/__tests__/unit/attachedSessionManager.test.ts src/__tests__/integration/runnerPoll.integration.test.ts src/__tests__/integration/runnerSse.integration.test.ts`
 
 ## Ismert korlátok
 

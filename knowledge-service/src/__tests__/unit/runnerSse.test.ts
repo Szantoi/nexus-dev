@@ -12,6 +12,7 @@ import { createSseParser, type SseEvent } from '../../runner/sseListener';
 import { startPollLoop } from '../../runner/pollLoop';
 import { RunnerConfigSchema, type RunnerConfig } from '../../runner/runnerConfig';
 import { ProcessedStore } from '../../runner/processedStore';
+import type { UnreadTask } from '../../runner/serverClient';
 
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-sse-'));
 
@@ -71,7 +72,7 @@ describe('startPollLoop wake()', () => {
     const store = new ProcessedStore(path.join(TMP_DIR, `wake-${Math.random().toString(36).slice(2)}.json`));
     return {
       store,
-      fetchUnread: vi.fn(async () => []),
+      fetchUnread: vi.fn(async (): Promise<UnreadTask[]> => []),
       claimTask: vi.fn(async () => undefined),
       releaseTask: vi.fn(async () => undefined),
       launch: vi.fn().mockReturnValue({ started: true }),
@@ -123,5 +124,93 @@ describe('startPollLoop wake()', () => {
     loop.wake();
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(deps.fetchUnread).toHaveBeenCalledTimes(1);
+  });
+
+  it('drains a deferred fetch and never claims or launches its result', async () => {
+    const deps = makeDeps();
+    let resolveFetch: ((tasks: UnreadTask[]) => void) | undefined;
+    deps.fetchUnread.mockImplementationOnce(
+      () =>
+        new Promise<UnreadTask[]>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    );
+    const loop = startPollLoop(makeConfig(), deps);
+    await vi.waitFor(() => expect(resolveFetch).toBeDefined());
+
+    let drained = false;
+    const drain = loop.stopAndDrain().then(() => {
+      drained = true;
+    });
+    await Promise.resolve();
+    expect(drained).toBe(false);
+
+    resolveFetch?.([{ id: 'MSG-LATE', terminal: 'backend' }]);
+    await drain;
+
+    expect(deps.claimTask).not.toHaveBeenCalled();
+    expect(deps.launch).not.toHaveBeenCalled();
+  });
+
+  it('releases a claim won during shutdown before reporting drained', async () => {
+    const deps = makeDeps();
+    deps.fetchUnread.mockResolvedValueOnce([{ id: 'MSG-CLAIM', terminal: 'backend' }]);
+    let resolveClaim: (() => void) | undefined;
+    deps.claimTask.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClaim = resolve;
+        }),
+    );
+    const loop = startPollLoop(makeConfig(), deps);
+    await vi.waitFor(() => expect(resolveClaim).toBeDefined());
+
+    const drain = loop.stopAndDrain();
+    resolveClaim?.();
+    await drain;
+
+    expect(deps.launch).not.toHaveBeenCalled();
+    expect(deps.releaseTask).toHaveBeenCalledWith('backend', 'MSG-CLAIM');
+  });
+
+  it('rejects drain when a shutdown-time claim outcome is indeterminate', async () => {
+    const deps = makeDeps();
+    deps.fetchUnread.mockResolvedValueOnce([{ id: 'MSG-CLAIM', terminal: 'backend' }]);
+    let rejectClaim: ((error: Error) => void) | undefined;
+    deps.claimTask.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectClaim = reject;
+        }),
+    );
+    const loop = startPollLoop(makeConfig(), deps);
+    await vi.waitFor(() => expect(rejectClaim).toBeDefined());
+
+    const drain = loop.stopAndDrain();
+    rejectClaim?.(new Error('connection reset'));
+
+    await expect(drain).rejects.toThrow('claim outcome indeterminate during shutdown');
+    expect(deps.launch).not.toHaveBeenCalled();
+  });
+
+  it('rejects drain when a shutdown-time claim release fails', async () => {
+    const deps = makeDeps();
+    deps.fetchUnread.mockResolvedValueOnce([{ id: 'MSG-CLAIM', terminal: 'backend' }]);
+    let resolveClaim: (() => void) | undefined;
+    deps.claimTask.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveClaim = resolve;
+        }),
+    );
+    deps.releaseTask.mockRejectedValueOnce(new Error('release unavailable'));
+    const loop = startPollLoop(makeConfig(), deps);
+    await vi.waitFor(() => expect(resolveClaim).toBeDefined());
+
+    const drain = loop.stopAndDrain();
+    resolveClaim?.();
+
+    await expect(drain).rejects.toThrow('claim release failed during shutdown');
+    expect(deps.launch).not.toHaveBeenCalled();
   });
 });

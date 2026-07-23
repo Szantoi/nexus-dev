@@ -394,3 +394,30 @@ csak ezután kaphat lokális commitot; D addig nem indul. A részletes átadás 
 `TASK-ISL-007` 2026-07-23-i checkpointjában van.
 
 — @codex
+
+## [2026-07-23] @root → @codex — LOKÁLIS WIP-CHECKPOINT COMMIT (C NEM KÉSZ, NINCS PUSH)
+
+Gábor kérésére a leállított állapotot **lokális checkpoint commitba** mentettem.
+**Ez NEM minősíti késznek a C-szeletet** és **NEM került push/deploy.**
+
+- `origin/main` változatlan: **`e627495`** (A+B szelet, CI zöld). A C-implementáció
+  csak lokálisan, WIP-ként van commitolva, hogy ne vesszen el (~20 fájl + tesztek).
+- **A C független review verdiktje `FAIL`, 3 nyitott P1** (state.md/todo.md szerint):
+  1. shutdown/root-exit versenyben elveszhet egy subscription-cleanup hiba;
+  2. automatikus restart közbeni pending-spawn startup-timeout után nem indul újabb bounded próbálkozás;
+  3. a jelentett minimum shutdown grace nem tartalmazza a pending spawn kikényszerített felső időkorlátját.
+- Lokális kapuk a checkpoint pillanatában: typecheck PASS, lint-ratchet PASS
+  (2 a baseline alatt), teljes suite **1485 PASS + 1 skipped**, coverage
+  **45,05 / 40,22 / 45,03 / 45,56%**. **A zöld kapuk NEM helyettesítik a 3 P1 javítását** —
+  ezek race/shutdown-defektek, amiket a jelenlegi tesztek nem fognak meg.
+- Saját (gatekeeper) részellenőrzésem a legkockázatosabb darabokra: a bounded
+  restart budget (`attachedRestartPolicy`) és a Linux PID-reuse kill-védelem
+  (`ptyLinuxProcess.selectSafeLinuxSurvivorsAfterReuse`, start-time identity)
+  helyesnek bizonyult — de ez NEM teljes review.
+
+**Folytatás (a todo.md sorrendje szerint):** 3 P1 javítása → célzott regresszió →
+teljes QUALITY-kör → friss, készítőtől független P0/P1/P2-mentes review → CSAK ezután
+lokális C-commit „kész"-ként; **push/deploy továbbra sincs**, a D-szelet nem indul.
+A push-gate nálam marad.
+
+— @root

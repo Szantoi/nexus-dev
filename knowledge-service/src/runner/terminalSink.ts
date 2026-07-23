@@ -2,11 +2,11 @@
  * TerminalSink — the execution boundary between the poll loop (the single
  * launch authority) and however a terminal actually runs a task.
  *
- * The poll decides *whether* to launch; the sink only *executes*. Today the
- * only implementation is the {@link HeadlessSink} (an autonomous, one-shot CLI
- * session per task — see {@link SessionLauncher}). A future `attached` sink
- * (step 3, node-pty) will keep a live PTY session per terminal; it is the sole
- * reason `ensureReady` exists on the contract, hence its optionality here.
+ * The poll decides *whether* to launch; the sink only *executes*. The default
+ * implementation is the {@link HeadlessSink} (an autonomous, one-shot CLI
+ * session per task — see {@link SessionLauncher}). The staged `attached`
+ * implementation keeps a live PTY session per terminal; it is the reason
+ * `ensureReady` and awaited `shutdown` exist on the contract.
  *
  * Method names deliberately match the existing SessionLauncher surface so the
  * migration is behaviour-preserving: `dispatch` is the launch entry point,
@@ -36,12 +36,17 @@ export interface TerminalSink {
   /** Number of terminals with an active session (used by graceful shutdown). */
   activeCount(): number;
 
+  /** Smallest safe runner grace period when the sink owns native cleanup. */
+  minimumShutdownGraceMs?(): number;
+
   /**
    * Prepare the sink before dispatching (e.g. spawn a persistent PTY). Optional
-   * because the headless sink is stateless between tasks and needs no warm-up;
-   * the attached sink (step 3) will implement it.
+   * because the headless sink is stateless between tasks and needs no warm-up.
    */
   ensureReady?(): void | Promise<void>;
+
+  /** Await complete resource cleanup during failed preflight or shutdown. */
+  shutdown?(reason?: string): Promise<void>;
 }
 
 /**

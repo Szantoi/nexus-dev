@@ -16,6 +16,12 @@ import { startPollLoop } from './pollLoop';
 import { startSseListener, type SseListenerHandle } from './sseListener';
 import { discoverConfiguredClis } from './cliDiscovery';
 import { quarantineExistingBacklog } from './backlogQuarantine';
+import {
+  assertRunnerShutdownBudget,
+  RunnerShutdownCoordinator,
+  RunnerStartupInterruptedError,
+  stopRunnerIngress,
+} from './runnerLifecycle';
 
 async function main(): Promise<void> {
   const config = loadRunnerConfig();
@@ -41,70 +47,74 @@ async function main(): Promise<void> {
   const client = new ServerClient(config.server_url, config.token);
   clearStaleSessionMarkers(config);
   const launcher = new SessionLauncher(config);
-  // Sink preflight: today only the headless sink exists. An `attached` terminal
-  // fails closed here (like the CLI-discovery preflight) rather than silently
-  // running headless. Returns the sink the poll loop dispatches through.
+  // Build the immutable per-terminal router. Until the provider-specific
+  // attached assembly lands, configured attached terminals remain fail-closed
+  // because no attached sink is registered here.
   const sink = selectRunnerSink(config, launcher);
-
-  await quarantineExistingBacklog(
-    config,
-    store,
-    storeLoadState,
-    (terminal) => client.fetchUnread(terminal),
-  );
-
-  logger.info(
-    `[Runner] Starting — server=${config.server_url}, terminals=[${Object.keys(config.terminals).join(', ')}], poll=${config.poll_interval_ms}ms`,
-  );
-
-  const loop = startPollLoop(config, {
-    fetchUnread: (terminal) => client.fetchUnread(terminal),
-    claimTask: (terminal, messageId) => client.claimTask(terminal, messageId),
-    releaseTask: (terminal, messageId) => client.releaseTask(terminal, messageId),
-    launch: (req) => sink.dispatch(req),
-    isBusy: (terminal) => sink.isBusy(terminal),
-    store,
-  });
-
-  // Second-level wake: one SSE stream per served terminal. Events only
-  // nudge the poll loop — the poll stays the single launch authority.
+  assertRunnerShutdownBudget(sink, config.shutdown_grace_ms);
   const sseListeners: SseListenerHandle[] = [];
-  if (config.sse_enabled) {
-    for (const terminal of Object.keys(config.terminals)) {
-      sseListeners.push(
-        startSseListener({
-          serverUrl: config.server_url,
-          token: config.token,
-          terminal,
-          maxBackoffMs: config.max_backoff_ms,
-          onWake: () => loop.wake(),
-        }),
-      );
-    }
-    logger.info(`[Runner] SSE wake enabled for ${sseListeners.length} terminal(s)`);
-  }
+  const coordinator = new RunnerShutdownCoordinator({
+    sink,
+    graceMs: config.shutdown_grace_ms,
+    saveState: () => store.save(),
+    exit: (code) => process.exit(code),
+    logger,
+  });
+  // Register immediately after sink creation so a signal during PTY preflight
+  // cannot bypass awaited cleanup.
+  process.on('SIGINT', () => void coordinator.begin('SIGINT'));
+  process.on('SIGTERM', () => void coordinator.begin('SIGTERM'));
 
-  const shutdown = (signal: string): void => {
-    logger.info(`[Runner] ${signal} received, stopping poll loop...`);
-    for (const listener of sseListeners) listener.stop();
-    loop.stop();
-    store.save();
-    const cancelled = sink.cancelAll();
-    if (cancelled > 0) logger.info(`[Runner] Cancelling ${cancelled} active session(s).`);
-    const forceExit = setTimeout(() => process.exit(0), config.shutdown_grace_ms);
-    forceExit.unref();
-    const waitForExit = setInterval(() => {
-      if (sink.activeCount() === 0) {
-        clearInterval(waitForExit);
-        clearTimeout(forceExit);
-        process.exit(0);
+  try {
+    // Persistent sinks must be ready before backlog handling or polling can
+    // claim work. Any later startup failure rolls the prepared sinks back.
+    await sink.ensureReady?.();
+    coordinator.throwIfStopping();
+
+    await quarantineExistingBacklog(
+      config,
+      store,
+      storeLoadState,
+      (terminal) => client.fetchUnread(terminal),
+    );
+    coordinator.throwIfStopping();
+
+    logger.info(
+      `[Runner] Starting — server=${config.server_url}, terminals=[${Object.keys(config.terminals).join(', ')}], poll=${config.poll_interval_ms}ms`,
+    );
+
+    const loop = startPollLoop(config, {
+      fetchUnread: (terminal) => client.fetchUnread(terminal),
+      claimTask: (terminal, messageId) => client.claimTask(terminal, messageId),
+      releaseTask: (terminal, messageId) => client.releaseTask(terminal, messageId),
+      launch: (req) => sink.dispatch(req),
+      isBusy: (terminal) => sink.isBusy(terminal),
+      store,
+    });
+    coordinator.registerIngressStopper(() => stopRunnerIngress(loop, sseListeners));
+
+    // Second-level wake: events only nudge the poll; it remains launch authority.
+    if (config.sse_enabled) {
+      for (const terminal of Object.keys(config.terminals)) {
+        sseListeners.push(
+          startSseListener({
+            serverUrl: config.server_url,
+            token: config.token,
+            terminal,
+            maxBackoffMs: config.max_backoff_ms,
+            onWake: () => loop.wake(),
+          }),
+        );
       }
-    }, 100);
-    waitForExit.unref();
-  };
-
-  process.on('SIGINT', () => shutdown('SIGINT'));
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
+      logger.info(`[Runner] SSE wake enabled for ${sseListeners.length} terminal(s)`);
+    }
+    coordinator.throwIfStopping();
+  } catch (error) {
+    await coordinator.begin(
+      'startup-failure',
+      error instanceof RunnerStartupInterruptedError ? undefined : error,
+    );
+  }
 }
 
 main().catch((error) => {

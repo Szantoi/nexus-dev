@@ -44,8 +44,8 @@ const TerminalEntrySchema = z
     credential_env: z.string().regex(SAFE_ENV_NAME).optional(),
     // Execution model for this terminal. `headless` (default) = today's
     // autonomous one-shot CLI session. `attached` = a live node-pty session
-    // (step 3, not yet implemented) — accepted by config validation but the
-    // sink factory fails loudly at launch until it lands.
+    // (step 3). Config accepts it, while startup still fails closed until the
+    // provider-specific D-slice assembly registers that terminal's sink.
     mode: z.enum(['headless', 'attached']).default('headless'),
   })
   .refine((entry) => entry.models.includes(entry.default_model), {
@@ -69,7 +69,7 @@ export const RunnerConfigSchema = z
     quarantine_existing_on_first_start: z.boolean().default(true),
     session_timeout_ms: z.coerce.number().int().min(1000).default(3_600_000),
     max_output_bytes: z.coerce.number().int().min(1024).default(10 * 1024 * 1024),
-    shutdown_grace_ms: z.coerce.number().int().min(0).default(10_000),
+    shutdown_grace_ms: z.coerce.number().int().min(1).max(120_000).default(20_000),
     mcp_server_name: z.string().regex(/^[A-Za-z0-9_-]+$/).default('spaceos-knowledge'),
     default_provider: z.enum(CLI_PROVIDERS).default('claude'),
     providers: z.partialRecord(z.enum(CLI_PROVIDERS), ProviderConfigSchema).default(DEFAULT_PROVIDERS),
