@@ -67,7 +67,7 @@ task ilyenkor `blocked`, a pontos feloldási feltétellel.
 
 | Sorrend | Feladat | Mérföldkő | Prioritás | Függőség |
 |---:|---|---|---|---|
-| 1 | [TASK-ISL-001 — Célarchitektúra és ADR](TASK-ISL-001-target-architecture.md) | ISL-M1 | kritikus | nincs |
+| 1 | [TASK-ISL-001 — Célarchitektúra és ADR](archive/TASK-ISL-001-target-architecture.md) ✅ done | ISL-M1 | kritikus | nincs |
 | 2 | [TASK-ISL-002 — Összetett identitás és terminálkonfiguráció](TASK-ISL-002-compound-identity.md) | ISL-M1 | kritikus | ISL-001 |
 | 3 | [TASK-ISL-003 — Egységes autorizáció és izoláció](TASK-ISL-003-authorization-isolation.md) | ISL-M1 | kritikus | ISL-002 |
 | 4 | [TASK-ISL-004 — Kanonikus task/message store](TASK-ISL-004-canonical-store.md) | ISL-M2 | kritikus | ISL-001, ISL-002 |

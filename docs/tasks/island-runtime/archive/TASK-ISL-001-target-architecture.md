@@ -125,15 +125,15 @@ adverzáriális szakasz elkészült (lent).
 
 | ADR | Döntés (tömören) | Fő elvetett alternatíva |
 |---|---|---|
-| [ADR-077](../../architecture/decisions/ADR-077-island-terminal-runner-identity.md) | `island_id/terminal_id/runner_id` összetett identitás; egyetlen `terminals.yaml`-alapú config (`terminals.json` kivezetve); `agents.yaml` token→(island,terminal) párra vált | sziget beégetése a terminálnévbe (string-konvenció, nem index-szintű) |
-| [ADR-078](../../architecture/decisions/ADR-078-canonical-task-message-store.md) | `task-message-box` marad/bővül egyetlen kanonikus runtime store-má; `messageRegistry`/`epicRouter`/`workerRegistry` fokozatosan kivezetve | big-bang csere; az epicRouter tábláinak kanonikussá tétele |
-| [ADR-079](../../architecture/decisions/ADR-079-claim-lease-fencing-state-machine.md) | atomi CAS-claim + lejáró lease + fencing token + idempotency-key állapotgép | csak `updated_at`-heurisztika fencing nélkül; külső lock-szerver |
-| [ADR-080](../../architecture/decisions/ADR-080-unified-authorization-policy.md) | egyetlen policy-pipeline minden belépési ponton, explicit döntési sorrenddel | route-onkénti egyedi ellenőrzés (bizonyítottan elsodródik); külső policy-motor |
-| [ADR-081](../../architecture/decisions/ADR-081-single-launch-authority.md) | a queue+lease réteg az egyetlen launch authority; `inboxWatcher`/`watchInbox` csak ébresztő, sosem indító; tmux nem kötelező elem | az `ENABLE_INBOX_WATCHER` flag puszta bekötése (nem strukturális megoldás) |
-| [ADR-082](../../architecture/decisions/ADR-082-cli-adapter-contract.md) | egységes `CliAdapter` interfész (capability discovery + lifecycle) Codex/Claude/Antigravity-ra, argv-spawn (shell:false) hardening | külön runner CLI-nkként; legkisebb közös nevező (plain-text only) |
-| [ADR-083](../../architecture/decisions/ADR-083-federation-outbox-relay-dlq.md) | tranzakciós outbox + relay pumpa (a claim/lease mintát újrahasznosítva) + island-pár-token + allow-list | külső üzenetbróker (aránytalan a jelenlegi méretskálán) |
-| [ADR-084](../../architecture/decisions/ADR-084-migration-threat-rollback-plan.md) | additív-first migráció, STRIDE-lite fenyegetéstábla, backup-kötelezettség destruktív lépés előtt | big-bang migráció; tartós dual-write |
-| [ADR-085](../../architecture/decisions/ADR-085-slo-platform-evidence-strategy.md) | provizórikus SLO-célszámok (explicit "felülvizsgálandó" jelöléssel) + a 10 elfogadási feltétel → konkrét teszt/chaos-forgatókönyv tábla | SLO-k rögzítése nélkül haladni; hamis pontosságú SLA-szám azonnal |
+| [ADR-077](../../../architecture/decisions/ADR-077-island-terminal-runner-identity.md) | `island_id/terminal_id/runner_id` összetett identitás; egyetlen `terminals.yaml`-alapú config (`terminals.json` kivezetve); `agents.yaml` token→(island,terminal) párra vált | sziget beégetése a terminálnévbe (string-konvenció, nem index-szintű) |
+| [ADR-078](../../../architecture/decisions/ADR-078-canonical-task-message-store.md) | `task-message-box` marad/bővül egyetlen kanonikus runtime store-má; `messageRegistry`/`epicRouter`/`workerRegistry` fokozatosan kivezetve | big-bang csere; az epicRouter tábláinak kanonikussá tétele |
+| [ADR-079](../../../architecture/decisions/ADR-079-claim-lease-fencing-state-machine.md) | atomi CAS-claim + lejáró lease + fencing token + idempotency-key állapotgép | csak `updated_at`-heurisztika fencing nélkül; külső lock-szerver |
+| [ADR-080](../../../architecture/decisions/ADR-080-unified-authorization-policy.md) | egyetlen policy-pipeline minden belépési ponton, explicit döntési sorrenddel | route-onkénti egyedi ellenőrzés (bizonyítottan elsodródik); külső policy-motor |
+| [ADR-081](../../../architecture/decisions/ADR-081-single-launch-authority.md) | a queue+lease réteg az egyetlen launch authority; `inboxWatcher`/`watchInbox` csak ébresztő, sosem indító; tmux nem kötelező elem | az `ENABLE_INBOX_WATCHER` flag puszta bekötése (nem strukturális megoldás) |
+| [ADR-082](../../../architecture/decisions/ADR-082-cli-adapter-contract.md) | egységes `CliAdapter` interfész (capability discovery + lifecycle) Codex/Claude/Antigravity-ra, argv-spawn (shell:false) hardening | külön runner CLI-nkként; legkisebb közös nevező (plain-text only) |
+| [ADR-083](../../../architecture/decisions/ADR-083-federation-outbox-relay-dlq.md) | tranzakciós outbox + relay pumpa (a claim/lease mintát újrahasznosítva) + island-pár-token + allow-list | külső üzenetbróker (aránytalan a jelenlegi méretskálán) |
+| [ADR-084](../../../architecture/decisions/ADR-084-migration-threat-rollback-plan.md) | additív-first migráció, STRIDE-lite fenyegetéstábla, backup-kötelezettség destruktív lépés előtt | big-bang migráció; tartós dual-write |
+| [ADR-085](../../../architecture/decisions/ADR-085-slo-platform-evidence-strategy.md) | provizórikus SLO-célszámok (explicit "felülvizsgálandó" jelöléssel) + a 10 elfogadási feltétel → konkrét teszt/chaos-forgatókönyv tábla | SLO-k rögzítése nélkül haladni; hamis pontosságú SLA-szám azonnal |
 
 ### 3. Módosított fájlok és migrációk
 
@@ -626,7 +626,7 @@ kettőre.
 
 ### 1. A blokkoló hiányosság javítása — ADR-081 kiegészítve
 
-Az [ADR-081](../../architecture/decisions/ADR-081-single-launch-authority.md)
+Az [ADR-081](../../../architecture/decisions/ADR-081-single-launch-authority.md)
 kapott egy "Kimerítő launch-belépési pont audit (2026-07-19 kiegészítés)"
 szakaszt, ami:
 
@@ -989,7 +989,7 @@ rg -n "claude --model|claude -p|tmux (new-session|kill-session|send-keys)|child_
 ```
 
 A parancs 149 sort adott vissza. A teljes kimenet és minden sor
-minősítése az [ADR-081](../../architecture/decisions/ADR-081-single-launch-authority.md)
+minősítése az [ADR-081](../../../architecture/decisions/ADR-081-single-launch-authority.md)
 "Szélesített launch-mechanizmus audit (2026-07-19, 2. kiegészítés)"
 szakaszában van rögzítve (nem itt duplikálva, QUALITY.md 5. pont —
 token-tudatosság). Kiegészítő, célzott ellenőrzések:
@@ -1496,7 +1496,7 @@ Minden keresés a Grep eszközzel (célzott regex, nem shell-pipeline), a
 **13 launch-képes függvény, 19 élő + 1 holt belépési út.** A teljes,
 fájl:sor pontosságú leltártábla, az (a)-(d) osztályozás és az új
 lefedettségi nyilatkozat az
-[ADR-081](../../architecture/decisions/ADR-081-single-launch-authority.md)
+[ADR-081](../../../architecture/decisions/ADR-081-single-launch-authority.md)
 "Hívásgráf-alapú launch-audit (2026-07-21, 4. kör)" szakaszában van
 rögzítve (itt nem duplikálva — QUALITY.md 5. pont, token-tudatosság).
 

@@ -427,9 +427,9 @@ epics:
       - id: TASK-QC-010
         file: ../tasks/quality-compliance/archive/TASK-QC-010-independent-verification.md
       - id: TASK-QC-011
-        file: ../tasks/quality-compliance/TASK-QC-011-workflowdb-history-bug.md
+        file: ../tasks/quality-compliance/archive/TASK-QC-011-workflowdb-history-bug.md
       - id: TASK-QC-012
-        file: ../tasks/quality-compliance/TASK-QC-012-goalstore-id-collision.md
+        file: ../tasks/quality-compliance/archive/TASK-QC-012-goalstore-id-collision.md
       - id: TASK-QC-013
         file: ../tasks/quality-compliance/TASK-QC-013-inbox-watcher-env-flag.md
     description: >
@@ -508,7 +508,7 @@ epics:
     tasks_yaml: ../tasks/island-runtime/README.md
     tasks:
       - id: TASK-ISL-001
-        file: ../tasks/island-runtime/TASK-ISL-001-target-architecture.md
+        file: ../tasks/island-runtime/archive/TASK-ISL-001-target-architecture.md
     description: >
       Az identitás, kanonikus store, lease, autorizáció, CLI adapter, federation,
       migráció, rollback és bizonyítási stratégia ADR-szintű lezárása a feature

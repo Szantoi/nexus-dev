@@ -51,8 +51,8 @@ három, a QC-006 tesztírás közben feltárt, de nem javított és nem trackelt
 Egyik sem kritikus (nincs adatvesztés az elsődleges rekordban, nincs biztonsági rés),
 de mindhárom reprodukálható és dedikált taskot kapott:
 
-- [QC-011](TASK-QC-011-workflowdb-history-bug.md) — `workflowDb.addHistory` named-param hiba (közepes)
-- [QC-012](TASK-QC-012-goalstore-id-collision.md) — `goalStore.generateGoalId` ütközési kockázat (alacsony-közepes)
+- [QC-011](archive/TASK-QC-011-workflowdb-history-bug.md) ✅ done — `workflowDb.addHistory` named-param hiba (közepes)
+- [QC-012](archive/TASK-QC-012-goalstore-id-collision.md) ✅ done — `goalStore.generateGoalId` ütközési kockázat (alacsony-közepes)
 - [QC-013](TASK-QC-013-inbox-watcher-env-flag.md) — `ENABLE_INBOX_WATCHER` hatástalan env-kulcs (közepes)
 
 Ezek nem blokkolják a NEXUS-QUALITY program lezárását (a QC-010 döntése szerint
