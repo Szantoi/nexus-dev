@@ -3,9 +3,32 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-22
+**Utolsó frissítés:** 2026-07-23
 
 ## Aktuális fókusz
+
+**ATTACHED TERMINAL SINK C — BIZTONSÁGOSAN LEÁLLÍTVA, ÁTADHATÓ WIP**
+(2026-07-23): Gábor kérésére a folyamatot leállítottuk. A két javító agent
+`interrupted`, a független reviewer befejezte a vizsgálatot, és nincs futó
+Nexus-, Vitest- vagy PTY-folyamat. Az utolsó publikált és implementációs baseline
+az `origin/main` `e627495`; C implementációs commit, push és deploy nem történt.
+A leállítási dokumentáció külön lokális checkpoint commitba menthető, ez nem
+minősíti késznek a C-szeletet.
+
+A C-szelet implementációs jelöltje a munkafában megmaradt, de **nem lezárt és
+nem release-képes**. A friss független review verdiktje `FAIL`, három nyitott P1:
+
+1. shutdown/root-exit versenyben elveszhet egy subscription-cleanup hiba;
+2. automatikus restart közbeni pending-spawn startup-timeout után nem indul
+   újabb bounded próbálkozás;
+3. a jelentett minimum shutdown grace nem tartalmazza a pending spawn
+   kikényszerített felső időkorlátját.
+
+A következő session ezek javításával indulhat, majd célzott regressziós teszt,
+teljes QUALITY-kör és új, készítőtől független P0/P1/P2-mentes review szükséges.
+Csak ezután készülhet lokális C-commit; a D-szelet addig nem indul. A részletes
+átadás a `TASK-ISL-007` 2026-07-23-i leállítási checkpointjában, a tervben és az
+`AGENT-CHANNEL.md` legutolsó bejegyzésében található.
 
 **ATTACHED TERMINAL SINK — 1–2 KÉSZ, 3A ÉS 3B REVIEW PASS, C INDUL**
 (2026-07-22): az A-szelet review-i jogos izolációs és

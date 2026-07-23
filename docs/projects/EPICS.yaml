@@ -625,8 +625,13 @@ epics:
       generált lockkal, Node 22/24 × Ubuntu/Windows CI-mátrixszal és natív
       spawn/unicode-cwd/resize/write/process-tree smoke-kapuval elkészült.
       Linux Node 22 és Windows Node 24 valós futás, teljes quality-kör és
-      független B-review PASS. Az epic a további C–F szeletek miatt in_progress;
-      következő a mixed-mode router és az AttachedSessionManager lifecycle.
+      független B-review PASS. A C mixed-mode router/PTY lifecycle implementációs
+      jelöltje elkészült, de a 2026-07-23-i független re-review három P1-et
+      hagyott nyitva: cleanup-hiba elvesztési verseny, pending-spawn timeout
+      utáni restart-megszakadás és hiányos shutdown-grace budget. Gábor kérésére
+      a munkamenet biztonságosan leállt; a C commitolatlan, push/deploy nem
+      történt. Az epic active; következő a három P1 javítása, teljes QUALITY és
+      új független PASS. A D–F szeletek csak ezután indulhatnak.
 
   - id: ISL-CROSS-PLATFORM-HOSTS
     name: "Windows és Linux runner hostok"

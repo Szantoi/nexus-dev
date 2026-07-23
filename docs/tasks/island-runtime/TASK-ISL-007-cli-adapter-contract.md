@@ -324,3 +324,57 @@ fail-closed preflightnál áll meg, a default `headless` VPS-üzem változatlan.
 Production deploy nem történt. A B-szelet lezárt; a TASK-ISL-007 a C–F
 szeletek és a teljes Codex/Claude/Antigravity × Windows/Linux evidence miatt
 továbbra is `in_progress`.
+
+### 2026-07-23 — AttachedSink 3C leállítási és átadási checkpoint
+
+- **Goal:** a mixed-mode router, mockolható PTY host, tartós attached session
+  lifecycle, restart/reconciliation és koordinált shutdown C-szeletének
+  biztonságos, bizonyítható megvalósítása.
+- **Sikerkritérium:** headless regresszió nélkül kevert routing; durable
+  accepted/written/completed marker; teljes scope-olt completion receipt +
+  provider-stabil idle; PID-identity alapú teljes process-tree cleanup;
+  bounded restart és shutdown; minden kötelező kapu és független P0/P1/P2-mentes
+  review PASS.
+- **Kilépési feltétel:** a fenti invariánsok regressziós teszttel és teljes
+  QUALITY-körrel bizonyítottak, a független re-review PASS, az implementáció és
+  a dokumentáció lokális commitban van. Push és production deploy nincs ebben a
+  szeletben.
+- **Leállítás oka:** Gábor kifejezett stop kérése. A két javító agent
+  megszakítva, a reviewer befejezte a vizsgálatot, futó Nexus/Vitest/PTY
+  folyamat nincs.
+
+Az implementációs jelölt a lokális munkafában megmaradt. Tartalmazza többek
+között a `TerminalSinkRouter`, `PtyHost`, `AttachedSessionManager`, tartós marker,
+stable-idle, restart policy, poll drain és runner lifecycle kódját és célzott
+tesztjeit. A korábbi ellenőrzési körben 9 releváns suite / 186 teszt,
+typecheck, Biome, méretkapu és `git diff --check` PASS volt; a teljes
+coverage/audit/secret/link/task kapuk és a Windows PTY smoke is PASS voltak.
+Ezek **nem záró bizonyítékok**, mert a legutolsó review után három P1 maradt:
+
+1. **Cleanup-verseny:** root-exit elő-dispose esetén a shutdown elveszítheti a
+   subscription-cleanup hibát. Egy session/generation szintű közös
+   cleanup-tranzakció kell, amelynek hibáját minden hívó látja és a runner exit
+   1-re fordítja.
+2. **Restart-folytonosság:** automatikus restart pending-spawn startup-timeoutja
+   után, sikeres late cleanup esetén sem indul következő próbálkozás. Csak
+   explicit cancel/shutdown tilthatja a folytatást; külön regressziós teszt kell.
+3. **Shutdown-budget:** a jelentett minimum csak cleanup+margin, de a shutdown
+   előbb a pending spawn settlementjét várja. A `PtyHost` kikényszerített hard
+   spawn deadline-ja és
+   `minimum >= spawn settlement + cleanup deadline + margin` szükséges.
+
+**Kanonikus folytatási sorrend:**
+
+1. a három P1-hez red regressziós teszt;
+2. diszjunkt manager- és PTY-host javítás, fájlméretkapu megtartásával;
+3. célzott suite + typecheck/build/lint;
+4. teljes coverage, audit, secret, link, task és méretkapu;
+5. valós Windows PTY smoke/leak-check;
+6. új, készítőtől független review; bármely P0/P1/P2 esetén vissza az 1. pontra;
+7. csak PASS után lokális implementációs és dokumentációs commit, majd D.
+
+**Állapot a leállításkor:** az utolsó publikált és implementációs baseline
+`origin/main@e627495`; a C-diff commitolatlan és szándékosan megőrzött, C-re nem
+volt stage, commit, push vagy deploy. A stop-dokumentáció külön lokális
+checkpoint commitja nem jelent C-elfogadást. A task és az `ISL-CLI-ADAPTERS`
+epic továbbra is `in_progress`/`active`.

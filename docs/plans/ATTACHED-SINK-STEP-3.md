@@ -1,8 +1,8 @@
 # AttachedSink — a 3. lépés végrehajtható al-terve
 
-> **Verzió:** 1.3
-> **Dátum:** 2026-07-22
-> **Státusz:** A- és B-szelet független review PASS; C router/lifecycle következik
+> **Verzió:** 1.4
+> **Dátum:** 2026-07-23
+> **Státusz:** A és B PASS; C implementációs jelölt leállítva, re-review FAIL / 3×P1
 > **Kapcsolódó:** [Attended Terminal Sink](ATTENDED-TERMINAL-SINK.md),
 > [ADR-081](../architecture/decisions/ADR-081-single-launch-authority.md),
 > [ADR-087](../architecture/decisions/ADR-087-attached-terminal-lifecycle.md),
@@ -58,6 +58,29 @@ fallbacket használ. Külön worker-watchdog 30 másodpercnél, a CI-job 10 perc
 fail-closed leáll. A CI Node 22/24 × Ubuntu/Windows mátrix. A független B-review
 PASS, P0/P1/P2 finding nélkül; a teljes quality-kör és production audit PASS.
 Az EOL Node 20 kikerült, a service engine minimuma Node 22.
+
+### Leállítási checkpoint (2026-07-23)
+
+Gábor kérésére a C-szelet munkamenete leállt. A javító agentek megszakítva, a
+reviewer befejezte a vizsgálatot, futó Nexus/Vitest/PTY folyamat nincs. A
+félkész implementációs jelölt a munkafában maradt; nem került implementációs
+commitba, pushba vagy deployba. Az utolsó publikált kódbázis
+`origin/main@e627495`; egy külön lokális stop-dokumentációs checkpoint nem C
+implementációs elfogadás.
+
+A legutolsó független review `FAIL` verdiktet adott három P1 miatt:
+
+1. a root-exit elő-dispose és a shutdown közös cleanupja közötti verseny
+   elrejthet subscription-cleanup hibát;
+2. automatikus restart közbeni pending-spawn startup-timeout után, a sikeres
+   late cleanup ellenére, nem ütemeződik következő bounded restart;
+3. a minimum shutdown grace csak cleanup+margin, miközben a shutdown a pending
+   spawn settlementjét és a cleanupot sorosan várja.
+
+Folytatáskor előbb a három P1 regressziós tesztje és javítása szükséges. Ezután
+célzott tesztek, teljes QUALITY-kör, valós Windows PTY smoke és új, készítőtől
+független P0/P1/P2-mentes review a kapu. A C csak ezután commitolható; a D-szelet
+addig nem indul.
 
 ## 1. Goal, sikerkritérium és kilépési feltétel
 

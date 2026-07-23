@@ -348,3 +348,41 @@ bizonyítania.
 
 Kanonikus evidence: `162f7e7`,
 `docs/plans/ATTACHED-SINK-STEP-3.md`, valamint a `TASK-ISL-007` 3B naplója.
+
+---
+
+## 2026-07-23 — Attached lifecycle leállítási és shutdown-invariánsok
+
+Egy leállított implementációs jelölt nem azonos egy lezárt szelettel. Stopkor
+először az agenteket és a kapcsolódó projektfolyamatokat kell megszüntetni, majd
+a kanonikus state/todo/task/epic/koordinációs állapotban rögzíteni a pontos
+commitot, a munkafa jellegét, az utolsó review-verdiktet és a folytatási
+feltételeket. Nyitott P1 mellett tilos `done`, release-ready vagy sikeres
+shutdown állapotot állítani.
+
+Az attached session cleanup egyetlen, session/generation szintű tranzakció.
+Root-exit és koordinált shutdown ugyanazt a cleanup-promise-t és ugyanazt a
+hibahalmazt kell hogy megfigyelje. A subscription előzetes dispose-a nem
+„fogyaszthatja el” a hibát; bármely dispose-, process-tree- vagy marker-cleanup
+hiba tartósan megőrzendő, a sink shutdownnak rejectálnia, a runnernek pedig
+nem nulla exitet kell adnia.
+
+Az automatikus restart állapotgépben a pending spawn startup-timeoutja nem
+végállapot. Ha a későn megérkező session teljes cleanupja sikeres, az attempt
+még az aktuális generációhoz tartozik, és nem történt explicit cancel vagy
+shutdown, a bounded restart policy folytatandó. A restart budget csak igazolt
+stabilitási ablak után nullázható.
+
+A hard shutdown költségvetés összegződik: a folyamatban lévő spawn garantált
+settlement/rollback felső korlátja + a teljes cleanup deadline + biztonsági
+margin. A sink által jelentett `minimumShutdownGraceMs` ennél nem lehet kisebb,
+és a spawn deadline csak akkor valódi garancia, ha a host ki is kényszeríti,
+valamint a későn teljesülő erőforrást teljesen visszagörgeti. Egy egyszerű
+`Promise.race` ownership/rollback nélkül nem elég.
+
+A 2026-07-23-i C review ezt három P1-ként bizonyította. A C-szelet csak a három
+regresszió javítása, teljes QUALITY-kör és új, független P0/P1/P2-mentes review
+után commitolható lezárt implementációként. A stop checkpointjának utolsó
+publikált/implementációs baseline-ja `origin/main@e627495`; C implementációs
+commit, push vagy deploy nem történt. Egy külön lokális dokumentációs checkpoint
+nem jelent C-elfogadást.

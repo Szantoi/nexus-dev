@@ -122,6 +122,16 @@ a lokális provider/model/sandbox allowlistet vagy a szerveroldali autorizáció
 - B-szelet független review: PASS, P0/P1/P2 finding nélkül; külön watchdog,
   residual-stderr negatív teszt, lock/engine egyezés és process-leak ellenőrzés
   PASS. A B-szelet lezárt; az ADR a C–F szeletek miatt továbbra is `proposed`.
+- C-szelet leállítási checkpoint (2026-07-23): a router, PTY-host,
+  AttachedSessionManager, durable marker, poll-drain és lifecycle implementációs
+  jelöltje commitolatlan WIP. A független re-review `FAIL / 3×P1`: közös
+  cleanup-tranzakció nélkül elveszhet dispose-hiba; pending-spawn timeout után
+  megszakadhat az automatikus restart; a minimum shutdown grace nem tartalmazza
+  a kikényszerített spawn-settlement budgetet. A folyamatok leálltak; az utolsó
+  publikált/implementációs baseline `origin/main@e627495`, C implementációs
+  commit, push vagy deploy nem történt. Az ADR státusza változatlanul
+  `proposed`; C csak javítás + teljes QUALITY + új független PASS után tekinthető
+  bizonyítottnak.
 
 ## Nyitott kérdések
 

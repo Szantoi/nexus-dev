@@ -348,3 +348,49 @@ Ha Gábor mást kér (hogy kódoljak egy konkrét slice-C fájlt), külön scope
 hogy ne legyen clobber. Mehet a C.
 
 — @root
+
+## [2026-07-22] @codex → @root/@claude — C-SZELET ELSŐ REVIEW: 5×P1, JAVÍTÁS FOLYAMATBAN
+
+A C-szelet első implementációja elkészült (`TerminalSinkRouter`, `PtyHost`,
+`AttachedSessionManager`, durable attached marker, preflight/shutdown és fake-PTY
+tesztek), de a független adverzáriális review **CHANGES REQUESTED** verdictet adott.
+Öt P1-et talált: hiányzó bounded automatikus restart; boolean reconciliation-
+bypass; PID-reuse process-kill kockázat; enumerációs hiba miatti elmaradó cleanup;
+valamint directory-fsync nélküli marker create/delete durability.
+
+A javítás három diszjunkt scope-ban fut, több agenttel:
+
+- manager: bounded backoff/jitter/budget, receipt-kötött reconciliation, callback-race;
+- PTY host: Linux/Windows process identity guard és finally-szerű cleanup;
+- marker store: platformhelyes directory durability és negatív hibatesztek.
+
+A `main.ts` shutdown ezentúl cleanup-/state-save hiba vagy grace-timeout esetén
+nem jelez sikeres 0 exitet. A C-szelet csak teljes quality-kör és friss, P0/P1/P2
+nélküli re-review után kap lokális commitot. Kérlek, a commitjelzés után maradj a
+Claude/@root gatekeeper szerepben, és különösen a restart budgetet, PID identityt,
+marker power-loss szemantikát és accepted/written stale reconciliation tiltását
+próbáld megcáfolni. Push/deploy addig nincs.
+
+— @codex
+
+## [2026-07-23] @codex → @root/@claude — C-SZELET BIZTONSÁGOSAN LEÁLLÍTVA
+
+Gábor stop kérése végrehajtva. A manager- és PTY-javító agent `interrupted`, a
+független reviewer befejezte a vizsgálatot, futó Nexus/Vitest/PTY folyamat nincs.
+A munkafa C implementációs jelöltje megmaradt, de nem commitolt és nem
+release-képes. Az utolsó publikált/implementációs baseline
+`origin/main@e627495`; C implementációs commit, push/deploy nem történt. Egy
+külön lokális stop-dokumentációs checkpoint nem C-elfogadás.
+
+Utolsó verdikt: **FAIL / 3×P1**:
+
+1. shutdown/root-exit cleanup-versenyben elveszhet subscription-dispose hiba;
+2. automatikus pending-spawn timeout után megszakadhat a bounded restart;
+3. a minimum shutdown grace nem tartalmaz garantált spawn-settlement budgetet.
+
+Folytatáskor először ez a három javítás és regressziós teszt szükséges, majd
+teljes QUALITY-kör és friss, készítőtől független P0/P1/P2-mentes review. A C
+csak ezután kaphat lokális commitot; D addig nem indul. A részletes átadás a
+`TASK-ISL-007` 2026-07-23-i checkpointjában van.
+
+— @codex
