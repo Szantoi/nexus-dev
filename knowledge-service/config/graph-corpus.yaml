@@ -11,11 +11,17 @@
 #                         (src/knowledgeGraph/extractors/registry.ts):
 #                         markdown | typescript | csharp
 #
-# GÉPFÜGGŐ SZIGETEK: ez a fájl gitre kerül, ezért CSAK olyan sziget való ide,
-# aminek a forrásfája minden checkoutban létezik (a teszt ezt ellenőrzi is).
-# Egy adott gépen élő korpuszt (pl. a VPS-en a /opt/joinerytech) tegyél
-# `config/graph-corpus.local.yaml`-be (gitignorálva), és futtasd így:
-#   npm run graph:index -- --island <sziget> --config config/graph-corpus.local.yaml
+# GÉPFÜGGŐ SZIGETEK: ez a fájl gitre kerül, a checkoutok viszont gépenként
+# mások. Ha egy korpusz csak egy adott gépen létezik, a `repo_root` egy
+# KÖRNYEZETI VÁLTOZÓRA hivatkozzon (`${JOINERYTECH_ROOT}`): ahol a változó be
+# van állítva, ott a sziget indexelhető, ahol nincs, ott a `--all-islands`
+# futás átugorja (a `--island <név>` viszont hangosan hibázik). Így a
+# sziget-lista hivatalos és megosztott marad, a gépfüggő út nélkül.
+#
+# SZIGET-MODELL (Gábor, 2026-07-25): a `spaceos` a KÖZPONTI TUDÁSTÁR, amivel a
+# fejlesztések indultak — nem termék. Alóla váltak ki a termékek: kernel,
+# joinerytech, nexus; jelenleg a joinerytech-ből szerveződik ki az ERP. Új
+# termék = új sziget + egy bejegyzés ide.
 #
 # Fail-closed: ha egy szigethez nincs bejegyzés, az indexelés HIBA — nem üres
 # indexelés (az kisöpörné az adott sziget gráfját). Ugyanígy hiba, ha egy
@@ -29,7 +35,8 @@
 # Indexelés:  npm run graph:index -- --island <sziget>
 islands:
   # A Nexus önmagát indexeli: a saját dokumentációja + a knowledge-service
-  # forrása. Ez az alapértelmezett sziget (ISLAND_ID env, default: spaceos).
+  # forrása. Ez ma az alapértelmezett sziget (ISLAND_ID env, default: spaceos)
+  # — a Nexus önálló szigetre mozgatása a runner/identitás-oldallal együtt jön.
   spaceos:
     repo_root: "."
     sources:
@@ -37,3 +44,14 @@ islands:
         extractor: markdown
       - path: knowledge-service/src
         extractor: typescript
+
+  # JoineryTech: a C#-kódbázis + a saját dokumentációja. A checkout csak azon a
+  # gépen van meg, ahol a JOINERYTECH_ROOT be van állítva (a VPS-en
+  # /opt/joinerytech) — máshol a `--all-islands` futás átugorja.
+  joinerytech:
+    repo_root: "${JOINERYTECH_ROOT}"
+    sources:
+      - path: src
+        extractor: csharp
+      - path: docs
+        extractor: markdown

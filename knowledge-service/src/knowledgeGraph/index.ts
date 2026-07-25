@@ -40,9 +40,11 @@ export {
   type ExtractorName,
 } from './extractors/registry';
 export {
+  IslandNotOnThisHostError,
   type CorpusSource,
   type GraphCorpusConfig,
   type ResolvedCorpus,
+  configuredIslands,
   getCorpusConfigPath,
   loadCorpusConfig,
   resolveCorpus,

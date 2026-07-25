@@ -19,14 +19,14 @@
   a Xenova-embedding lusta importja, hogy egy nem használt backend ne dönthesse
   el a modulbetöltést.
 
-- [ ] **BIZTONSÁG — a VPS Chroma publish-e `0.0.0.0:8001`** (2026-07-25-én
-  észlelve a GraphRAG-munka közben): `spaceos_chromadb` konténer minden
-  interfészre publikál, azaz a védelmet ma NEM a bind adja, hanem egy külső
-  tűzfal-réteg. A publikus IP-n innen nem válaszol (jó), de ez pontosan az a
-  minta, amit a Chroma-incidens után elhagytunk — a Neo4j már loopback+tailnet
-  bindra megy. Javaslat: `127.0.0.1` + tailnet-IP bind a compose-ban.
-  **Gábor kapuja**: PROD-ot érint (konténer-újraindítás), ezért nem nyúltam
-  hozzá.
+- [ ] **BIZTONSÁG (alacsony prioritás) — a VPS Chroma publish-e `0.0.0.0:8001`**
+  (2026-07-25): a `spaceos_chromadb` minden interfészre publikál, de a védelmet
+  egy SZÁNDÉKOS és aktív tűzfal-réteg adja: `nexus-chroma-firewall.service`
+  DOCKER-USER DROP-szabályt tesz a 8001-re (ellenőrizve: a publikus IP nem
+  válaszol). Tehát nincs nyitott lyuk — a javaslat csak mélységi védelem: a
+  Neo4j-hez hasonlóan a bind is legyen loopback+tailnet, hogy a védelem ne
+  egyetlen iptables-szabályon múljon. **Gábor kapuja** (PROD-konténer
+  újraindítás).
 
 - [ ] **GraphRAG — üzembe helyezési döntések (Gáboré):** a G3 mindhárom szelete
   kész, de a napi használathoz még kellenek döntések: (a) **mikor fusson az

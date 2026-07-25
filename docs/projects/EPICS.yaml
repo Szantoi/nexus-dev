@@ -38,7 +38,7 @@
 # Cél: a projekt állapota fájlban él, nem a beszélgetés-kontextusban.
 
 version: "1.1"
-updated: "2026-07-22"
+updated: "2026-07-25"
 
 # ─── PROGRAMOK ───────────────────────────────────────────────────────────────
 
@@ -242,6 +242,57 @@ programs:
           TASK-DP-009…011 done.
 
 # ─── EPICEK ──────────────────────────────────────────────────────────────────
+
+  - id: NEXUS-GRAPHRAG
+    name: "GraphRAG — tudásgráf-réteg a vektor-RAG mellé"
+    project: nexus/knowledge-service
+    status: active
+    goal: >
+      A Nexus tudjon strukturális kérdésekre válaszolni ("mi törik el, ha ezt
+      átírom", "ki használja ezt a modult", "melyik ADR tartozik ide"), a
+      meglévő vektoros keresés mellett — sziget-agnosztikus, projekt-független
+      képességként, determinisztikus (nem LLM-alapú) kinyeréssel.
+      Terv és leletlista: docs/plans/GRAPHRAG-PILOT.md.
+    stopping_condition: >
+      A gráf-réteg élesben szolgál ki lekérdezéseket legalább két szigeten
+      (nexus-korpusz + egy termék-korpusz), az indexelés ütemezve fut, és a
+      hibrid keresés a vektoros oldallal együtt ad választ. A sziget-modell
+      véglegesítése (termékenkénti sziget) a runner/identitás-programmal
+      közös, ott zárul.
+    milestones:
+      - id: GR-M1
+        name: "Pilot — store, extractorok, MCP toolok"
+        status: done
+        acceptance: >
+          Neo4j 5.26 a VPS-en (loopback+tailnet bind), island-kulcsos fail-closed
+          graphStore, determinisztikus docs/TS-extractor, upsert-then-sweep
+          indexelő, 3 read-only MCP tool. Élő gráf: 497 node / 1632 él
+          (commit 99509df, CI zöld).
+      - id: GR-M2
+        name: "Projekt-függetlenség — a korpusz is konfiguráció"
+        status: done
+        acceptance: >
+          config/graph-corpus.yaml (szigetenként repo_root + sources[],
+          zod-validált, strict) + extractor-registry; az indexelő csak feloldott
+          korpuszt futtat. Bizonyíték: két sziget párhuzamosan, két különböző
+          korpusszal, kizárólag configból, szivárgás nélkül (commit f68f94b).
+      - id: GR-M3
+        name: "Hybrid, C#, inkrementális, ütemezés"
+        status: done
+        acceptance: >
+          search_hybrid (vektor+gráf egy rangsorban, degradáció-jelzéssel,
+          commit 9584614); C#-extractor — JoineryTech 4123 .cs fájl élesben
+          indexelve, 10 601 node / 61 863 él (commit feec7ab); inkrementális
+          futás (--if-changed: 14,8 s → 3,1 s, nulla írás, commit 4426520);
+          systemd timer 15 percenként a VPS-en, minden konfigurált szigetre.
+      - id: GR-M4
+        name: "Üzembe helyezés és pontosítás"
+        status: pending
+        acceptance: >
+          A sziget-modell véglegesítve (termékenkénti sziget, spaceos = közös
+          tudástár), a teszt→kód térkép és a kód vektor-indexelése bekötve,
+          és a gráf-válaszok pontossága mérve valós fejlesztői kérdéseken.
+
 
 epics:
   # ── NEXUS-KS-MODERNIZATION ─────────────────────────────────────────────────
@@ -946,3 +997,100 @@ epics:
     description: >
       Friss, független reviewer happy-path és megkerülési tesztje a goaltól a
       non-production release-en és rollbacken át az archivált, szinkron állapotig.
+
+  # ── NEXUS-GRAPHRAG ─────────────────────────────────────────────────────────
+
+  - id: GR-PILOT-CORE
+    name: "Graph store + extractorok + MCP toolok"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M1
+    project: nexus/knowledge-service
+    depends_on: []
+    status: done
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      Neo4j-alapú, sziget-particionált, fail-closed graphStore; determinisztikus
+      docs- és TS-extractor; upsert-then-sweep indexelő; search_graph /
+      get_dependencies / impact_analysis. Két adverzáriális review-kör
+      (87 + 9 agent), 15 kód-fix. A tasklista a terv-dokumentumban él, nem
+      külön task-fájlokban (pilot-jellegű, egy szeletben végigvitt munka).
+
+  - id: GR-CORPUS-CONFIG
+    name: "Korpusz-konfiguráció és extractor-registry"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M2
+    project: nexus/knowledge-service
+    depends_on:
+      - GR-PILOT-CORE
+    status: done
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      A "mit indexelünk" kikerült a kódból a config/graph-corpus.yaml-be
+      (szigetenként repo_root + sources[]), az extractorok registry mögé. Egy
+      másik repó vagy új nyelv bekötése konfigurációs lépés. Gépfüggő korpusz
+      a repo_root ${VAR}-hivatkozásával deklarálható hivatalosan.
+
+  - id: GR-HYBRID-SEARCH
+    name: "Hibrid keresés (vektor + gráf)"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - GR-PILOT-CORE
+    status: done
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      search_hybrid: RRF-fúzió, vektor→gráf linkelés útvonal-végződés alapján,
+      több-termes gráf-keresés, 1-hop kontextus. Kötelező degradáció-jelzés:
+      a válasz megmondja, melyik alrendszer felelt és mi hiányzik.
+
+  - id: GR-CSHARP-EXTRACTOR
+    name: "C#-extractor + a gráf-réteg leválasztása a vektor-stackről"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - GR-CORPUS-CONFIG
+    status: done
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      Lexikai C#-olvasó (namespace/típus/using → entitások és DEPENDS_ON), a
+      JoineryTech-korpusz élő indexelésével. A gráf-réteg sziget-primitívei a
+      core/island.ts-be kerültek, így az indexelő nem húzza be a ChromaDB- és
+      embedding-stacket (a VPS-en ez blokkoló volt).
+
+  - id: GR-INCREMENTAL-INDEX
+    name: "Inkrementális indexelés és ütemezés"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M3
+    project: nexus/knowledge-service
+    depends_on:
+      - GR-CORPUS-CONFIG
+    status: done
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      Korpusz-ujjlenyomat alapú kihagyás (--if-changed), minden szigetre futó
+      bulk mód (--all-islands), és systemd timer a VPS-en 15 percenként. Az
+      ujjlenyomat az írás ELŐTT törlődik, hogy egy félbemaradt futás után soha
+      ne látszódjon "naprakész"-nek a sérült gráf.
+
+  - id: GR-ISLAND-MODEL
+    name: "Sziget-modell véglegesítése és pontosítás"
+    program: NEXUS-GRAPHRAG
+    milestone: GR-M4
+    project: nexus/knowledge-service
+    depends_on:
+      - GR-INCREMENTAL-INDEX
+    status: pending
+    tasks_yaml: ../plans/GRAPHRAG-PILOT.md
+    tasks: []
+    description: >
+      A spaceos központi tudástár, alóla vált ki a kernel / joinerytech / nexus,
+      most az ERP szerveződik ki a joinerytech-ből (Gábor, 2026-07-25). A
+      termékenkénti sziget-leképezés a runner/identitás-oldallal közösen
+      véglegesítendő; addig a nexus-korpusz a spaceos szigeten él.

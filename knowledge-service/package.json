@@ -15,7 +15,7 @@
     "dev": "tsx src/server.ts",
     "index": "tsx src/indexer.ts",
     "graph:index": "tsx src/knowledgeGraph/indexCli.ts",
-    "graph:index:auto": "tsx src/knowledgeGraph/indexCli.ts --if-changed",
+    "graph:index:auto": "tsx src/knowledgeGraph/indexCli.ts --if-changed --all-islands",
     "validate": "./scripts/validate-imports.sh",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",

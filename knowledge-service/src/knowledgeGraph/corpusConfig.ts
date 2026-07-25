@@ -59,11 +59,32 @@ export interface CorpusSource {
   extract: ExtractorFn;
 }
 
+/**
+ * An island whose corpus lives on a specific machine (its repo_root names an
+ * environment variable that is not set here). Not a misconfiguration — the
+ * config is shared, the checkout is not — so bulk runs skip it and say so,
+ * while an explicit request for that island still fails loudly.
+ */
+export class IslandNotOnThisHostError extends Error {
+  constructor(island: string, variable: string) {
+    super(
+      `Island "${island}" is not configured on this host: ${variable} is unset ` +
+        '(its corpus lives on another machine — see config/graph-corpus.yaml).'
+    );
+    this.name = 'IslandNotOnThisHostError';
+  }
+}
+
 export interface ResolvedCorpus {
   island: string;
   /** Absolute; every entity id is relative to this. */
   repoRoot: string;
   sources: CorpusSource[];
+}
+
+/** Island ids declared in the config, sorted — the bulk-index work list. */
+export function configuredIslands(configPath?: string): string[] {
+  return Object.keys(loadCorpusConfig(configPath).islands).sort();
 }
 
 export function getCorpusConfigPath(): string {
@@ -89,6 +110,21 @@ export function loadCorpusConfig(configPath?: string): GraphCorpusConfig {
     throw new Error(`Invalid graph corpus config (${file}):\n${issues}`);
   }
   return parsed.data;
+}
+
+/**
+ * Expand a repo_root. `${VAR}` lets one shared config declare a corpus that
+ * only exists on one machine (the VPS checkout of another product), without
+ * baking that machine's paths into every clone.
+ */
+function resolveRepoRoot(island: string, declared: string): string {
+  const envRef = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/.exec(declared.trim());
+  if (envRef !== null) {
+    const value = process.env[envRef[1]]?.trim();
+    if (value === undefined || value === '') throw new IslandNotOnThisHostError(island, envRef[1]);
+    return path.isAbsolute(value) ? value : path.resolve(NEXUS_REPO_ROOT, value);
+  }
+  return path.isAbsolute(declared) ? declared : path.resolve(NEXUS_REPO_ROOT, declared);
 }
 
 /** True when `child` is `parent` itself or lives underneath it. */
@@ -127,11 +163,7 @@ export function resolveCorpus(
     );
   }
 
-  const repoRoot =
-    options.repoRootOverride ??
-    (path.isAbsolute(entry.repo_root)
-      ? entry.repo_root
-      : path.resolve(NEXUS_REPO_ROOT, entry.repo_root));
+  const repoRoot = options.repoRootOverride ?? resolveRepoRoot(island, entry.repo_root);
 
   const sources = entry.sources.map((source) => {
     const root = path.resolve(repoRoot, source.path);

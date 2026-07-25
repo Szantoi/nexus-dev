@@ -235,6 +235,26 @@
     healthcheck, log-rotáció, jelszó-rotációs recept, `.env.example`).
   +14 új teszt (össz 54 a modulban). Élő újravalidálás a VPS Neo4j ellen.
 
+## Üzembe helyezés (Gábor döntései, 2026-07-25)
+
+- **Ütemezés:** a VPS-en `nexus-graph-index.timer` 15 percenként futtatja a
+  `npm run graph:index:auto`-t (= `--if-changed --all-islands`). Változatlan
+  korpusznál szigetenként ~3 s, írás nélkül. Napló: `journalctl -u
+  nexus-graph-index.service`. A `SuccessExitStatus=0 1` szándékos: egy sziget
+  átmeneti hibája ne állítsa „failed" állapotba a unitot, a következő kör
+  úgyis újrapróbálja.
+- **Sziget-modell:** a `spaceos` a KÖZPONTI TUDÁSTÁR, amivel a fejlesztések
+  indultak — nem termék. Alóla váltak ki a termékek (kernel, joinerytech,
+  nexus), és jelenleg a joinerytech-ből szerveződik ki az ERP. Új termék =
+  új sziget + egy bejegyzés a korpusz-configba. A nexus-korpusz ma még a
+  `spaceos` szigeten él; a termékenkénti leképezés a runner/identitás-oldallal
+  közösen véglegesítendő (EPICS: `GR-ISLAND-MODEL`).
+- **Gépfüggő korpusz hivatalosan:** a `repo_root` hivatkozhat környezeti
+  változóra (`${JOINERYTECH_ROOT}`). Ahol a változó be van állítva, ott a
+  sziget indexelhető; ahol nincs, ott a `--all-islands` futás átugorja, a
+  `--island <név>` viszont hangosan hibázik. Így a sziget-lista megosztott és
+  hivatalos marad, gépfüggő út nélkül.
+
 ## Kapuk és konvenciók
 
 - Minden szelet: implementáció → gate-ek → **független adverzáriális review**

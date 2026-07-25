@@ -10,6 +10,8 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  IslandNotOnThisHostError,
+  configuredIslands,
   getCorpusConfigPath,
   loadCorpusConfig,
   resolveCorpus,
@@ -151,13 +153,57 @@ describe('corpus config', () => {
   it('keeps the shipped config valid and pointing at existing trees', () => {
     // Guards the real config/graph-corpus.yaml: a typo'd path there would only
     // surface as a failed index run against the live graph.
+    // Islands whose checkout lives on another host cannot be verified from
+    // this machine — that is a deployment fact, not a config error.
     const config = loadCorpusConfig();
     expect(Object.keys(config.islands).length).toBeGreaterThan(0);
+    let verified = 0;
     for (const island of Object.keys(config.islands)) {
-      const corpus = resolveCorpus(island, { configPath: getCorpusConfigPath() });
+      let corpus: ReturnType<typeof resolveCorpus>;
+      try {
+        corpus = resolveCorpus(island, { configPath: getCorpusConfigPath() });
+      } catch (err) {
+        expect(err, `${island}: unexpected config error`).toBeInstanceOf(IslandNotOnThisHostError);
+        continue;
+      }
       for (const source of corpus.sources) {
         expect(fs.existsSync(source.root), `${island}: ${source.root} missing`).toBe(true);
       }
+      verified += 1;
     }
+    // Without this the guard would pass vacuously on a machine with no checkouts.
+    expect(verified).toBeGreaterThan(0);
+  });
+
+  it('treats an env-driven repo_root as "not on this host" when unset', () => {
+    const configPath = writeConfig(
+      // Assembled, not written inline: a literal ${...} in a plain string is a
+      // classic typo for a template literal, and the linter rightly flags it.
+      ISLE_CONFIG(dir).replace(
+        `repo_root: ${JSON.stringify(dir)}`,
+        `repo_root: "$\{KG_TEST_ROOT}"`
+      )
+    );
+    delete process.env.KG_TEST_ROOT;
+    expect(() => resolveCorpus('isle', { configPath })).toThrow(IslandNotOnThisHostError);
+    process.env.KG_TEST_ROOT = dir;
+    try {
+      expect(resolveCorpus('isle', { configPath }).repoRoot).toBe(dir);
+    } finally {
+      delete process.env.KG_TEST_ROOT;
+    }
+  });
+
+  it('lists the configured islands for a bulk run', () => {
+    const extra = `  other-isle:
+    repo_root: ${JSON.stringify(dir)}
+    sources:
+      - path: docs
+        extractor: markdown
+`;
+    expect(configuredIslands(writeConfig(ISLE_CONFIG(dir) + extra))).toEqual([
+      'isle',
+      'other-isle',
+    ]);
   });
 });

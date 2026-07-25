@@ -51,7 +51,17 @@
   3. **Inkrementális indexelés** (`4426520`) — `graph:index:auto`
      (`--if-changed`): változatlan korpusznál 14,8 s → 3,1 s, nulla írással.
      Review: 18 agent, 1 P1 + 3 P2 — mind a „hamis naprakész" hibaosztályból.
-- **Kapuk:** typecheck 0; 1677 PASS + 1 skipped (99 fájl); lint-ratchet 786;
+- **Üzembe helyezve (Gábor döntései, 2026-07-25):** (a) **időzítő**: a VPS-en
+  `nexus-graph-index.timer` 15 percenként futtatja a `graph:index:auto`-t
+  (minden konfigurált szigetre, változatlan korpusznál no-op); (b) a
+  **joinerytech sziget hivatalos** lett a gitre kerülő configban — a gépfüggő
+  utat `repo_root: "${JOINERYTECH_ROOT}"` oldja meg, ahol a változó nincs
+  beállítva, ott a bulk futás átugorja; (c) **sziget-modell tisztázva**: a
+  `spaceos` a KÖZPONTI TUDÁSTÁR (nem termék), alóla vált ki a kernel /
+  joinerytech / nexus, most az ERP szerveződik ki a joinerytech-ből — a
+  termékenkénti sziget-leképezés a runner/identitás-oldallal közösen zárul
+  (EPICS: `GR-ISLAND-MODEL`).
+- **Kapuk:** typecheck 0; 1679 PASS + 1 skipped (99 fájl); lint-ratchet 786;
   size/links/secret-scan/audit:prod mind zöld; élő újravalidálás a VPS Neo4j-n
   két szigeten. CI zöld mindhárom commitra.
 - **Nyitva (G3, külön döntés):** `search_hybrid` (vector+graph router),
