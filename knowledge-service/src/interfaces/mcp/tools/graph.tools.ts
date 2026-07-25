@@ -13,6 +13,7 @@ import {
   searchEntities,
   traverse,
 } from '../../../knowledgeGraph/graphStore';
+import { searchHybrid } from '../../../knowledgeGraph/hybridSearch';
 import { ENTITY_TYPES, RELATION_TYPES } from '../../../knowledgeGraph/types';
 import { error, success, toolRegistry, type ToolResult } from './base-tool';
 
@@ -143,6 +144,75 @@ export function registerGraphTools(): void {
           count: hits.length,
           truncated,
           results: hits,
+        });
+      } catch (err) {
+        return graphError(err);
+      }
+    }
+  );
+
+  toolRegistry.register(
+    {
+      name: 'search_hybrid',
+      description:
+        'Search knowledge semantically (vector) AND structurally (graph) in ' +
+        'one call, fused into a single ranking: a hit found by both ranks ' +
+        'highest, and top hits carry their direct graph dependents. Use this ' +
+        'as the default "find me things about X"; use search_knowledge for ' +
+        'pure prose recall and search_graph for exact id/name lookup. The ' +
+        'response reports which subsystem answered — a degraded search is ' +
+        'labelled, never silently halved. `fusion_score` is a rank-fusion ' +
+        'number, NOT comparable with search_knowledge similarity scores.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'What to look for (free text)' },
+          limit: { type: 'number', description: 'Maximum fused results (default: 5, max: 25)' },
+          expand: {
+            type: 'boolean',
+            description: 'Attach 1-hop graph neighbours to the top hits (default: true)',
+          },
+        },
+        required: ['query'],
+      },
+    },
+    async (args, context) => {
+      const query = String(args.query || '');
+      if (query.trim().length === 0) return error('query must be a non-empty string');
+      const limit = numericArg(args.limit);
+      if (!limit.ok) return error('limit must be a number');
+      try {
+        const result = await searchHybrid(query, {
+          island: context?.island,
+          limit: limit.value,
+          expand: args.expand !== false,
+        });
+        return success({
+          query,
+          count: result.hits.length,
+          // A caller must be able to tell "nothing matched" from "half the
+          // search did not run".
+          degraded: result.degraded,
+          vector: result.vector,
+          graph: result.graph,
+          results: result.hits.map((hit) => ({
+            id: hit.id,
+            name: hit.name,
+            ...(hit.type === undefined ? {} : { type: hit.type }),
+            // NOT `score`: a rank-fusion number, not search_knowledge's
+            // similarity — same name would invite a meaningless comparison.
+            fusion_score: hit.fusionScore,
+            sources: hit.sources,
+            ...(hit.snippet === undefined ? {} : { snippet: hit.snippet }),
+            ...(hit.related === undefined
+              ? {}
+              : {
+                  related: hit.related,
+                  // `related` is a sample; the total says what was left out.
+                  related_total: hit.relatedTotal,
+                  ...(hit.relatedTruncated === true ? { related_truncated: true } : {}),
+                }),
+          })),
         });
       } catch (err) {
         return graphError(err);

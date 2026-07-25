@@ -9,6 +9,15 @@
 
 ## Aktív
 
+- [ ] **BIZTONSÁG — a VPS Chroma publish-e `0.0.0.0:8001`** (2026-07-25-én
+  észlelve a GraphRAG-munka közben): `spaceos_chromadb` konténer minden
+  interfészre publikál, azaz a védelmet ma NEM a bind adja, hanem egy külső
+  tűzfal-réteg. A publikus IP-n innen nem válaszol (jó), de ez pontosan az a
+  minta, amit a Chroma-incidens után elhagytunk — a Neo4j már loopback+tailnet
+  bindra megy. Javaslat: `127.0.0.1` + tailnet-IP bind a compose-ban.
+  **Gábor kapuja**: PROD-ot érint (konténer-újraindítás), ezért nem nyúltam
+  hozzá.
+
 - [ ] **GraphRAG G3 — külön döntés (Gáboré):** `search_hybrid` (vector+graph
   router), C#-extractor (JoineryTech), inkrementális update (git hook/watcher).
   Terv: `docs/plans/GRAPHRAG-PILOT.md`. A korpusz-konfigurálhatóság (G2.5)

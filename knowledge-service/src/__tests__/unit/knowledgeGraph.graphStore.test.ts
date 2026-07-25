@@ -9,10 +9,12 @@ import {
   GraphUnavailableError,
   MAX_TRAVERSAL_DEPTH,
   clearIsland,
+  findEntitiesByPathSuffix,
   graphHealth,
   graphStats,
   resetGraphStoreForTests,
   searchEntities,
+  searchEntitiesByTerms,
   setGraphDriverForTests,
   sweepStale,
   traverse,
@@ -373,6 +375,72 @@ describe('knowledgeGraph/graphStore', () => {
     await expect(searchEntities('x', { island: 'isle', type: 'Nope' })).rejects.toThrow(
       /Unknown entity type/
     );
+  });
+
+  it('probes path suffixes with a PER-PROBE budget, island-scoped', async () => {
+    const { executeQuery } = fakeDriver([]);
+    await findEntitiesByPathSuffix(['a.md', 'b.md', 'a.md', '  '], 'isle');
+    const [cypher, params] = executeQuery.mock.calls.at(-1) as unknown as [
+      string,
+      { island: string; rows: Array<{ path: string; needle: string }>; perProbe: unknown },
+    ];
+    expect(params.island).toBe('isle');
+    expect(cypher).toContain('{island: $island}');
+    // A shared top-level LIMIT would let one probe eat another's budget and
+    // make an ambiguous probe look unambiguous — the LIMIT must be inside.
+    expect(cypher).toContain('CALL { WITH row');
+    expect(cypher).toContain('LIMIT $perProbe }');
+    // Blanks dropped, duplicates collapsed, needle anchored on a separator.
+    expect(params.rows).toEqual([
+      { path: 'a.md', needle: '/a.md' },
+      { path: 'b.md', needle: '/b.md' },
+    ]);
+  });
+
+  it('groups suffix matches by probe and caps the probe count', async () => {
+    const row = (probe: string, id: string) => ({
+      get(name: string) {
+        if (name === 'path') return probe;
+        if (name === 'n') return { properties: { id, type: 'Doc', name: id } };
+        return undefined;
+      },
+    });
+    const { executeQuery } = fakeDriver([
+      row('x.md', 'docs/x.md'),
+      row('x.md', 'other/x.md'),
+      row('y.md', 'docs/y.md'),
+    ]);
+    const found = await findEntitiesByPathSuffix(['x.md', 'y.md'], 'isle');
+    expect(found.get('x.md')?.map((e) => e.id)).toEqual(['docs/x.md', 'other/x.md']);
+    expect(found.get('y.md')).toHaveLength(1);
+
+    // 40 probes must not become 40 unbounded scans.
+    await findEntitiesByPathSuffix(
+      Array.from({ length: 40 }, (_, i) => `f${i}.md`),
+      'isle'
+    );
+    const [, params] = executeQuery.mock.calls.at(-1) as unknown as [string, { rows: unknown[] }];
+    expect(params.rows).toHaveLength(25);
+
+    expect(await findEntitiesByPathSuffix([], 'isle')).toEqual(new Map());
+  });
+
+  it('ranks multi-term search by how many terms an entity matches', async () => {
+    const { executeQuery } = fakeDriver([]);
+    await searchEntitiesByTerms(['Vps', 'vps', 'tailscale', ''], { island: 'isle', limit: 7 });
+    const [cypher, params] = executeQuery.mock.calls.at(-1) as unknown as [
+      string,
+      { island: string; terms: string[]; limit: { toNumber(): number } },
+    ];
+    expect(params.island).toBe('isle');
+    expect(params.terms).toEqual(['vps', 'tailscale']); // lowercased, deduped, blanks dropped
+    expect(cypher).toContain('ORDER BY matches DESC');
+    expect(params.limit.toNumber()).toBe(7);
+
+    // No usable term must not turn into "match everything".
+    executeQuery.mockClear();
+    expect(await searchEntitiesByTerms([' '], { island: 'isle' })).toEqual([]);
+    expect(executeQuery).not.toHaveBeenCalled();
   });
 
   it('graphStats maps counts and clearIsland scopes to the island', async () => {

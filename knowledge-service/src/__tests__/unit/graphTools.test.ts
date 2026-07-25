@@ -12,6 +12,13 @@ import {
   resetGraphStoreForTests,
   setGraphDriverForTests,
 } from '../../knowledgeGraph/graphStore';
+import { searchKnowledge } from '../../vectorStore';
+
+// Only the vector query is faked; island resolution and error types stay real.
+vi.mock('../../vectorStore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../vectorStore')>()),
+  searchKnowledge: vi.fn(async () => []),
+}));
 
 registerGraphTools();
 
@@ -31,10 +38,11 @@ afterEach(() => {
 });
 
 describe('graph MCP tools', () => {
-  it('registers all three tools', () => {
+  it('registers every graph tool', () => {
     expect(toolRegistry.has('search_graph')).toBe(true);
     expect(toolRegistry.has('get_dependencies')).toBe(true);
     expect(toolRegistry.has('impact_analysis')).toBe(true);
+    expect(toolRegistry.has('search_hybrid')).toBe(true);
   });
 
   it('returns an informative error (not a crash) when the graph is disabled', async () => {
@@ -237,6 +245,70 @@ describe('graph MCP tools', () => {
       { limit: { toNumber(): number } },
     ];
     expect(params.limit.toNumber()).toBe(10); // Number(null) would have been 0 → LIMIT 1
+  });
+
+  it('search_hybrid pins the caller island and labels a degraded answer', async () => {
+    const { executeQuery } = fakeDriver();
+    vi.mocked(searchKnowledge).mockRejectedValueOnce(new Error('chroma down'));
+
+    const result = await toolRegistry.call(
+      'search_hybrid',
+      { query: 'auth', island: 'attacker-island' },
+      { island: 'caller-island' }
+    );
+    const payload = JSON.parse(result.content[0].text);
+    // Half the search failed — the caller must see that, not a short list.
+    expect(payload.degraded).toBe(true);
+    expect(payload.vector.available).toBe(false);
+    expect(vi.mocked(searchKnowledge).mock.calls[0][2]).toBe('caller-island');
+    const [, params] = executeQuery.mock.calls[0] as unknown as [string, { island: string }];
+    expect(params.island).toBe('caller-island');
+  });
+
+  it('search_hybrid emits fusion_score (not score) and an honest neighbour total', async () => {
+    const record = (field: string, id: string) => ({
+      get(name: string) {
+        if (name === field) return { properties: { id, type: 'Module', name: id } };
+        if (name === 'distance') return 1;
+        return undefined;
+      },
+    });
+    const executeQuery = vi.fn(async (cypher: string) => ({
+      records: String(cypher).includes('OPTIONAL MATCH')
+        ? Array.from({ length: 7 }, (_, i) => record('m', `src/dep${i}.ts`))
+        : [record('n', 'src/hub.ts')],
+      summary: {},
+    }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    const result = await toolRegistry.call('search_hybrid', { query: 'hub' }, { island: 'isle' });
+    const payload = JSON.parse(result.content[0].text);
+    const hit = payload.results[0];
+    // `score` would invite comparison with search_knowledge's similarity.
+    expect(hit.score).toBeUndefined();
+    expect(typeof hit.fusion_score).toBe('number');
+    expect(hit.related).toHaveLength(5);
+    expect(hit.related_total).toBe(7); // "5 shown" must not read as "5 exist"
+  });
+
+  it('search_hybrid rejects an empty query and honours expand:false', async () => {
+    const { executeQuery } = fakeDriver();
+    const empty = await toolRegistry.call('search_hybrid', { query: '   ' }, { island: 'isle' });
+    expect(empty.isError).toBe(true);
+    expect(executeQuery).not.toHaveBeenCalled();
+
+    await toolRegistry.call(
+      'search_hybrid',
+      { query: 'hub', expand: false },
+      { island: 'isle' }
+    );
+    expect(
+      executeQuery.mock.calls.some((c) => String(c[0]).includes('OPTIONAL MATCH'))
+    ).toBe(false);
   });
 
   it('validates enum-ish args via the store (bad relation type is an error result)', async () => {

@@ -107,9 +107,31 @@
   szimlink-alapú lexikai containment, átfedő források, `path: "."`,
   extractor-heurisztikák „repo-specifikussága", YAML-hibaüzenet burkolása.
 
-### G3 — Hybrid + kiterjesztés (külön döntések)
-- [ ] `search_hybrid` (vector + graph kombinált) — a query-router logika
-- [ ] C#-extractor (JoineryTech) — ha Gábor arra viszi
+### G3 — Hybrid + kiterjesztés (Gábor sorrendje: hybrid → C# → inkrementális)
+- [x] **`search_hybrid`** (2026-07-25): a vektor- és a gráf-találatok egy
+  rangsorba fésülve (RRF, k=60). A vektor-találat gráf-entitáshoz kötése
+  útvonal-VÉGZŐDÉS alapján (a vektor-index a knowledge-base-hez, a gráf a
+  repo-gyökérhez relatív utat tárol) — CSAK ha a végződés egyértelmű, mert
+  két azonos nevű fájl összevonása rosszabb, mint a kapcsolat hiánya.
+  A gráf-oldal **több-termes** keresést kap (`searchEntitiesByTerms`): a
+  korábbi egy-substring keresés természetes nyelvű kérdésre sosem talált.
+  Az első pár találat 1-hop szomszédságot is hoz (mintavétel + valódi
+  összlétszám). **Degradáció-őszinteség:** a kereséstől — az
+  impact-analízissel ellentétben — elfogadható a féleredmény, de KÖTELEZŐ
+  jelezni: melyik alrendszer válaszolt, mi hibázott, és hogy a vektor-oldal
+  a valódi indexből vagy a memória-fallbackből szolgált ki.
+  - **Review (38 agent, 4 lencse + cáfolat-panel):** 2 P1 + 6 P2 megerősítve
+    és javítva. A két P1: (a) az RRF összeadta ugyanannak a dokumentumnak a
+    darabjait, így egy feldarabolt fájl EGY store-ból megelőzte a mindkettő
+    által talált találatot — a tool központi ígéretének cáfolata; (b) a
+    Chroma kiesésekor a vektor-oldal `available: true`-t jelentett, mert a
+    keresés némán az üres memória-fallbackre vált. P2-k: közös LIMIT a
+    suffix-próbákon (egy csonkolt, többértelmű próba egyértelműnek látszott),
+    jelöletlen `related`-csonkolás, `score` névütközés a
+    `search_knowledge` hasonlósági pontszámával (→ `fusion_score`), a
+    linkelési hiba „a gráf halott"-nak látszott, és több nem-védett teszt-rés.
+- [ ] C#-extractor (JoineryTech) — a korpusz-bekötés már config, csak a nyelvi
+  parser hiányzik (registry-bejegyzés + modul)
 - [ ] Inkrementális update (git hook / watcher)
 
 ## Review-történet

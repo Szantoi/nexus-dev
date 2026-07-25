@@ -321,6 +321,95 @@ export async function searchEntities(
   return records.map((r) => toEntity(r.get('n')));
 }
 
+/** Cap on suffix probes per lookup — each one scans within the island. */
+const MAX_SUFFIX_PROBES = 25;
+/**
+ * Rows returned per probe. A shared global LIMIT would let one probe's matches
+ * eat another's budget, and a truncated ambiguous probe would come back with a
+ * single match — i.e. looking unambiguous to a caller that links on
+ * "exactly one match". Anything above 1 is enough to prove ambiguity.
+ */
+const MAX_MATCHES_PER_PROBE = 5;
+
+/**
+ * Find entities whose id IS a path or ENDS WITH it. This is the bridge from a
+ * vector hit to the graph: the vector index stores paths relative to the
+ * knowledge base, the graph stores them relative to the repo root, so only the
+ * tail is common. Ambiguity is deliberately left to the caller — every match
+ * is returned, grouped by the probe that found it, so a caller can refuse to
+ * link when a suffix matches more than one entity.
+ */
+export async function findEntitiesByPathSuffix(
+  paths: string[],
+  island?: string
+): Promise<Map<string, GraphEntity[]>> {
+  const islandId = resolveIsland(island);
+  const probes = [...new Set(paths.map((p) => p.trim()).filter((p) => p !== ''))].slice(
+    0,
+    MAX_SUFFIX_PROBES
+  );
+  const found = new Map<string, GraphEntity[]>();
+  if (probes.length === 0) return found;
+  const { records } = await run(
+    // The LIMIT lives INSIDE the subquery, so every probe gets its own budget
+    // (a top-level LIMIT would be one shared pool decided by global ordering).
+    'UNWIND $rows AS row ' +
+      'CALL { WITH row ' +
+      'MATCH (n:KnowledgeEntity {island: $island}) ' +
+      'WHERE n.id = row.path OR n.id ENDS WITH row.needle ' +
+      'RETURN n ORDER BY n.id LIMIT $perProbe } ' +
+      'RETURN row.path AS path, n',
+    {
+      island: islandId,
+      rows: probes.map((p) => ({ path: p, needle: `/${p}` })),
+      perProbe: neo4j.int(MAX_MATCHES_PER_PROBE),
+    }
+  );
+  for (const record of records) {
+    const probe = String(record.get('path'));
+    const list = found.get(probe) ?? [];
+    list.push(toEntity(record.get('n')));
+    found.set(probe, list);
+  }
+  return found;
+}
+
+/**
+ * Multi-term lexical search, ranked by HOW MANY terms an entity matches.
+ *
+ * `searchEntities` treats the whole query as one substring, which never
+ * matches a natural-language question ("vps access over tailscale"). Hybrid
+ * search therefore splits the query into terms and ranks by match count —
+ * without this the graph side contributes nothing to a prose query, and its
+ * rank order would be alphabetical rather than relevance-based.
+ */
+export async function searchEntitiesByTerms(
+  terms: string[],
+  options: { island?: string; type?: string; limit?: number } = {}
+): Promise<GraphEntity[]> {
+  const islandId = resolveIsland(options.island);
+  const limit = clampInt(options.limit, 10, 1, MAX_SEARCH_RESULTS);
+  if (options.type !== undefined) assertEntityType(options.type);
+  const needles = [...new Set(terms.map((t) => t.toLowerCase().trim()).filter((t) => t !== ''))];
+  if (needles.length === 0) return [];
+  const typeFilter = options.type === undefined ? '' : 'AND n.type = $type ';
+  const { records } = await run(
+    'MATCH (n:KnowledgeEntity {island: $island}) ' +
+      'WITH n, size([t IN $terms WHERE toLower(n.name) CONTAINS t ' +
+      'OR toLower(n.id) CONTAINS t]) AS matches ' +
+      'WHERE matches > 0 ' +
+      typeFilter +
+      'RETURN n ORDER BY matches DESC, n.type, n.id LIMIT $limit',
+    {
+      island: islandId,
+      terms: needles,
+      type: options.type ?? null,
+      limit: neo4j.int(limit),
+    }
+  );
+  return records.map((r) => toEntity(r.get('n')));
+}
+
 export interface TraversalResult {
   hits: TraversalHit[];
   /**

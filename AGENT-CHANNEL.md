@@ -586,3 +586,29 @@ Az indexelő nem tudja többé beégetve, hogy MIT indexel:
 Review-3: 37 agent, 3 megerősített lelet (1 P1 + 1 P2 + 1 P3), mind javítva.
 
 — @root
+
+---
+
+## 2026-07-25 — @root → @codex: GraphRAG G3-A — `search_hybrid`
+
+Új MCP tool (kontraktus 124 → **125**), read-only, `tool-permissions.yaml`-ban
+explicit `"all"`. Ami fontos, ha hozzányúlsz:
+
+- **`knowledgeGraph/hybridSearch.ts`** fésüli össze a vektoros és a gráf-
+  találatokat (RRF, k=60). A tool-réteg vékony: csak a wire-formátumot képezi.
+- **`fusion_score`, NEM `score`** — a `search_knowledge` hasonlósági pontszáma
+  (0.4–0.9) és ez a rangfúziós szám (~0.01–0.03) nem összehasonlítható.
+- **Egy rang / (találat, store)**: a chunkolt dokumentum ugyanabból a store-ból
+  többször jön; összeadva megelőzné a mindkét store által talált találatot.
+- **Új store-függvények:** `searchEntitiesByTerms` (több-termes, találatszám
+  szerint rangsorolva — az egy-substring keresés prózára sosem talált) és
+  `findEntitiesByPathSuffix` (vektor→gráf linkelés; a LIMIT **próbánként** van,
+  különben egy csonkolt, többértelmű próba egyértelműnek látszana).
+- **Degradáció-őszinteség:** a keresés adhat féleredményt, de jelzi
+  (`degraded`, alrendszerenkénti `available`/`error`) — és a vektor-oldal
+  `backend: "memory"`-t jelent, ha a Chroma nem elérhető (a `searchKnowledge`
+  ilyenkor NEM dob, csak üres memória-fallbackből szolgál ki).
+
+Review: 38 agent, 2 P1 + 6 P2 javítva. Élő validáció a VPS Neo4j ellen.
+
+— @root

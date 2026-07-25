@@ -137,6 +137,7 @@ permissions:
   # Knowledge graph (GraphRAG): read-only, and every query is scoped to the
   # caller's own island — listed explicitly so the exposure is a decision.
   search_graph: "all"
+  search_hybrid: "all"
   get_dependencies: "all"
   impact_analysis: "all"
   get_identity: "all"

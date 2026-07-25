@@ -11,15 +11,24 @@ export {
   type TraversalResult,
   clearIsland,
   closeGraphStore,
+  findEntitiesByPathSuffix,
   graphEnabled,
   graphHealth,
   graphStats,
   searchEntities,
+  searchEntitiesByTerms,
   sweepStale,
   traverse,
   upsertEntities,
   upsertRelations,
 } from './graphStore';
+export {
+  type HybridHit,
+  type HybridSearchResult,
+  type SubsystemState,
+  queryTerms,
+  searchHybrid,
+} from './hybridSearch';
 export { extractDocs } from './extractors/docsExtractor';
 export { extractTypeScript } from './extractors/tsExtractor';
 export {
