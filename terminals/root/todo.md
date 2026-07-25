@@ -28,15 +28,18 @@
   **Gábor kapuja**: PROD-ot érint (konténer-újraindítás), ezért nem nyúltam
   hozzá.
 
-- [ ] **GraphRAG G3 — külön döntés (Gáboré):** `search_hybrid` (vector+graph
-  router), C#-extractor (JoineryTech), inkrementális update (git hook/watcher).
-  Terv: `docs/plans/GRAPHRAG-PILOT.md`. A korpusz-konfigurálhatóság (G2.5)
-  KÉSZ, tehát egy másik repó bekötéséhez már csak az adott nyelv extractora
-  kell. Nyitottak: (a) az élő index `island=spaceos` alatt van (lokális .env
-  default) — a sziget-véglegesítés a runner/identitás-oldallal együtt;
-  (b) hiányzó hívó-identitásnál a store az alapértelmezett szigetre esik
-  vissza (repo-szintű fail-closed identitás-kapu → a credential/RBAC-kapu
-  hatóköre).
+- [ ] **GraphRAG — üzembe helyezési döntések (Gáboré):** a G3 mindhárom szelete
+  kész, de a napi használathoz még kellenek döntések: (a) **mikor fusson az
+  indexelés** (`npm run graph:index:auto` commit-hookból / időzítőből /
+  runnerből — a no-op 3 s, tehát olcsó); (b) a JoineryTech-sziget a VPS-en a
+  `config/graph-corpus.local.yaml`-ből él — maradjon-e így, vagy legyen belőle
+  hivatalos konfiguráció; (c) az élő nexus-index `island=spaceos` alatt van
+  (lokális .env default), a DEV-példány viszont `nexus-dev` szigetű — a
+  sziget-véglegesítés a runner/identitás-oldallal együtt; (d) hiányzó hívó-
+  identitásnál a store az alapértelmezett szigetre esik vissza (repo-szintű
+  fail-closed identitás-kapu → a credential/RBAC-kapu hatóköre).
+  Következő javasolt lépések (Gábor kérdésére): teszt→kód térkép a coverage-
+  adatból, majd a kód bevétele a vektor-indexbe (ma csak a doksi van benne).
 
 - [ ] **AttachedSink D lezárása (`TASK-ISL-007`):** implementáció + review-2
   PASS lokálisan (2026-07-23 éjjel). HÁTRA VAN: (a) a lokális C+D stack pushja

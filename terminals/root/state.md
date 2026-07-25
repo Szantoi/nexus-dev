@@ -38,8 +38,22 @@
   **Review-3 (37 agent, 4 lencse + cáfolat-panel):** 3 megerősített lelet —
   köztük egy P1: a refaktor visszanyitotta a review-2-es adatvesztést
   (összesített 0-entitás kapu) → forrásonkénti kapu.
-- **Kapuk:** typecheck 0; 1635 PASS + 1 skipped (97 fájl); lint-ratchet 786;
-  size/links/secret-scan/audit:prod mind zöld; élő újravalidálás a VPS Neo4j-n.
+- **G3 mindhárom szelete KÉSZ** (2026-07-25, Gábor sorrendjében):
+  1. **`search_hybrid`** (`9584614`) — vektor + gráf egy rangsorban (RRF),
+     útvonal-végződés alapú linkeléssel, több-termes gráf-kereséssel és
+     kötelező degradáció-jelzéssel. Review: 38 agent, 2 P1 + 6 P2 javítva.
+  2. **C#-extractor** (`feec7ab`) — lexikai pass; a JoineryTech (4123 `.cs`)
+     élesben indexelve: 10 601 node / 61 863 él. Szükséges volt a gráf-réteg
+     leválasztása a vektor-stackről (`core/island.ts`), különben az indexelő
+     a VPS-en futtathatatlan (natív `sharp` megöli az importot).
+     Review: 25 agent, 9 lelet javítva (fantom entitások: `record`/`where`
+     kontextuális kulcsszavak, interpolált sztringek, kvadratikus fan-out).
+  3. **Inkrementális indexelés** (`4426520`) — `graph:index:auto`
+     (`--if-changed`): változatlan korpusznál 14,8 s → 3,1 s, nulla írással.
+     Review: 18 agent, 1 P1 + 3 P2 — mind a „hamis naprakész" hibaosztályból.
+- **Kapuk:** typecheck 0; 1677 PASS + 1 skipped (99 fájl); lint-ratchet 786;
+  size/links/secret-scan/audit:prod mind zöld; élő újravalidálás a VPS Neo4j-n
+  két szigeten. CI zöld mindhárom commitra.
 - **Nyitva (G3, külön döntés):** `search_hybrid` (vector+graph router),
   C#-extractor, inkrementális update. Az élő index `island=spaceos` alatt van
   (lokális .env default) — a sziget-véglegesítés a runner/identity oldallal
