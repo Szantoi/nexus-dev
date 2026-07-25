@@ -49,6 +49,26 @@ const EnvSchema = z.object({
   CHROMA_URL: z.url().default('http://localhost:8001'),
   CHROMADB_URL: z.url().optional(),
 
+  // Knowledge-graph store (Neo4j, GraphRAG pilot — docs/plans/GRAPHRAG-PILOT.md).
+  // Unset GRAPH_URL disables every graph feature (fail-safe default). The
+  // password is a secret: see `secrets.graphPassword` below — embedding it in
+  // the URL is rejected here, because connection URLs end up in logs.
+  GRAPH_URL: z
+    .url()
+    .refine((u) => /^(bolt|neo4j)(\+s|\+ssc)?:\/\//.test(u), {
+      message: 'GRAPH_URL must use a bolt:// or neo4j:// scheme',
+    })
+    .refine((u) => !/\/\/[^/]*@/.test(u), {
+      message: 'GRAPH_URL must not embed credentials — use GRAPH_USER / GRAPH_PASSWORD',
+    })
+    .optional(),
+  GRAPH_USER: z.string().min(1).default('neo4j'),
+  GRAPH_DATABASE: z.string().min(1).default('neo4j'),
+  // Server-side query timeout: a deep traversal on a hub node enumerates paths
+  // before the row cap applies, so an unbounded query could pin the shared
+  // Neo4j instance for every island.
+  GRAPH_QUERY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
+
   // DataHaven dashboard integration (missionControl cross-sync).
   DATAHAVEN_URL: z.url().default('https://datahaven.joinerytech.hu'),
   MARVEEN_URL: z.url().optional(),
@@ -259,5 +279,8 @@ export const secrets = {
   },
   get datahavenToken(): string {
     return process.env.DATAHAVEN_TOKEN || 'dev-token-spaceos-dashboard-2026';
+  },
+  get graphPassword(): string | undefined {
+    return process.env.GRAPH_PASSWORD;
   },
 };

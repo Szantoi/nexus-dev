@@ -3,9 +3,39 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-23
+**Utolsó frissítés:** 2026-07-25
 
 ## Aktuális fókusz
+
+**GRAPHRAG PILOT (G1+G2) — KÉSZ, KÉT REVIEW-KÖR UTÁN, ÉLŐ GRÁF A VPS-EN**
+(2026-07-25, @root, Gábor jóváhagyásával): Gábor új kiemelt iránya a GraphRAG
+— általános Nexus-képességként (sziget-agnosztikus), Neo4j Community store-ral.
+- **Infra:** Neo4j 5.26 LTS a VPS-en (`docker/neo4j/docker-compose.yml`,
+  loopback+tailnet bind — SOHA 0.0.0.0; 7474 CSAK loopback; healthcheck,
+  log-rotáció, tranzakció-timeout; 1,5 GB mem-cap; jelszó VPS `.env` chmod 600).
+  Fut: `nexus_neo4j` konténer (healthy).
+- **Kód:** `src/knowledgeGraph/` (graphStore island-kulcsos Cypher-réteg,
+  fail-closed; docs- és TS-extractor determinisztikus parserrel; indexCli
+  upsert-then-sweep) + 3 új MCP tool (`search_graph`, `get_dependencies`,
+  `impact_analysis`) — island KIZÁRÓLAG a hívó identitásából. Driver:
+  `neo4j-driver-lite@6.2.0` exact-pin. Terv: `docs/plans/GRAPHRAG-PILOT.md`.
+- **Élő eredmény:** 497 node + 1632 él indexelve (nexus-dev docs + KS src);
+  élő smoke: függőség-lekérdezés, hub-node depth-5 → `truncated`, nemlétező
+  id → `found:false`, idegen sziget → üres.
+- **Review-1 (87 agent, 6 lencse):** 22 megerősített lelet → 11 fix + 16 teszt.
+  **Review-2 (9 agent: fix-verifikátorok mutációs teszttel + regresszió-vadászok
+  + teljességi kritikus):** 4 P1 (üres korpusz kisöpörte a szigetet; nemlétező
+  id = „semmi nem törik el"; a mélységkorlát némán csonkított; jelszó a logba
+  kerülhetett) + 5 P2 javítva, +14 teszt.
+- **Mellékjavítások:** js-yaml friss high CVE → 5.2.2 (audit:prod 0 lelet);
+  a Windows-oldali lock-frissítés @emnapi-csapdája ISMÉT ütött → lock Linuxon
+  regenerálva + mindkét platformon `npm ci`-validálva.
+- **Kapuk:** typecheck 0; 1618 PASS + 1 skipped (96 fájl); lint-ratchet 786;
+  size/links/secret-scan/audit:prod mind zöld; élő újravalidálás a VPS Neo4j-n.
+- **Nyitva (G3, külön döntés):** `search_hybrid` (vector+graph router),
+  C#-extractor, inkrementális update. Az élő index `island=spaceos` alatt van
+  (lokális .env default) — a sziget-véglegesítés a runner/identity oldallal
+  együtt jön.
 
 **ATTACHED TERMINAL SINK D — IMPLEMENTÁLVA, REVIEW-2 PASS, LOKÁLIS COMMIT**
 (2026-07-23 éjjel, @root): a C mainre került (`6551d0e`, CI zöld), majd a

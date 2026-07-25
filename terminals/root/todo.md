@@ -5,9 +5,17 @@
 > Program/mérföldkő/epic szintű GÉPI állapot: `docs/projects/EPICS.yaml` — task-zárás
 > után oda is szinkronizálni kell (eljárás a fájl fejlécében; TASK-QC-001).
 
-**Utolsó frissítés:** 2026-07-23
+**Utolsó frissítés:** 2026-07-25
 
 ## Aktív
+
+- [ ] **GraphRAG G3 — külön döntés (Gáboré):** `search_hybrid` (vector+graph
+  router), C#-extractor (JoineryTech), inkrementális update (git hook/watcher).
+  Terv: `docs/plans/GRAPHRAG-PILOT.md`. Előfeltétel-jellegű nyitottak:
+  (a) az élő index `island=spaceos` alatt van (lokális .env default) — a
+  sziget-véglegesítés a runner/identitás-oldallal együtt; (b) hiányzó hívó-
+  identitásnál a store az alapértelmezett szigetre esik vissza (repo-szintű
+  fail-closed identitás-kapu → a credential/RBAC-kapu hatóköre).
 
 - [ ] **AttachedSink D lezárása (`TASK-ISL-007`):** implementáció + review-2
   PASS lokálisan (2026-07-23 éjjel). HÁTRA VAN: (a) a lokális C+D stack pushja
@@ -126,6 +134,15 @@
 - [ ] README.md frissítése (elavult: Voyage/Gemini setup, lint-szekció, portok)
 
 ## Kész
+
+- [x] 2026-07-25 — **GraphRAG pilot G1+G2 KÉSZ:** Neo4j 5.26 Community a VPS-en
+  (loopback+tailnet bind, healthcheck, tranzakció-timeout), `src/knowledgeGraph/`
+  (island-kulcsos, fail-closed graphStore; determinisztikus docs/TS-extractor;
+  upsert-then-sweep indexelő CLI), 3 read-only MCP tool (`search_graph`,
+  `get_dependencies`, `impact_analysis`) — island kizárólag a hívó
+  identitásából. Élő gráf: 497 node / 1632 él. Két adverzáriális review-kör
+  (87 + 9 agent), 15 kód-fix, +30 teszt; minden kapu zöld.
+  Terv és leletlista: `docs/plans/GRAPHRAG-PILOT.md`.
 
 - [x] 2026-07-21 — **Codex-elsődleges Linux autonóm rollout checkpoint:**
   providerfüggetlen runner, terminal-scoped auth, backlog-karantén,

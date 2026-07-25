@@ -4,7 +4,7 @@
  * PINS the public MCP surface served by src/mcp.ts after the legacy TOOLS
  * array + switch fallback removal:
  *
- *  - the exact tool-name set (121 tools) and its uniqueness,
+ *  - the exact tool-name set (124 tools) and its uniqueness,
  *  - the schema shape of every definition + exact schemas of critical tools,
  *  - initialize / tools/list / tools/call JSON-RPC behavior,
  *  - permission filtering (tools/list and tools/call, island/terminal aware),
@@ -79,6 +79,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_codegen_status',
   'get_context_files_status',
   'get_context_saturation',
+  'get_dependencies',
   'get_epic_progress',
   'get_focus_queue',
   'get_goal',
@@ -101,6 +102,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_workflow',
   'get_workflow_details',
   'get_workflow_state',
+  'impact_analysis',
   'increment_turn_count',
   'list_all_skills',
   'list_blocked',
@@ -131,6 +133,7 @@ const EXPECTED_TOOL_NAMES = [
   'save_tiered_memory',
   'scaffold_from_pattern',
   'scaffold_react_hook',
+  'search_graph',
   'search_knowledge',
   'send_message',
   'set_active_task',
@@ -206,7 +209,7 @@ describe('MCP tool-set contract (registry definitions)', () => {
   it('serves exactly the pinned tool-name set — no additions, removals, or renames', () => {
     const names = toolRegistry.getDefinitions().map((d) => d.name).sort();
     expect(names).toEqual(EXPECTED_TOOL_NAMES);
-    expect(names.length).toBe(121);
+    expect(names.length).toBe(124);
   });
 
   it('every tool name is unique', () => {

@@ -1,0 +1,60 @@
+# Nexus knowledge-graph store — Neo4j Community (GraphRAG pilot).
+#
+# Futtatás a VPS-en: cd /opt/nexus-dev/docker/neo4j && docker compose up -d
+# A NEO4J_PASSWORD a mellette lévő .env fájlból jön (chmod 600, NEM kerül gitre;
+# minta: .env.example).
+#
+# BIZTONSÁG: a portok kifejezetten a loopbackre ÉS a tailnet-címre kötnek —
+# SOHA nem 0.0.0.0-ra (lásd a Chroma-incidens tanulságát: a Docker-publish
+# megkerüli az ufw-t). A 100.82.133.87 a VPS tailnet-címe. A 7474 (HTTP/Browser)
+# CSAK loopback: a kód kizárólag bolt-on beszél, a Browserhez SSH-tunnel kell
+# (ssh -L 7474:127.0.0.1:7474 …).
+#
+# JELSZÓ-ROTÁCIÓ: a NEO4J_AUTH KIZÁRÓLAG az első, üres /data volume-mal induló
+# starton hat — a .env utólagos átírása némán hatástalan. Csere menete:
+#   docker exec -it nexus_neo4j cypher-shell -u neo4j -p <régi> \
+#     "ALTER CURRENT USER SET PASSWORD FROM '<régi>' TO '<új>'"
+#   majd .env + a KS-oldali GRAPH_PASSWORD frissítése és `docker compose up -d`.
+#
+# MEMÓRIA: a VPS RAM-ja feszes (15 GB, sűrűn lakott gép) — a heap/pagecache
+# szándékosan kicsi, a konténer hard limitje 1.5 GB. Pilot-méretre (ezres
+# nagyságrendű node) bőven elég; ennél nagyságrendekkel nagyobb gráfnál a
+# heapet és a törlő/sweep-lépés kötegelését is újra kell gondolni.
+services:
+  neo4j:
+    image: neo4j:5.26-community # LTS
+    container_name: nexus_neo4j
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+      - "100.82.133.87:7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD kötelező (.env)}
+      - NEO4J_server_memory_heap_initial__size=512m
+      - NEO4J_server_memory_heap_max__size=512m
+      - NEO4J_server_memory_pagecache_size=256m
+      # Szerveroldali backstop: a kliens is küld timeoutot
+      # (GRAPH_QUERY_TIMEOUT_MS), de egy mély traversal itt is elhasal, ne
+      # tudja megfogni a megosztott instance-t az összes sziget elől.
+      - NEO4J_db_transaction_timeout=20s
+    volumes:
+      - neo4j_data:/data
+    mem_limit: 1500m
+    healthcheck:
+      # `docker compose up -d` a bolt-elfogadás ELŐTT visszatér; enélkül egy
+      # rögtön induló graph:index GraphUnavailableError-ral halna el.
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    logging:
+      # Szűkös lemez: a Neo4j debug.log bőbeszédű, a docker-log ne hízzon el.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  neo4j_data:

@@ -10,6 +10,7 @@
 export * from './base-tool';
 
 import { registerKnowledgeTools } from './knowledge.tools';
+import { registerGraphTools } from './graph.tools';
 import { registerTaskMessageBoxTools } from './task-message-box.tools';
 import { registerWorkflowTools } from './workflow.tools';
 import { registerIdentityTools } from './identity.tools';
@@ -31,6 +32,7 @@ export function registerAllTools(): void {
   registered = true;
 
   registerKnowledgeTools();
+  registerGraphTools();
   registerTaskMessageBoxTools();
   registerWorkflowTools();
   registerIdentityTools();

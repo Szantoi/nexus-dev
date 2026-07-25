@@ -501,3 +501,63 @@ A C mainre került (`6551d0e`, CI zöld), utána a D-szelet elkészült:
   README Ismert korlátok alatt.
 
 — @root
+
+## 2026-07-24 @root → @codex — ÚJ PROGRAM: GraphRAG pilot (G1+G2 kész, review folyamatban)
+
+Gábor új kiemelt iránya: **GraphRAG** általános Nexus-képességként. Scope-claim:
+a mai napon @root viszi (Codex inaktív); a working tree-ben az alábbi új felület
+él — kollízió-kerüléshez vedd figyelembe:
+
+- **Új modul: `src/knowledgeGraph/`** (NEM azonos a `src/graph/` EPICS-DAG-gal!)
+  — Neo4j-backed graph store (island-kulcs `<island>|<id>`, minden query
+  island-szűrt, fail-closed ha nincs `GRAPH_URL`/`GRAPH_PASSWORD`), docs- és
+  TS-extractor (determinisztikus, LLM nélkül), `npm run graph:index` CLI.
+- **3 új MCP tool:** `search_graph`, `get_dependencies`, `impact_analysis`
+  (island a ToolContextből, sosem args). Az MCP kontrakt-teszt pinned listája
+  121→124-re bővült.
+- **Új dep:** `neo4j-driver-lite@6.2.0` exact-pin. FIGYELEM: a lock Linuxon
+  regenerálva (@emnapi-csapda újra ütött) — ha depet nyúlsz, a lock-regenerálás
+  Linuxon (VPS `/tmp/lockcheck` recept) kötelező.
+- **Infra:** Neo4j 5.26 Community a VPS-en (`docker/neo4j/`), loopback+tailnet
+  bind, jelszó a VPS-oldali `.env`-ben (chmod 600, NINCS gitben).
+- **Env:** `GRAPH_URL`/`GRAPH_USER`/`GRAPH_DATABASE` (env.ts) +
+  `secrets.graphPassword`; `.env.example` frissítve.
+- Terv: `docs/plans/GRAPHRAG-PILOT.md` (Gábor döntései: általános képesség,
+  Neo4j). Élő gráf: 494 node / 1591 él (nexus-dev docs + KS src).
+- Mellékfix: js-yaml high CVE → 5.2.2 (audit:prod 0).
+
+Push a review-kör PASS után jön (@root kapu, szokásos rend).
+
+— @root
+
+---
+
+## 2026-07-25 — @root → @codex: GraphRAG G1+G2 LEZÁRVA, mainen
+
+A fenti scope-foglalás lezárva, a szelet mainre került (két adverzáriális
+review-kör után: 87 agent / 6 lencse, majd 9 agentes fix-verifikáció).
+Amire figyelj, ha a knowledge-service-hez nyúlsz:
+
+- **`src/knowledgeGraph/` a graph-réteg** (a `src/graph/` továbbra is az EPICS
+  workflow-DAG — ne keverd). Publikus felület: `knowledgeGraph/index.ts`.
+- **Az indexelés upsert-then-sweep**: a sweep `< $syncTag` szerint töröl, ezért
+  a `syncTag` MONOTON (ISO időbélyeg) kell legyen. Üres tag → hiba.
+  A CLI elutasítja az indexelést, ha a forrásfák hiányoznak vagy 0 entitás jött
+  ki (különben egy elgépelt `--repo-root` kisöpörné a szigetet).
+- **A traversal `OPTIONAL MATCH`-es**: a `found` flag különbözteti meg a
+  nemlétező entitást a „nincs függősége" esettől — a toolok explicit hibát
+  adnak nemlétező `entity_id`-ra. A válasz visszaadja az effektív `depth`-et,
+  és `truncated`-et jelez a 200-as sapkánál (az `affected_count` ilyenkor alsó
+  korlát).
+- **Env-bővülés:** `GRAPH_QUERY_TIMEOUT_MS` (default 15000). A `GRAPH_URL` már
+  csak `bolt://`/`neo4j://` lehet, és TILOS bele jelszót ágyazni (logba kerül).
+- **MCP kontraktus 124 tool**, a három graph-tool a `tool-permissions.yaml`-ban
+  explicit `"all"` (read-only, island-scoped).
+- **Infra:** a compose-on a 7474 már CSAK loopback (tailneten nincs Browser),
+  healthcheck + log-rotáció + `db.transaction.timeout` bekerült; jelszó-rotációs
+  recept a compose fejlécében. Élő gráf: 497 node / 1632 él.
+
+G3 (search_hybrid, C#-extractor, inkrementális update) NINCS elkezdve — Gábor
+külön döntése. Ha hozzányúlnál, előtte jelezz.
+
+— @root

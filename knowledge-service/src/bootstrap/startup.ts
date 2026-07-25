@@ -75,6 +75,7 @@ import { startAllBots, stopAllBots, getBotsStatus } from '../telegram/multiBotMa
 import { subscribeToAllCheckpoints, getCheckpointSubscriptionStatus } from '../pipeline/subscriptionManager';
 import { attachEpicNotifications } from '../pipeline/epicNotifications';
 import { logger } from '../core/logger';
+import { closeGraphStore } from '../knowledgeGraph/graphStore';
 import { env } from '../config/env';
 import { logPathConfig } from '../config/paths';
 
@@ -409,6 +410,8 @@ export function createGracefulShutdown(server: Server): (signal: string) => void
     stopAllBots();
     closeMessageDb();
     closeDispatchDb();
+    // Fire-and-forget: driver close is async, but shutdown must not block on it.
+    closeGraphStore().catch(() => undefined);
 
     // Stop accepting new connections
     server.close(() => {
