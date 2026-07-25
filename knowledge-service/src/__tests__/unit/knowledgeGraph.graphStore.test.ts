@@ -309,12 +309,15 @@ describe('knowledgeGraph/graphStore', () => {
     // The island index is what keeps island-scoped queries off a full label
     // scan of every other island's nodes.
     expect(cyphers[2]).toContain('CREATE INDEX knowledge_entity_island');
-    expect(cyphers[3]).toContain('MATCH (n:KnowledgeEntity');
+    // One meta node per island — concurrent first runs would otherwise each
+    // create their own and a later read would pick one arbitrarily.
+    expect(cyphers[3]).toContain('CREATE CONSTRAINT knowledge_index_meta_island');
+    expect(cyphers[4]).toContain('MATCH (n:KnowledgeEntity');
     // A successful bootstrap is not repeated on subsequent queries.
     await searchEntities('y', { island: 'isle' });
     expect(
       executeQuery.mock.calls.filter((c) => String(c[0]).includes('CREATE '))
-    ).toHaveLength(3);
+    ).toHaveLength(4);
   });
 
   it('sends a server-side timeout with every query', async () => {
@@ -473,11 +476,13 @@ describe('knowledgeGraph/graphStore', () => {
     const { executeQuery } = fakeDriver([nodeRecord('n', {})]);
     await expect(graphStats('isle')).resolves.toEqual({ nodes: 2, relations: 3 });
     await clearIsland('isle');
-    const [cypher, params] = executeQuery.mock.calls.at(-1) as unknown as [
-      string,
-      { island: string },
-    ];
-    expect(cypher).toContain('DETACH DELETE');
-    expect(params.island).toBe('isle');
+    const clearCalls = executeQuery.mock.calls.slice(-2) as unknown as Array<
+      [string, { island: string }]
+    >;
+    expect(clearCalls[0][0]).toContain('DETACH DELETE');
+    // The index fingerprint must go with it, or the next --if-changed run
+    // would report the wiped island as up to date.
+    expect(clearCalls[1][0]).toContain('MATCH (m:KnowledgeIndexMeta');
+    for (const [, params] of clearCalls) expect(params.island).toBe('isle');
   });
 });

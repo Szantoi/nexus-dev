@@ -142,6 +142,10 @@ const SCHEMA_STATEMENTS = [
     'FOR (n:KnowledgeEntity) REQUIRE n.key IS UNIQUE',
   'CREATE INDEX knowledge_entity_island IF NOT EXISTS ' +
     'FOR (n:KnowledgeEntity) ON (n.island)',
+  // One meta node per island: two concurrent first runs would otherwise each
+  // MERGE their own, and a later read would pick one of them arbitrarily.
+  'CREATE CONSTRAINT knowledge_index_meta_island IF NOT EXISTS ' +
+    'FOR (m:KnowledgeIndexMeta) REQUIRE m.island IS UNIQUE',
 ];
 
 function queryConfig(): { database: string; transactionConfig: { timeout: number } } {
@@ -298,6 +302,9 @@ export async function sweepStale(syncTag: string, island?: string): Promise<void
 export async function clearIsland(island?: string): Promise<void> {
   const islandId = resolveIsland(island);
   await run('MATCH (n:KnowledgeEntity {island: $island}) DETACH DELETE n', { island: islandId });
+  // The index fingerprint has to go too — leaving it would make the next
+  // `--if-changed` run report the wiped island as up to date.
+  await run('MATCH (m:KnowledgeIndexMeta {island: $island}) DELETE m', { island: islandId });
 }
 
 /** Case-insensitive substring search over entity names and ids. */
@@ -487,6 +494,71 @@ export async function traverse(
     })),
     truncated: hitRecords.length > MAX_TRAVERSAL_RESULTS,
   };
+}
+
+/**
+ * Bookkeeping for one island's index run. Stored on its OWN label so the
+ * entity sweep (which only touches :KnowledgeEntity) can never delete it.
+ */
+export interface IndexMeta {
+  /** Fingerprint of the extracted corpus — equal means nothing to write. */
+  corpusHash: string;
+  /** Commit the corpus was at, when the repo root is a git checkout. */
+  commit?: string;
+  indexedAt: string;
+  nodes: number;
+  relations: number;
+}
+
+export async function readIndexMeta(island?: string): Promise<IndexMeta | null> {
+  const islandId = resolveIsland(island);
+  const { records } = await run('MATCH (m:KnowledgeIndexMeta {island: $island}) RETURN m', {
+    island: islandId,
+  });
+  const props = (records[0]?.get('m') as { properties?: Record<string, unknown> } | undefined)
+    ?.properties;
+  if (props === undefined) return null;
+  const meta: IndexMeta = {
+    corpusHash: String(props.corpusHash ?? ''),
+    indexedAt: String(props.indexedAt ?? ''),
+    nodes: Number(props.nodes ?? 0),
+    relations: Number(props.relations ?? 0),
+  };
+  if (typeof props.commit === 'string' && props.commit !== '') meta.commit = props.commit;
+  return meta;
+}
+
+/**
+ * Drop an island's index fingerprint. Called BEFORE a write pass so that a
+ * fingerprint exists only when a complete run finished: otherwise a run that
+ * died mid-write would leave the OLD fingerprint next to a graph that no
+ * longer matches it, and a later `--if-changed` run would skip over the
+ * damage while reporting "up to date".
+ */
+export async function clearIndexMeta(island?: string): Promise<void> {
+  const islandId = resolveIsland(island);
+  await run('MATCH (m:KnowledgeIndexMeta {island: $island}) DELETE m', { island: islandId });
+}
+
+export async function writeIndexMeta(meta: IndexMeta, island?: string): Promise<void> {
+  const islandId = resolveIsland(island);
+  await run(
+    'MERGE (m:KnowledgeIndexMeta {island: $island}) ' +
+      // Monotonic: two overlapping runs must not let the older one demote the
+      // newer one's fingerprint (indexedAt is an ISO timestamp, so string
+      // comparison is chronological).
+      "WITH m WHERE $indexedAt >= coalesce(m.indexedAt, '') " +
+      'SET m.corpusHash = $corpusHash, m.commit = $commit, m.indexedAt = $indexedAt, ' +
+      'm.nodes = $nodes, m.relations = $relations',
+    {
+      island: islandId,
+      corpusHash: meta.corpusHash,
+      commit: meta.commit ?? null,
+      indexedAt: meta.indexedAt,
+      nodes: neo4j.int(meta.nodes),
+      relations: neo4j.int(meta.relations),
+    }
+  );
 }
 
 /** Node/relationship counts for an island (index verification, monitoring). */

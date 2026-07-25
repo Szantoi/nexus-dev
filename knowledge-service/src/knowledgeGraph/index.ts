@@ -15,6 +15,8 @@ export {
   graphEnabled,
   graphHealth,
   graphStats,
+  type IndexMeta,
+  readIndexMeta,
   searchEntities,
   searchEntitiesByTerms,
   sweepStale,
@@ -45,4 +47,4 @@ export {
   loadCorpusConfig,
   resolveCorpus,
 } from './corpusConfig';
-export { runGraphIndex } from './indexCli';
+export { corpusFingerprint, runGraphIndex } from './indexCli';

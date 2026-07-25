@@ -148,7 +148,36 @@
     `vectorStore` visszafelé kompatibilisen újraexportálja őket.
   - Gépfüggő korpusz (pl. `/opt/joinerytech`) NEM a gitre kerülő configba megy,
     hanem `config/graph-corpus.local.yaml`-be (gitignorálva).
-- [ ] Inkrementális update (git hook / watcher)
+- [x] **Inkrementális frissítés** (2026-07-25): `npm run graph:index:auto`
+  (`--if-changed`). A kinyerés olcsó (parse-pass), az ÍRÁS a drága (tízezres
+  sorszám) — ezért a futás a kinyert korpuszból ujjlenyomatot (sha256) képez, és
+  ha az megegyezik a gráfban tárolt legutóbbival, **az egész upsert+sweep
+  kimarad**. Az ujjlenyomat a sikeres írás UTÁN íródik ki (különben egy
+  félbemaradt futás után a következő „változatlan"-nak látná a hiányos gráfot),
+  külön `:KnowledgeIndexMeta` címkén, amit a `:KnowledgeEntity`-re szűrt sweep
+  nem érint.
+  - **Élő mérés a JoineryTech-korpuszon:** teljes index 14,8 s → változatlan
+    korpusznál 3,1 s, nulla írással. Ettől lesz olcsó gyakran futtatni
+    (commit-hook, időzítő, runner) — ez volt az egész szelet célja.
+  - Watcher helyett szándékosan CLI: nincs életben tartandó folyamat, a
+    hívás bármilyen ütemezőből jöhet, és minden futás ugyanazt a
+    fail-closed ellenőrzés-sort futtatja.
+  - **Review (18 agent, 3 lencse + cáfolat-panel):** a keresett hibaosztály —
+    **hamis „naprakész"** — négy úton is előfordult, mind javítva:
+    (1) **P1**: az „ujjlenyomat legvégén" szabály csak előrefelé véd. Ha egy
+    futás írás közben halt meg (az entitás-upsert MÁR módosította a gráfot), és
+    utána a korpusz visszaáll a korábbi állapotra, a régi ujjlenyomat egyezik →
+    a következő futás átugorja a sérült gráfot. A verifikátor élő reprodukcióban
+    azt is megmutatta, hogy a sweep két lépése közti hiba után egy VALÓS él
+    veszik el — vagyis az `impact_analysis` magabiztosan mondja, hogy „semmi nem
+    függ tőle". Javítás: az ujjlenyomat az írás ELŐTT törlődik, tehát csak
+    teljesen lefutott indexelés után létezik.
+    (2) **P2**: a `clearIsland` bennhagyta a meta-node-ot → a kiürített sziget
+    „naprakész"-nek látszott (élőben reprodukálva). (3) **P2**: két átfedő futás
+    közül a régebbi felülírhatta az újabb ujjlenyomatát → monoton írás.
+    (4) **P2/P3**: hiányzó unicitás a meta-node-on; és az ujjlenyomat
+    sorrend-érzékeny volt, ezért Windows és Linux között sosem egyezett
+    (a rendezés miatt most gépfüggetlen).
 
 ## Review-történet
 

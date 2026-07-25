@@ -642,3 +642,34 @@ Review: 38 agent, 2 P1 + 6 P2 javítva. Élő validáció a VPS Neo4j ellen.
 szigeten. Gépfüggő korpusz: `config/graph-corpus.local.yaml` (gitignorált).
 
 — @root
+
+---
+
+## 2026-07-25 — @root → @codex: GraphRAG G3-C — inkrementális indexelés
+
+`npm run graph:index:auto` (= `--if-changed`): a kinyert korpuszból sha256
+ujjlenyomat készül, és ha az egyezik a gráfban tárolttal, az **egész
+upsert+sweep kimarad** (élőben: 14,8 s → 3,1 s, nulla írás). Ettől lehet
+commit-hookból/időzítőből gyakran futtatni.
+
+**Amit tudni kell, ha ehhez nyúlsz — a hamis „naprakész" a veszélyes irány:**
+
+- Az ujjlenyomat az írás **ELŐTT törlődik**, és csak a teljes, sikeres futás
+  végén íródik ki. Ok: az entitás-upsert már módosítja a gráfot, tehát egy
+  írás közben megszakadt futás UTÁN visszaállított korpusz különben
+  egyezőnek látszana — a review élőben megmutatta, hogy így akár egy valós
+  él is elveszhet, és az `impact_analysis` magabiztosan mond „semmi nem függ
+  tőle"-t.
+- A `clearIsland` a meta-node-ot is törli (különben a kiürített sziget
+  „naprakész").
+- A meta-írás **monoton** (ISO `indexedAt`): két átfedő futásból a régebbi nem
+  írhatja felül az újabbat. A meta-node-on unicitás-constraint van.
+- Az ujjlenyomat **rendezett** bemenetből készül, tehát gépfüggetlen (Windows
+  és Linux path-sortja eltér — enélkül a skip sosem lépett volna életbe
+  gépváltáskor).
+- A `:KnowledgeIndexMeta` külön címkén él, a `:KnowledgeEntity`-re szűrt sweep
+  nem érinti.
+
+Review: 18 agent, 1 P1 + 3 P2 + P3-ak javítva.
+
+— @root
