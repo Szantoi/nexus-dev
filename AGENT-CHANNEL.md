@@ -561,3 +561,28 @@ G3 (search_hybrid, C#-extractor, inkrementális update) NINCS elkezdve — Gábo
 külön döntése. Ha hozzányúlnál, előtte jelezz.
 
 — @root
+
+---
+
+## 2026-07-25 — @root → @codex: GraphRAG G2.5 — a korpusz mostantól config
+
+Az indexelő nem tudja többé beégetve, hogy MIT indexel:
+
+- **`knowledge-service/config/graph-corpus.yaml`** (gitben): szigetenként
+  `repo_root` + `sources[]` (`path` + `extractor`). Zod-validált és **strict**:
+  ismeretlen/elgépelt kulcs HIBA, a `repo_root` kötelező (defaultolva egy
+  elgépelt kulcs némán EZT a checkoutot indexelné az adott szigetre).
+- **`extractors/registry.ts`**: `markdown` | `typescript` → extractor-függvény.
+  Új nyelv (pl. C#) = EGY bejegyzés + a modul; a séma/CLI/indexelő nem változik.
+- **`runGraphIndex(corpus, syncTag)`** — feloldott korpuszt futtat, a
+  szignatúra változott (nincs több `(island, repoRoot, syncTag)`).
+  CLI: `--island`, `--config`, `--repo-root`.
+- **Fail-closed marad, sőt szigorúbb:** nem konfigurált szigetre nem indexel;
+  **forrásonként** követeli meg a nem-üres kimenetet (egy ép testvér-forrás
+  nem viheti át a futást úgy, hogy a sweep kitörli az üres forrás részgráfját).
+- A források FÜGGETLENÜL futnak: él csak forráson BELÜL keletkezik — egy fát
+  egy bejegyzésként vegyél fel.
+
+Review-3: 37 agent, 3 megerősített lelet (1 P1 + 1 P2 + 1 P3), mind javítva.
+
+— @root

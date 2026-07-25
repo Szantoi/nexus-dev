@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Driver } from 'neo4j-driver-lite';
 import { runGraphIndex, runIndexCli } from '../../knowledgeGraph/indexCli';
+import { type ResolvedCorpus, resolveCorpus } from '../../knowledgeGraph/corpusConfig';
 import {
   GraphUnavailableError,
   resetGraphStoreForTests,
@@ -22,6 +23,34 @@ function write(relPath: string, content: string): void {
   const abs = path.join(repoRoot, relPath);
   fs.mkdirSync(path.dirname(abs), { recursive: true });
   fs.writeFileSync(abs, content, 'utf8');
+}
+
+/**
+ * Write a corpus config for a fixture tree and resolve it — the indexer only
+ * ever runs a RESOLVED corpus, so the tests go through the same door.
+ */
+function writeCorpusConfig(root: string, repoRootValue: string = root): string {
+  const configPath = path.join(root, 'graph-corpus.yaml');
+  fs.writeFileSync(
+    configPath,
+    [
+      'islands:',
+      '  isle:',
+      `    repo_root: ${JSON.stringify(repoRootValue)}`,
+      '    sources:',
+      '      - path: docs',
+      '        extractor: markdown',
+      '      - path: knowledge-service/src',
+      '        extractor: typescript',
+      '',
+    ].join('\n'),
+    'utf8'
+  );
+  return configPath;
+}
+
+function corpusFor(root: string): ResolvedCorpus {
+  return resolveCorpus('isle', { configPath: writeCorpusConfig(root) });
 }
 
 beforeEach(() => {
@@ -57,7 +86,7 @@ describe('runGraphIndex', () => {
       close: vi.fn(async () => undefined),
     } as unknown as Driver);
 
-    const stats = await runGraphIndex('isle', repoRoot, 'tag-42');
+    const stats = await runGraphIndex(corpusFor(repoRoot), 'tag-42');
     expect(stats).toEqual({ nodes: 5, relations: 4 });
 
     const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
@@ -90,7 +119,7 @@ describe('runGraphIndex', () => {
       close: vi.fn(async () => undefined),
     } as unknown as Driver);
 
-    await expect(runGraphIndex('isle', repoRoot, 'tag-43')).rejects.toBeInstanceOf(
+    await expect(runGraphIndex(corpusFor(repoRoot), 'tag-43')).rejects.toBeInstanceOf(
       GraphUnavailableError
     );
     const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
@@ -108,11 +137,41 @@ describe('runGraphIndex', () => {
     const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'kg-empty-'));
     try {
       // A mistyped --repo-root must not look like "the repo lost its content".
-      await expect(runGraphIndex('isle', empty, 'tag-44')).rejects.toThrow(/source root not found/);
+      await expect(runGraphIndex(corpusFor(empty), 'tag-44')).rejects.toThrow(/source root not found/);
       expect(executeQuery).not.toHaveBeenCalled(); // the island is never touched
     } finally {
       fs.rmSync(empty, { recursive: true, force: true });
     }
+  });
+
+  it('refuses to sweep when ONE source of several extracts to nothing', async () => {
+    const executeQuery = vi.fn(async () => ({ records: [], summary: { counters: {} } }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    // docs/ stays but loses its only .md, while the TS tree is healthy: a
+    // populated sibling must not license sweeping the empty source's subgraph.
+    fs.rmSync(path.join(repoRoot, 'docs', 'knowledge', 'note.md'));
+    await expect(runGraphIndex(corpusFor(repoRoot), 'tag-46')).rejects.toThrow(/refusing to sweep/);
+    expect(executeQuery.mock.calls.some((c) => String(c[0]).includes('DELETE'))).toBe(false);
+  });
+
+  it('refuses to sweep a corpus with no sources at all', async () => {
+    const executeQuery = vi.fn(async () => ({ records: [], summary: { counters: {} } }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    // Unreachable through the config schema (min 1 source), reachable via API.
+    await expect(
+      runGraphIndex({ island: 'isle', repoRoot, sources: [] }, 'tag-47')
+    ).rejects.toThrow(/no sources/);
+    expect(executeQuery).not.toHaveBeenCalled();
   });
 
   it('refuses to sweep when the corpus extracts to nothing', async () => {
@@ -129,7 +188,7 @@ describe('runGraphIndex', () => {
     fs.mkdirSync(path.join(bare, 'docs'), { recursive: true });
     fs.mkdirSync(path.join(bare, 'knowledge-service', 'src'), { recursive: true });
     try {
-      await expect(runGraphIndex('isle', bare, 'tag-45')).rejects.toThrow(/refusing to sweep/);
+      await expect(runGraphIndex(corpusFor(bare), 'tag-45')).rejects.toThrow(/refusing to sweep/);
       expect(executeQuery.mock.calls.some((c) => String(c[0]).includes('DELETE'))).toBe(false);
     } finally {
       fs.rmSync(bare, { recursive: true, force: true });
@@ -158,9 +217,22 @@ describe('runIndexCli', () => {
     return { close, executeQuery };
   }
 
+  /** The CLI resolves its corpus from the config — point it at the fixture. */
+  function cliArgs(extra: string[] = []): string[] {
+    return [
+      'node',
+      'indexCli.ts',
+      '--island',
+      'isle',
+      '--config',
+      writeCorpusConfig(repoRoot),
+      ...extra,
+    ];
+  }
+
   it('indexes the island from --island and exits 0', async () => {
     const { close, executeQuery } = fakeDriver();
-    const code = await runIndexCli(['node', 'indexCli.ts', '--island', 'isle', '--repo-root', repoRoot]);
+    const code = await runIndexCli(cliArgs());
     expect(code).toBe(0);
     expect(close).toHaveBeenCalledTimes(1);
     const params = executeQuery.mock.calls.find((c) =>
@@ -171,15 +243,50 @@ describe('runIndexCli', () => {
 
   it('exits 1 when indexing fails — and still closes the driver', async () => {
     const { close } = fakeDriver({ failUpsert: true });
-    const code = await runIndexCli(['node', 'indexCli.ts', '--island', 'isle', '--repo-root', repoRoot]);
+    const code = await runIndexCli(cliArgs());
     expect(code).toBe(1);
     expect(close).toHaveBeenCalledTimes(1);
   });
 
   it('keeps exit 0 when only the driver close fails', async () => {
     const { close } = fakeDriver({ failClose: true });
-    const code = await runIndexCli(['node', 'indexCli.ts', '--island', 'isle', '--repo-root', repoRoot]);
+    const code = await runIndexCli(cliArgs());
     expect(code).toBe(0); // close trouble must not fake an index failure
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('exits 1 when the island has no corpus configured', async () => {
+    const { executeQuery } = fakeDriver();
+    const code = await runIndexCli([
+      'node',
+      'indexCli.ts',
+      '--island',
+      'unknown-isle',
+      '--config',
+      writeCorpusConfig(repoRoot),
+    ]);
+    expect(code).toBe(1); // fail-closed: an unconfigured island is never indexed
+    expect(executeQuery).not.toHaveBeenCalled();
+  });
+
+  it('honours --repo-root over the configured repo_root', async () => {
+    const { executeQuery } = fakeDriver();
+    // repo_root '.' would point at the nexus-dev checkout; the override wins.
+    const configPath = writeCorpusConfig(repoRoot, '.');
+    const code = await runIndexCli([
+      'node',
+      'indexCli.ts',
+      '--island',
+      'isle',
+      '--config',
+      configPath,
+      '--repo-root',
+      repoRoot,
+    ]);
+    expect(code).toBe(0);
+    const params = executeQuery.mock.calls.find((c) =>
+      String(c[0]).includes('MERGE')
+    )?.[1] as { rows: Array<{ id: string }> };
+    expect(params.rows.map((row) => row.id)).toContain('docs/knowledge/note.md');
   });
 });

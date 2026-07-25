@@ -26,6 +26,9 @@
   változatlanul megy — mint a Chroma → in-memory fallback szelleme.
 - **Névütközés-kerülés**: a meglévő `src/graph/` az EPICS workflow-DAG modul.
   Az új modul: **`src/knowledgeGraph/`**.
+- **A korpusz is config**: hogy MELYIK sziget MIT indexel, az a
+  `config/graph-corpus.yaml`-ban van, nem a kódban — egy másik repó vagy egy új
+  nyelv bekötése konfigurációs lépés (lásd G2.5).
 - **Config-vezérelt**: `GRAPH_URL` / `GRAPH_USER` / `GRAPH_DATABASE` /
   `GRAPH_QUERY_TIMEOUT_MS` env-ből, zod-validáltan (default: kikapcsolva, ha
   nincs URL; a séma csak `bolt://`/`neo4j://`-t fogad, és tiltja a URL-be
@@ -74,6 +77,35 @@
 - [x] Valós indexelés lefutott (2026-07-25): 497 node, 1632 él; smoke-query
   igazolva élesben (vectorStore.ts függői, hub-node depth-5 → truncated,
   nemlétező id → `found: false`, idegen sziget → üres)
+
+### G2.5 — Config-vezérelt korpusz (a projekt-függetlenség utolsó darabja)
+- [x] `config/graph-corpus.yaml`: szigetenként `repo_root` + `sources[]`
+  (`path` + `extractor`), zod-validálva. A `repo_root` lehet abszolút (másik
+  repó!) vagy a nexus-dev gyökeréhez relatív; a `path` nem szökhet ki a
+  `repo_root` alól (az entitás-id-k repo-relatívak, kiszökve ütköznének).
+- [x] `extractors/registry.ts`: az `extractor` név → függvény leképezés egy
+  helyen (`markdown`, `typescript`). Új nyelv = EGY bejegyzés + a modul; a
+  config-séma, a CLI és az indexelő változatlan.
+- [x] `indexCli` már csak egy **feloldott korpuszt** futtat
+  (`runGraphIndex(corpus, syncTag)`), forrásonkénti lét-ellenőrzéssel.
+  Fail-closed: nem konfigurált szigetre nem indexel (nem üres indexelés!).
+  Kapcsolók: `--island`, `--config`, `--repo-root` (override).
+- [x] Élő bizonyítás: két sziget párhuzamosan, két különböző korpusszal,
+  KIZÁRÓLAG configból (`spaceos`: docs + KS-src = 500 node; `smoke-isle`:
+  csak `docs/plans` = 5 node) — a második sziget nem látta az első kódját,
+  a takarítás után az első érintetlen maradt.
+- **Review-3 (2026-07-25, 4 lencse + leletenkénti cáfolat, 37 agent):** a 20
+  nyers leletből 3 maradt állva (a többit a cáfolat-panel elvetette).
+  Javítva: (1) **P1 — a saját refaktorom nyitotta vissza a review-2-es
+  adatvesztést**: a „0 entitás" kapu összesített volt, így egy ép testvér-
+  forrás átvitte a futást, és a sweep kitörölte az üres forrás teljes
+  részgráfját, exit 0-val → a kapu most **forrásonkénti**, plusz a nem-könyvtár
+  forrás is hangosan bukik; (2) **P2 — üres `--repo-root`** a process CWD-jére
+  bázisolta volna az egész indexet → explicit hiba; (3) **P3 — `constructor`
+  nevű sziget** az `Object.prototype`-ról jött vissza a fail-closed ág helyett
+  → `hasOwnProperty`-ellenőrzés. Elvetve (dokumentált döntés vagy hatástalan):
+  szimlink-alapú lexikai containment, átfedő források, `path: "."`,
+  extractor-heurisztikák „repo-specifikussága", YAML-hibaüzenet burkolása.
 
 ### G3 — Hybrid + kiterjesztés (külön döntések)
 - [ ] `search_hybrid` (vector + graph kombinált) — a query-router logika

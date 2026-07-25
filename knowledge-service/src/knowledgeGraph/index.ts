@@ -22,3 +22,18 @@ export {
 } from './graphStore';
 export { extractDocs } from './extractors/docsExtractor';
 export { extractTypeScript } from './extractors/tsExtractor';
+export {
+  EXTRACTORS,
+  EXTRACTOR_NAMES,
+  type ExtractorFn,
+  type ExtractorName,
+} from './extractors/registry';
+export {
+  type CorpusSource,
+  type GraphCorpusConfig,
+  type ResolvedCorpus,
+  getCorpusConfigPath,
+  loadCorpusConfig,
+  resolveCorpus,
+} from './corpusConfig';
+export { runGraphIndex } from './indexCli';

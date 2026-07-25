@@ -18,12 +18,9 @@
 import neo4j, { type Driver } from 'neo4j-driver-lite';
 import { env, secrets } from '../config/env';
 import { logger } from '../core/logger';
-import { DEFAULT_ISLAND, UnknownIslandError } from '../vectorStore';
+import { DEFAULT_ISLAND, ISLAND_ID_RX, UnknownIslandError } from '../vectorStore';
 import type { EntityType, GraphEntity, GraphRelation, TraversalHit } from './types';
 import { ENTITY_TYPES, RELATION_TYPES, type RelationType } from './types';
-
-/** Same strict shape as vectorStore island ids ('|' is intentionally illegal). */
-const ISLAND_ID_RX = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 /** Traversal depth is interpolated into the Cypher pattern — clamp hard. */
 export const MAX_TRAVERSAL_DEPTH = 5;

@@ -30,7 +30,15 @@
 - **Mellékjavítások:** js-yaml friss high CVE → 5.2.2 (audit:prod 0 lelet);
   a Windows-oldali lock-frissítés @emnapi-csapdája ISMÉT ütött → lock Linuxon
   regenerálva + mindkét platformon `npm ci`-validálva.
-- **Kapuk:** typecheck 0; 1618 PASS + 1 skipped (96 fájl); lint-ratchet 786;
+- **G2.5 (2026-07-25): a korpusz is config** — `config/graph-corpus.yaml`
+  (szigetenként `repo_root` + `sources[]`, zod-validált, strict) +
+  `extractors/registry.ts`; az indexelő már csak feloldott korpuszt futtat.
+  Egy másik repó vagy új nyelv bekötése konfigurációs lépés. Élő bizonyítás:
+  két sziget, két korpusz, kizárólag configból, szivárgás nélkül.
+  **Review-3 (37 agent, 4 lencse + cáfolat-panel):** 3 megerősített lelet —
+  köztük egy P1: a refaktor visszanyitotta a review-2-es adatvesztést
+  (összesített 0-entitás kapu) → forrásonkénti kapu.
+- **Kapuk:** typecheck 0; 1635 PASS + 1 skipped (97 fájl); lint-ratchet 786;
   size/links/secret-scan/audit:prod mind zöld; élő újravalidálás a VPS Neo4j-n.
 - **Nyitva (G3, külön döntés):** `search_hybrid` (vector+graph router),
   C#-extractor, inkrementális update. Az élő index `island=spaceos` alatt van

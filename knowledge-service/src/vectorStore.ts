@@ -36,8 +36,10 @@ interface MemoryDoc {
 export const DEFAULT_ISLAND = ISLAND_ID;
 
 // Island ids become ChromaDB collection names and may originate from caller
-// identity — keep them to a strict, boring shape.
-const ISLAND_ID_RX = /^[a-z0-9][a-z0-9-]{0,63}$/;
+// identity — keep them to a strict, boring shape. Exported because the
+// knowledge graph builds composite keys (`<island>|<id>`) from the same ids
+// and must not drift from this shape (notably: '|' stays illegal).
+export const ISLAND_ID_RX = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export class UnknownIslandError extends Error {
   constructor(island: string) {

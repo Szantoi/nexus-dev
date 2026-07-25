@@ -11,11 +11,13 @@
 
 - [ ] **GraphRAG G3 — külön döntés (Gáboré):** `search_hybrid` (vector+graph
   router), C#-extractor (JoineryTech), inkrementális update (git hook/watcher).
-  Terv: `docs/plans/GRAPHRAG-PILOT.md`. Előfeltétel-jellegű nyitottak:
-  (a) az élő index `island=spaceos` alatt van (lokális .env default) — a
-  sziget-véglegesítés a runner/identitás-oldallal együtt; (b) hiányzó hívó-
-  identitásnál a store az alapértelmezett szigetre esik vissza (repo-szintű
-  fail-closed identitás-kapu → a credential/RBAC-kapu hatóköre).
+  Terv: `docs/plans/GRAPHRAG-PILOT.md`. A korpusz-konfigurálhatóság (G2.5)
+  KÉSZ, tehát egy másik repó bekötéséhez már csak az adott nyelv extractora
+  kell. Nyitottak: (a) az élő index `island=spaceos` alatt van (lokális .env
+  default) — a sziget-véglegesítés a runner/identitás-oldallal együtt;
+  (b) hiányzó hívó-identitásnál a store az alapértelmezett szigetre esik
+  vissza (repo-szintű fail-closed identitás-kapu → a credential/RBAC-kapu
+  hatóköre).
 
 - [ ] **AttachedSink D lezárása (`TASK-ISL-007`):** implementáció + review-2
   PASS lokálisan (2026-07-23 éjjel). HÁTRA VAN: (a) a lokális C+D stack pushja

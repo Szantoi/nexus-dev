@@ -9,19 +9,22 @@
  * (matching graphStore's fail-closed philosophy: a partial graph silently
  * produces wrong impact answers).
  *
+ * WHAT each island indexes comes from config/graph-corpus.yaml — this module
+ * only executes a resolved corpus, so aiming the graph at another repo or
+ * language is configuration, not code.
+ *
  * Requires GRAPH_URL + GRAPH_PASSWORD (see docker/neo4j/ and
  * docs/plans/GRAPHRAG-PILOT.md).
  *
- *   npm run graph:index                  # island = ISLAND_ID (env)
- *   npm run graph:index -- --island foo  # explicit island
+ *   npm run graph:index                       # island = ISLAND_ID (env)
+ *   npm run graph:index -- --island foo       # explicit island
+ *   npm run graph:index -- --config path.yaml # alternative corpus config
  */
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import { logger } from '../core/logger';
 import { DEFAULT_ISLAND } from '../vectorStore';
-import { extractDocs } from './extractors/docsExtractor';
-import { extractTypeScript } from './extractors/tsExtractor';
+import { type ResolvedCorpus, resolveCorpus } from './corpusConfig';
 import {
   closeGraphStore,
   graphStats,
@@ -31,8 +34,6 @@ import {
 } from './graphStore';
 import type { GraphEntity, GraphRelation } from './types';
 
-// src/knowledgeGraph → knowledge-service → repo root (same shape from dist/).
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
 const UPSERT_BATCH = 500;
 
 function argValue(flag: string, argv: string[]): string | undefined {
@@ -55,40 +56,52 @@ async function upsertInBatches(
 }
 
 export async function runGraphIndex(
-  island: string,
-  repoRoot: string,
+  corpus: ResolvedCorpus,
   syncTag: string
 ): Promise<{ nodes: number; relations: number }> {
-  logger.info(`🕸️  [GraphIndex] island=${island} repoRoot=${repoRoot} tag=${syncTag}`);
+  const { island, repoRoot } = corpus;
+  logger.info(
+    `🕸️  [GraphIndex] island=${island} repoRoot=${repoRoot} ` +
+      `sources=${corpus.sources.length} tag=${syncTag}`
+  );
 
-  const docsRoot = path.join(repoRoot, 'docs');
-  const srcRoot = path.join(repoRoot, 'knowledge-service', 'src');
-  // Fail BEFORE touching the graph: with a mistyped --repo-root both extractors
-  // would return an empty corpus and the sweep would wipe the island — an
-  // operator typo must not look like "the repo has no content any more".
-  for (const root of [docsRoot, srcRoot]) {
-    if (!fs.existsSync(root)) {
-      throw new Error(`[GraphIndex] source root not found: ${root} (check --repo-root)`);
-    }
+  const entities: GraphEntity[] = [];
+  const relations: GraphRelation[] = [];
+
+  // A sourceless corpus can only arrive through the API (the config schema
+  // requires at least one) — and it would go straight to the sweep.
+  if (corpus.sources.length === 0) {
+    throw new Error(`[GraphIndex] corpus has no sources — refusing to sweep island ${island}`);
   }
 
-  const docs = extractDocs(docsRoot, repoRoot);
-  logger.info(
-    `🕸️  [GraphIndex] docs: ${docs.entities.length} entities, ${docs.relations.length} relations`
-  );
-
-  const code = extractTypeScript(srcRoot, repoRoot);
-  logger.info(
-    `🕸️  [GraphIndex] code: ${code.entities.length} entities, ${code.relations.length} relations`
-  );
-
-  const entities = [...docs.entities, ...code.entities];
-  const relations = [...docs.relations, ...code.relations];
-  // Second guard, for the corpus the walker could not read: fsWalk degrades a
-  // permission/IO error into "no files", and an empty upsert pass followed by
-  // a sweep deletes the island silently (exit 0).
-  if (entities.length === 0) {
-    throw new Error('[GraphIndex] extracted 0 entities — refusing to sweep the island empty');
+  for (const source of corpus.sources) {
+    // Fail BEFORE touching the graph: a mistyped path would extract nothing
+    // and the sweep would wipe the island — an operator typo must not look
+    // like "this repo has no content any more".
+    if (fs.statSync(source.root, { throwIfNoEntry: false })?.isDirectory() !== true) {
+      throw new Error(
+        `[GraphIndex] source root not found (or not a directory): ${source.root} ` +
+          `(island ${island}, extractor ${source.extractor}) — check the corpus config`
+      );
+    }
+    const result = source.extract(source.root, repoRoot);
+    logger.info(
+      `🕸️  [GraphIndex] ${source.extractor}: ${result.entities.length} entities, ` +
+        `${result.relations.length} relations (${source.root})`
+    );
+    // Guard PER SOURCE, not on the total: the sweep deletes everything in the
+    // island that this run did not stamp, so a populated sibling source would
+    // carry a silently-empty one past an aggregate check — and take its whole
+    // subgraph with it, at exit 0. fsWalk degrades an unreadable tree into
+    // "no files", so 0 entities is indistinguishable from "this tree is gone".
+    if (result.entities.length === 0) {
+      throw new Error(
+        `[GraphIndex] source ${source.root} (extractor ${source.extractor}) extracted ` +
+          `0 entities — refusing to sweep island ${island} on a partial corpus`
+      );
+    }
+    entities.push(...result.entities);
+    relations.push(...result.relations);
   }
 
   await upsertInBatches(entities, relations, island, syncTag);
@@ -108,10 +121,13 @@ export async function runGraphIndex(
  */
 export async function runIndexCli(argv: string[]): Promise<number> {
   const island = argValue('--island', argv) ?? DEFAULT_ISLAND;
-  const repoRoot = argValue('--repo-root', argv) ?? REPO_ROOT;
   let exitCode = 0;
   try {
-    await runGraphIndex(island, repoRoot, new Date().toISOString());
+    const corpus = resolveCorpus(island, {
+      configPath: argValue('--config', argv),
+      repoRootOverride: argValue('--repo-root', argv),
+    });
+    await runGraphIndex(corpus, new Date().toISOString());
   } catch (err) {
     logger.error(`❌ [GraphIndex] failed: ${err instanceof Error ? err.message : String(err)}`);
     exitCode = 1;

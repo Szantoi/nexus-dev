@@ -1,0 +1,33 @@
+# Tudásgráf-korpusz: melyik sziget MIT indexel a gráfba.
+#
+# A gráf-réteg sziget- és projekt-agnosztikus (a store, az MCP toolok és az
+# extractorok semmit nem tudnak konkrét repóról) — egy másik kódbázis vagy egy
+# új nyelv bekötése ITT történik, nem a kódban.
+#
+#   repo_root           : abszolút út, VAGY a nexus-dev repó gyökeréhez képest
+#                         relatív. Minden entitás-id ehhez képest relatív.
+#   sources[].path      : repo_root-hoz képest relatív (nem szökhet ki alóla)
+#   sources[].extractor : a regiszterben létező extractor neve
+#                         (src/knowledgeGraph/extractors/registry.ts):
+#                         markdown | typescript
+#
+# Fail-closed: ha egy szigethez nincs bejegyzés, az indexelés HIBA — nem üres
+# indexelés (az kisöpörné az adott sziget gráfját). Ugyanígy hiba, ha egy
+# forrás 0 entitást ad (elgépelt/üres/olvashatatlan fa): a testvér-források
+# épsége nem söpörheti ki a hiányzó forrás részgráfját.
+#
+# A források FÜGGETLENÜL futnak: él csak egy forráson BELÜL keletkezik. Ha egy
+# fát két bejegyzésre bontasz, a köztük futó importok nem lesznek élek —
+# egy fát egy bejegyzésként vegyél fel.
+#
+# Indexelés:  npm run graph:index -- --island <sziget>
+islands:
+  # A Nexus önmagát indexeli: a saját dokumentációja + a knowledge-service
+  # forrása. Ez az alapértelmezett sziget (ISLAND_ID env, default: spaceos).
+  spaceos:
+    repo_root: "."
+    sources:
+      - path: docs
+        extractor: markdown
+      - path: knowledge-service/src
+        extractor: typescript
