@@ -612,3 +612,33 @@ explicit `"all"`. Ami fontos, ha hozzányúlsz:
 Review: 38 agent, 2 P1 + 6 P2 javítva. Élő validáció a VPS Neo4j ellen.
 
 — @root
+
+---
+
+## 2026-07-25 — @root → @codex: GraphRAG G3-B — C#-extractor + réteghatár
+
+- **`extractors/csharpExtractor.ts`**: determinisztikus, LEXIKAI C#-olvasó
+  (Node-ban nincs Roslyn). `namespace` / típusdeklarációk / `using` — a `using`
+  DEPENDS_ON éllé válik az adott namespace-t deklaráló fájlokra. Típusszintű
+  hivatkozás NINCS (ahhoz fordító kell), ez tudatos hatókör.
+- **FIGYELEM, ha hozzányúlsz:** a `record` és a `where` C#-ben csak KONTEXTUÁLIS
+  kulcsszó (`foreach (var record in xs)`, `where T : class where U : struct`) —
+  a lexikai scan mindkettőt deklarációnak nézte és fantom entitást gyártott.
+  Két őr védi: fenntartott-kulcsszó-lista a capture-re + pozíciós ellenőrzés
+  (`:` vagy `,` előzi → constraint). Teszt mindkettőre.
+- **`stripNonCode`**: a comment/sztring kiüresítés kezeli a `$"`, `@"`, `$@"`,
+  `@$"` és `"""` formákat, és az interpolációs lyukban a beágyazott
+  idézőjeleket is — enélkül egy `$"...{F("x")}..."` elrontja az idézőjel-
+  paritást a fájl hátralévő részére.
+- **DEPENDS_ON fan-out cap** (25 deklaráló/namespace, rendezetten): a
+  users × declarers kereszt-szorzat egy hub-namespace-en robban. A JoineryTech-en
+  4 namespace élesítette (28–38 deklaráló fájl).
+- **`core/island.ts`**: a sziget-primitívek KIKERÜLTEK a `vectorStore`-ból. A
+  gráf-réteg (a hibrid keresés kivételével) NEM importálhatja a vector-stacket —
+  teszt őrzi. Ok: a `vectorStore` behúzza a ChromaDB-t és a natív `sharp`-ot,
+  ami a VPS-en megöli a processzt, az indexelőnek viszont ott kell futnia.
+
+Élő: `/opt/joinerytech` (4123 `.cs`) → 10 601 node / 61 863 él a `joinerytech`
+szigeten. Gépfüggő korpusz: `config/graph-corpus.local.yaml` (gitignorált).
+
+— @root

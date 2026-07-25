@@ -9,7 +9,13 @@
 #   sources[].path      : repo_root-hoz képest relatív (nem szökhet ki alóla)
 #   sources[].extractor : a regiszterben létező extractor neve
 #                         (src/knowledgeGraph/extractors/registry.ts):
-#                         markdown | typescript
+#                         markdown | typescript | csharp
+#
+# GÉPFÜGGŐ SZIGETEK: ez a fájl gitre kerül, ezért CSAK olyan sziget való ide,
+# aminek a forrásfája minden checkoutban létezik (a teszt ezt ellenőrzi is).
+# Egy adott gépen élő korpuszt (pl. a VPS-en a /opt/joinerytech) tegyél
+# `config/graph-corpus.local.yaml`-be (gitignorálva), és futtasd így:
+#   npm run graph:index -- --island <sziget> --config config/graph-corpus.local.yaml
 #
 # Fail-closed: ha egy szigethez nincs bejegyzés, az indexelés HIBA — nem üres
 # indexelés (az kisöpörné az adott sziget gráfját). Ugyanígy hiba, ha egy

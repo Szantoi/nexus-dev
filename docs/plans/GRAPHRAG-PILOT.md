@@ -130,8 +130,24 @@
     jelöletlen `related`-csonkolás, `score` névütközés a
     `search_knowledge` hasonlósági pontszámával (→ `fusion_score`), a
     linkelési hiba „a gráf halott"-nak látszott, és több nem-védett teszt-rés.
-- [ ] C#-extractor (JoineryTech) — a korpusz-bekötés már config, csak a nyelvi
-  parser hiányzik (registry-bejegyzés + modul)
+- [x] **C#-extractor** (2026-07-25): determinisztikus, **lexikai** pass (Node-ban
+  nincs Roslyn) — a comment/string-tartalom kiüresítése után három strukturális
+  tényt olvas: milyen namespace-t deklarál a fájl, milyen típusokat, és mit
+  `using`-ol. A `using` DEPENDS_ON éllé válik azokra a fájlokra, amelyek az adott
+  namespace-t deklarálják (modulszintű függés — típusszintű referenciákhoz valódi
+  fordító kellene). Az entitás-id útvonal-alapú marad (`<fájl>#<Típus>`).
+  Ismert, dokumentált korlátok: beágyazott típusok top-levelként jelennek meg,
+  és a típus a legutóbb nyitott namespace-hez rendelődik.
+  - **Élő bizonyítás:** a `/opt/joinerytech` (4123 `.cs` fájl) beindexelve a
+    VPS-en: **10 352 C#-entitás + 63 097 él**, plusz 258 doc — 10 608 node /
+    63 388 él a `joinerytech` szigeten. A keresés valós osztályokat ad vissza.
+  - **Mellékhatásként szükséges volt** a sziget-primitívek kiemelése
+    (`core/island.ts`): a gráf-réteg eddig három konstansért behúzta az egész
+    vektor-stacket (ChromaDB + embedding + natív `sharp`), ami a VPS-en meg is
+    ölte az importot — így az indexelő ott futtathatatlan lett volna. A
+    `vectorStore` visszafelé kompatibilisen újraexportálja őket.
+  - Gépfüggő korpusz (pl. `/opt/joinerytech`) NEM a gitre kerülő configba megy,
+    hanem `config/graph-corpus.local.yaml`-be (gitignorálva).
 - [ ] Inkrementális update (git hook / watcher)
 
 ## Review-történet

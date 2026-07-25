@@ -2,6 +2,8 @@
  * graphStore unit tests — fake driver via the test seam; no live Neo4j.
  */
 
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Driver } from 'neo4j-driver-lite';
 import {
@@ -22,7 +24,7 @@ import {
   upsertRelations,
 } from '../../knowledgeGraph/graphStore';
 import { env } from '../../config/env';
-import { UnknownIslandError } from '../../vectorStore';
+import { UnknownIslandError } from '../../core/island';
 
 interface FakeRecord {
   get(field: string): unknown;
@@ -67,6 +69,30 @@ function withGraphUnconfigured(): () => void {
     if (savedPassword !== undefined) process.env.GRAPH_PASSWORD = savedPassword;
   };
 }
+
+describe('knowledgeGraph module boundary', () => {
+  it('never imports the vector stack outside hybrid search', () => {
+    // Importing vectorStore drags in the ChromaDB client and the embedding
+    // stack (native `sharp`) — which on the VPS crashes the process outright,
+    // and the graph indexer has to run THERE. Only hybridSearch, whose whole
+    // job is fusing the two stores, may reach across.
+    const moduleDir = path.join(__dirname, '..', '..', 'knowledgeGraph');
+    const files: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith('.ts')) files.push(full);
+      }
+    };
+    walk(moduleDir);
+    expect(files.length).toBeGreaterThan(5);
+    for (const file of files) {
+      if (path.basename(file) === 'hybridSearch.ts' || path.basename(file) === 'index.ts') continue;
+      expect(fs.readFileSync(file, 'utf8'), file).not.toContain("from '../vectorStore'");
+    }
+  });
+});
 
 describe('knowledgeGraph/graphStore', () => {
   it('throws GraphDisabledError when GRAPH_URL/GRAPH_PASSWORD are not configured', async () => {

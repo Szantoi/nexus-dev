@@ -18,7 +18,7 @@
 import neo4j, { type Driver } from 'neo4j-driver-lite';
 import { env, secrets } from '../config/env';
 import { logger } from '../core/logger';
-import { DEFAULT_ISLAND, ISLAND_ID_RX, UnknownIslandError } from '../vectorStore';
+import { DEFAULT_ISLAND, ISLAND_ID_RX, UnknownIslandError } from '../core/island';
 import type { EntityType, GraphEntity, GraphRelation, TraversalHit } from './types';
 import { ENTITY_TYPES, RELATION_TYPES, type RelationType } from './types';
 

@@ -17,7 +17,8 @@
  * breaks", which is why it fails closed instead.)
  */
 
-import { ISLAND_ID_RX, UnknownIslandError, searchKnowledge, usingChroma } from '../vectorStore';
+import { ISLAND_ID_RX, UnknownIslandError } from '../core/island';
+import { searchKnowledge, usingChroma } from '../vectorStore';
 import { findEntitiesByPathSuffix, searchEntitiesByTerms, traverse } from './graphStore';
 import type { EntityType, GraphEntity } from './types';
 

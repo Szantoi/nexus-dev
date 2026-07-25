@@ -15,7 +15,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
-import { ISLAND_ID_RX } from '../vectorStore';
+import { ISLAND_ID_RX } from '../core/island';
 import {
   EXTRACTOR_NAMES,
   EXTRACTORS,

@@ -8,6 +8,7 @@
  * the indexer need no change.
  */
 
+import { extractCSharp } from './csharpExtractor';
 import { extractDocs, type ExtractionResult } from './docsExtractor';
 import { extractTypeScript } from './tsExtractor';
 
@@ -16,6 +17,7 @@ export type ExtractorFn = (sourceRoot: string, repoRoot: string) => ExtractionRe
 export const EXTRACTORS = {
   markdown: extractDocs,
   typescript: extractTypeScript,
+  csharp: extractCSharp,
 } as const satisfies Record<string, ExtractorFn>;
 
 export type ExtractorName = keyof typeof EXTRACTORS;

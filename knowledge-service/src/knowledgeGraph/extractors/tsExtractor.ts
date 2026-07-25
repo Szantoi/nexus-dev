@@ -12,6 +12,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
 import type { GraphEntity, GraphRelation } from '../types';
+import { buildDirChain } from './dirChain';
 import type { ExtractionResult } from './docsExtractor';
 import { repoRelativeId, walkFiles } from './fsWalk';
 
@@ -71,7 +72,6 @@ export function extractTypeScript(srcRoot: string, repoRoot: string): Extraction
   const entities: GraphEntity[] = [];
   const relations: GraphRelation[] = [];
   const fileIds = new Set<string>();
-  const dirIds = new Set<string>();
   const seenEdges = new Set<string>();
 
   const addRelation = (from: string, to: string, type: 'DEPENDS_ON' | 'PART_OF'): void => {
@@ -79,22 +79,6 @@ export function extractTypeScript(srcRoot: string, repoRoot: string): Extraction
     if (seenEdges.has(dedupKey)) return;
     seenEdges.add(dedupKey);
     relations.push({ from, to, type });
-  };
-
-  /** Directory entity + PART_OF chain up to (and including) the source root. */
-  const ensureDirChain = (dirId: string): void => {
-    let current = dirId;
-    while (true) {
-      if (!dirIds.has(current)) {
-        dirIds.add(current);
-        entities.push({ id: current, type: 'Module', name: path.posix.basename(current) });
-      }
-      if (current === srcRootId) break;
-      const parent = path.posix.dirname(current);
-      if (parent === current || !parent.startsWith(srcRootId)) break;
-      addRelation(current, parent, 'PART_OF');
-      current = parent;
-    }
   };
 
   for (const abs of files) {
@@ -107,10 +91,6 @@ export function extractTypeScript(srcRoot: string, repoRoot: string): Extraction
       filePath: id,
       language: 'typescript',
     });
-
-    const dirId = path.posix.dirname(id);
-    ensureDirChain(dirId);
-    addRelation(id, dirId, 'PART_OF');
   }
 
   for (const abs of files) {
@@ -132,6 +112,12 @@ export function extractTypeScript(srcRoot: string, repoRoot: string): Extraction
       }
     }
   }
+
+  // Directory containment is language-independent — shared with every other
+  // extractor so the graph's shape does not depend on who produced it.
+  const chain = buildDirChain([...fileIds], srcRootId);
+  entities.push(...chain.entities);
+  relations.push(...chain.relations);
 
   return { entities, relations };
 }

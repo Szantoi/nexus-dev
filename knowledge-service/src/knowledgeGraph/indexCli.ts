@@ -23,7 +23,7 @@
 
 import * as fs from 'node:fs';
 import { logger } from '../core/logger';
-import { DEFAULT_ISLAND } from '../vectorStore';
+import { DEFAULT_ISLAND } from '../core/island';
 import { type ResolvedCorpus, resolveCorpus } from './corpusConfig';
 import {
   closeGraphStore,

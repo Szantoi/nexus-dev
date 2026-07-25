@@ -12,6 +12,8 @@ logs/
 # Auth tokens (secrets) — commit only the .example templates
 **/config/agents.yaml
 **/config/runner.yaml
+# Host-specific graph corpora (e.g. a checkout that only exists on one machine)
+**/config/*.local.yaml
 *.db
 *.db-shm
 *.db-wal

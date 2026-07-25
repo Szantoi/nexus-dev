@@ -7,10 +7,26 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'coverage']);
+/** Build output and VCS noise, skipped for every language. */
+export const DEFAULT_SKIP_DIRS: ReadonlySet<string> = new Set([
+  'node_modules',
+  '.git',
+  'dist',
+  'coverage',
+]);
 
-/** Collect files under `root` whose name passes `accept`, sorted, absolute. */
-export function walkFiles(root: string, accept: (fileName: string) => boolean): string[] {
+/**
+ * Collect files under `root` whose name passes `accept`, sorted, absolute.
+ * `skipDirs` is per-language on purpose: 'bin' is build output in C# but a
+ * real source directory in plenty of JS repos, so the default set stays small
+ * and each extractor adds what its toolchain generates.
+ */
+export function walkFiles(
+  root: string,
+  accept: (fileName: string) => boolean,
+  options: { skipDirs?: ReadonlySet<string> } = {}
+): string[] {
+  const skipDirs = options.skipDirs ?? DEFAULT_SKIP_DIRS;
   const out: string[] = [];
   const stack = [root];
   while (stack.length > 0) {
@@ -24,7 +40,7 @@ export function walkFiles(root: string, accept: (fileName: string) => boolean): 
     }
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) stack.push(path.join(dir, entry.name));
+        if (!skipDirs.has(entry.name)) stack.push(path.join(dir, entry.name));
       } else if (entry.isFile() && accept(entry.name)) {
         out.push(path.join(dir, entry.name));
       }

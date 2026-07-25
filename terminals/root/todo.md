@@ -9,6 +9,16 @@
 
 ## Aktív
 
+- [ ] **A VPS dev-checkoutban a `sharp` nem tölthető be** (2026-07-25):
+  `node -e "require('sharp')"` elhasal (`sharp.cjs:115`, a saját hibakezelője
+  crashel egy `code` nélküli hibán, így elrejti a valódi okot) — a platform-
+  csomagok (`@img/sharp-linux-x64`) telepítve VANNAK, tehát nem a lock hiánya.
+  Következmény: `/opt/nexus-dev` alatt a `vectorStore` importja megöli a
+  processzt (a `@xenova/transformers` húzza be). PROD **nem érintett** (fut,
+  szerveroldali embeddinggel), a CI (ubuntu) zöld. Lehetséges tiszta javítás:
+  a Xenova-embedding lusta importja, hogy egy nem használt backend ne dönthesse
+  el a modulbetöltést.
+
 - [ ] **BIZTONSÁG — a VPS Chroma publish-e `0.0.0.0:8001`** (2026-07-25-én
   észlelve a GraphRAG-munka közben): `spaceos_chromadb` konténer minden
   interfészre publikál, azaz a védelmet ma NEM a bind adja, hanem egy külső

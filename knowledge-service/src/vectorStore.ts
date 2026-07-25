@@ -15,7 +15,8 @@
 import { ChromaClient, Collection } from 'chromadb';
 import { embedDocuments, embedQuery, embeddingBackend } from './embeddings';
 import { XenovaEmbeddingFunction } from './xenovaEmbedding';
-import { ISLAND_ID, COLLECTION_NAME } from './config/paths';
+import { COLLECTION_NAME } from './config/paths';
+import { DEFAULT_ISLAND, resolveIslandId } from './core/island';
 import { env } from './config/env';
 import { logger } from './core/logger';
 
@@ -32,21 +33,11 @@ interface MemoryDoc {
   embedding: number[];
 }
 
-/** Island used when a caller does not specify one. */
-export const DEFAULT_ISLAND = ISLAND_ID;
-
-// Island ids become ChromaDB collection names and may originate from caller
-// identity — keep them to a strict, boring shape. Exported because the
-// knowledge graph builds composite keys (`<island>|<id>`) from the same ids
-// and must not drift from this shape (notably: '|' stays illegal).
-export const ISLAND_ID_RX = /^[a-z0-9][a-z0-9-]{0,63}$/;
-
-export class UnknownIslandError extends Error {
-  constructor(island: string) {
-    super(`Invalid island id: ${island}`);
-    this.name = 'UnknownIslandError';
-  }
-}
+// Island identity lives in core/island.ts so that other stores can use it
+// without importing this module (and with it the whole Chroma/embedding
+// stack). Re-exported here because callers have always imported it from the
+// vector store.
+export { DEFAULT_ISLAND, ISLAND_ID_RX, UnknownIslandError } from './core/island';
 
 /**
  * Collection name for an island. The default island honors an explicit
@@ -57,11 +48,7 @@ export function collectionNameForIsland(island: string): string {
   return island === DEFAULT_ISLAND ? COLLECTION_NAME : `${island}-knowledge`;
 }
 
-function resolveIsland(island?: string): string {
-  const id = island ?? DEFAULT_ISLAND;
-  if (!ISLAND_ID_RX.test(id)) throw new UnknownIslandError(id);
-  return id;
-}
+const resolveIsland = resolveIslandId;
 
 let client: ChromaClient | null = null;
 let embeddingFunction: XenovaEmbeddingFunction | null = null;
