@@ -187,7 +187,8 @@ function cosineSim(a: number[], b: number[]): number {
 export async function searchKnowledge(
   query: string,
   topK = 5,
-  island?: string
+  island?: string,
+  domain?: string
 ): Promise<SearchResult[]> {
   const islandId = resolveIsland(island);
   const qEmbedding = await embedQuery(query);
@@ -201,6 +202,9 @@ export async function searchKnowledge(
     const queryParams: any = {
       nResults: Math.min(topK, count),
     };
+    if (domain) {
+      queryParams.where = { domain: { $eq: domain } };
+    }
     if (qEmbedding !== undefined) {
       queryParams.queryEmbeddings = [qEmbedding];
     } else {
@@ -224,7 +228,9 @@ export async function searchKnowledge(
   }
 
   // Memory fallback (per island)
-  const memoryDocs = memoryDocsFor(islandId);
+  const memoryDocs = memoryDocsFor(islandId).filter(
+    (doc) => !domain || doc.metadata.domain === domain
+  );
   if (qEmbedding === undefined) {
     // Keyword-matching search fallback
     const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 1);

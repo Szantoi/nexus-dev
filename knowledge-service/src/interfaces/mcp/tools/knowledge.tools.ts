@@ -27,6 +27,10 @@ export function registerKnowledgeTools(): void {
             type: 'number',
             description: 'Maximum number of results (default: 5, max: 20)',
           },
+          domain: {
+            type: 'string',
+            description: 'Optional domain filter (e.g., "architecture", "code", "devops")',
+          },
         },
         required: ['query'],
       },
@@ -34,11 +38,14 @@ export function registerKnowledgeTools(): void {
     async (args, context) => {
       const query = String(args.query || '');
       const limit = Math.min(Number(args.limit) || 5, 20);
+      const domain = args.domain ? String(args.domain) : undefined;
       // Island comes from the caller's identity (server-side config), never
       // from args — an agent cannot read another island's knowledge.
       const island = context?.island;
-      const results = await searchKnowledge(query, limit, island);
-      return success({ query, limit, island, count: results.length, results });
+      const results = domain
+        ? await searchKnowledge(query, limit, island, domain)
+        : await searchKnowledge(query, limit, island);
+      return success({ query, limit, domain, island, count: results.length, results });
     }
   );
 }

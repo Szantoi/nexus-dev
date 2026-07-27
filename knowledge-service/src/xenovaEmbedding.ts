@@ -4,9 +4,11 @@
  *
  * Model: all-MiniLM-L6-v2 (384 dimensions, same as ChromaDB default)
  * Performance: ~100-200ms per batch locally on VPS CPU
+ *
+ * Lazy dynamic import prevents loading @xenova/transformers (and any sharp/onnx
+ * native module checks) at top-level module load time.
  */
 
-import { pipeline } from '@xenova/transformers';
 import { logger } from './core/logger';
 
 let extractorPromise: Promise<any> | null = null;
@@ -14,6 +16,7 @@ let extractorPromise: Promise<any> | null = null;
 async function getExtractor(): Promise<any> {
   if (!extractorPromise) {
     logger.info('[XenovaEmbedding] Loading all-MiniLM-L6-v2 model...');
+    const { pipeline } = await import('@xenova/transformers');
     extractorPromise = pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
   }
   return extractorPromise;

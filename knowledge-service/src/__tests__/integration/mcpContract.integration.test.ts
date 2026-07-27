@@ -241,6 +241,7 @@ describe('MCP tool-set contract (registry definitions)', () => {
       properties: {
         query: { type: 'string', description: 'The search query (semantic search)' },
         limit: { type: 'number', description: 'Maximum number of results (default: 5, max: 20)' },
+        domain: { type: 'string', description: 'Optional domain filter (e.g., "architecture", "code", "devops")' },
       },
       required: ['query'],
     });
