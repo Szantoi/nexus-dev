@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { pipelineEvents, type PipelineEvent, type PipelineEventType } from './eventBus';
-import { broadcastToTerminal } from '../routes/subscriptionRoutes';
+import { broadcastToTerminal } from '../interfaces/http/routes/subscriptionRoutes';
 import { sendNotification } from '../telegram/telegramService';
 import { createTask } from '../mailbox';
 import { logger } from '../core/logger';

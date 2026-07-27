@@ -27,6 +27,8 @@ import {
   channelsRoutes,
   epicRouterRoutes,
   costMonitoringRoutes,
+  escalationRoutes,
+  subscriptionRoutes,
 } from '../interfaces/http/routes';
 
 // Import existing routers (not yet migrated)
@@ -34,8 +36,6 @@ import mcpRouter, { authorizeMailboxRest } from '../mcp';
 import { authenticateRest, apiAuthGate, requireRootForMutations } from '../auth/tokenAuth';
 import graphRoutes from '../api/graphRoutes';
 import { createPlanningRouter } from '../api/planningRoutes';
-import subscriptionRoutes from '../routes/subscriptionRoutes';
-import escalationRoutes from '../routes/escalationRoutes';
 import { createFederationApiRouter } from '../interfaces/http/routes/federation.routes';
 import { createEvalApiRouter } from '../interfaces/http/routes/eval.routes';
 import {

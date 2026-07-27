@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { ValidationError, RuntimeStateError } from '../core/errors';
 
 const SAFE_TERMINAL = /^[a-z][a-z0-9-]*$/;
 const SAFE_MESSAGE_ID = /^[A-Za-z0-9._-]+$/;
@@ -61,9 +62,9 @@ const nativeDirectoryDurability: AttachedMarkerDirectoryDurability = {
 };
 
 function validateIdentity(terminal: string, messageId?: string): void {
-  if (!SAFE_TERMINAL.test(terminal)) throw new Error(`unsafe terminal marker key: ${terminal}`);
+  if (!SAFE_TERMINAL.test(terminal)) throw new ValidationError(`unsafe terminal marker key: ${terminal}`, { terminal: 'invalid format' });
   if (messageId !== undefined && !SAFE_MESSAGE_ID.test(messageId)) {
-    throw new Error(`unsafe message marker key: ${messageId}`);
+    throw new ValidationError(`unsafe message marker key: ${messageId}`, { messageId: 'invalid format' });
   }
 }
 
@@ -88,7 +89,7 @@ function decodeMarker(raw: string, expectedTerminal: string): AttachedTaskMarker
       (!Number.isInteger(parsed.receiptSequence) || parsed.receiptSequence < 1)) ||
     (parsed.phase === 'completed') !== (parsed.receiptSequence !== undefined)
   ) {
-    throw new Error(`invalid attached task marker for terminal: ${expectedTerminal}`);
+    throw new RuntimeStateError(`invalid attached task marker for terminal: ${expectedTerminal}`, expectedTerminal);
   }
   return parsed as AttachedTaskMarker;
 }
@@ -110,10 +111,11 @@ export class FileAttachedTaskMarkerStore implements AttachedTaskMarkerStore {
     try {
       return decodeMarker(fs.readFileSync(markerPath, 'utf8'), terminal);
     } catch (error) {
-      throw new Error(
+      throw new RuntimeStateError(
         `cannot load attached task marker (${markerPath}): ${
           error instanceof Error ? error.message : String(error)
         }`,
+        terminal,
       );
     }
   }
@@ -127,26 +129,26 @@ export class FileAttachedTaskMarkerStore implements AttachedTaskMarkerStore {
       previous &&
       (previous.messageId !== marker.messageId || previous.generation !== marker.generation)
     ) {
-      throw new Error(`attached task marker already owned by ${previous.messageId}`);
+      throw new RuntimeStateError(`attached task marker already owned by ${previous.messageId}`, marker.terminal);
     }
     if (
       previous &&
       (previous.pid !== marker.pid || previous.startedAt !== marker.startedAt)
     ) {
-      throw new Error('attached task marker immutable identity changed');
+      throw new RuntimeStateError('attached task marker immutable identity changed', marker.terminal);
     }
     const phaseOrder = { accepted: 0, written: 1, completed: 2 } as const;
     if (previous && phaseOrder[marker.phase] < phaseOrder[previous.phase]) {
-      throw new Error(`attached task marker phase regression: ${previous.phase} -> ${marker.phase}`);
+      throw new RuntimeStateError(`attached task marker phase regression: ${previous.phase} -> ${marker.phase}`, marker.terminal);
     }
     if (previous && Date.parse(marker.updatedAt) < Date.parse(previous.updatedAt)) {
-      throw new Error('attached task marker timestamp regression');
+      throw new RuntimeStateError('attached task marker timestamp regression', marker.terminal);
     }
     if (
       previous?.receiptSequence !== undefined &&
       marker.receiptSequence !== previous.receiptSequence
     ) {
-      throw new Error('attached task marker receipt mutation');
+      throw new RuntimeStateError('attached task marker receipt mutation', marker.terminal);
     }
     const markerPath = this.markerPath(marker.terminal);
     const directory = path.dirname(markerPath);
@@ -199,7 +201,7 @@ export class FileAttachedTaskMarkerStore implements AttachedTaskMarkerStore {
   private assertDeterminate(terminal: string): void {
     const reason = this.indeterminateTerminals.get(terminal);
     if (reason !== undefined) {
-      throw new Error(`attached task marker durability is indeterminate for ${terminal}: ${reason}`);
+      throw new RuntimeStateError(`attached task marker durability is indeterminate for ${terminal}: ${reason}`, terminal);
     }
   }
 
@@ -228,8 +230,9 @@ export class FileAttachedTaskMarkerStore implements AttachedTaskMarkerStore {
         terminal,
         `${operation} directory flush failed (${directory}): ${detail}`,
       );
-      throw new Error(
+      throw new RuntimeStateError(
         `cannot durably ${operation} attached task marker (${directory}): ${detail}`,
+        terminal,
       );
     }
   }

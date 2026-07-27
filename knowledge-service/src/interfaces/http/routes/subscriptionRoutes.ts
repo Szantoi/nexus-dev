@@ -8,8 +8,8 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { emitOutboxEvent } from '../pipeline/eventBus';
-import { logger } from '../core/logger';
+import { emitOutboxEvent } from '../../../pipeline/eventBus';
+import { logger } from '../../../core/logger';
 
 const router = Router();
 
@@ -66,7 +66,7 @@ router.get('/events', (req: Request, res: Response) => {
   // Deferred to avoid circular dependency
   setTimeout(() => {
     try {
-      const { subscriptionManager } = require('../pipeline/subscriptionManager');
+      const { subscriptionManager } = require('../../../pipeline/subscriptionManager');
       const subscriptions = subscriptionManager.getSubscriptions(terminal);
 
       res.write(`data: ${JSON.stringify({

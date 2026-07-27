@@ -36,6 +36,7 @@ import {
   type CompletionReceiptSource,
   type RunnerCompletionReceipt,
 } from './completionReceiptStore';
+import { ValidationError, InvalidStateError } from '../core/errors';
 
 // ─── Database Setup ─────────────────────────────────────────────────────────
 
@@ -552,13 +553,13 @@ function commitTaskCompletion(
     const ctx = getTerminalContext(terminal);
     if (receiptContext) {
       if (!receiptContext.islandId) {
-        throw new Error('Completion receipt island scope must be non-empty');
+        throw new ValidationError('Completion receipt island scope must be non-empty', { islandId: 'must be non-empty' });
       }
       if (!ctx || ctx.current_task_id !== messageId) {
-        throw new Error(`Task ${messageId} is not claimed by terminal ${terminal}`);
+        throw new InvalidStateError(`Task ${messageId} is not claimed by terminal ${terminal}`);
       }
       if (!ctx.current_island_id || ctx.current_island_id !== receiptContext.islandId) {
-        throw new Error(
+        throw new InvalidStateError(
           `Completion scope mismatch for ${terminal}/${messageId}: claimed island does not match caller`,
         );
       }

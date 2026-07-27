@@ -38,6 +38,10 @@ export class NotFoundError extends DomainError {
 export class TerminalNotFoundError extends NotFoundError {
   constructor(terminal: string) {
     super('Terminal', terminal);
+    // Preserve the established terminal-facing error contract. Several MCP and
+    // context APIs surface this error directly, so the generic NotFoundError
+    // wording would be a breaking change for their callers.
+    this.message = `Unknown terminal: ${terminal}`;
   }
 }
 
@@ -141,6 +145,52 @@ export class EmbeddingServiceError extends ExternalServiceError {
 export class LLMServiceError extends ExternalServiceError {
   constructor(message: string) {
     super('LLMService', message);
+  }
+}
+
+// ─── Configuration Errors ─────────────────────────────────────────────────────
+
+export class ConfigurationError extends DomainError {
+  readonly code = 'CONFIGURATION_ERROR';
+  readonly statusCode = 500;
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+// ─── API / External Call Errors ───────────────────────────────────────────────
+
+export class ApiCallError extends ExternalServiceError {
+  readonly httpStatus: number;
+
+  constructor(service: string, httpStatus: number, body: string) {
+    super(service, `HTTP ${httpStatus}: ${body}`);
+    this.httpStatus = httpStatus;
+  }
+}
+
+// ─── Graph Corpus Errors ──────────────────────────────────────────────────────
+
+export class GraphCorpusError extends DomainError {
+  readonly code = 'GRAPH_CORPUS_ERROR';
+  readonly statusCode = 400;
+
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+// ─── Runtime State Errors ─────────────────────────────────────────────────────
+
+export class RuntimeStateError extends DomainError {
+  readonly code = 'RUNTIME_STATE_ERROR';
+  readonly statusCode = 409;
+  readonly terminal?: string;
+
+  constructor(message: string, terminal?: string) {
+    super(message);
+    this.terminal = terminal;
   }
 }
 

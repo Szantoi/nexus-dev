@@ -10,7 +10,7 @@
  * - Semantic matches via vectors (understands meaning)
  */
 
-import { hybridSearch as memoryHybridSearch, SearchResult as MemorySearchResult, Memory } from './memoryStore';
+import { hybridSearch as memoryHybridSearch, SearchResult as MemorySearchResult, Memory } from './ftsMemoryStore';
 import { log as pipelineLog } from './common';
 import { COLLECTION_NAME } from '../config/paths';
 import { CHROMA_EFFECTIVE_URL, secrets } from '../config/env';

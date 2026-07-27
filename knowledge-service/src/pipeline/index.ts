@@ -5,11 +5,7 @@
 export * from './common';
 
 // Session watchers
-export * from './watchPriority';
-export * from './watchDone';
-export * from './watchStuck';
-export * from './watchIdle';
-export * from './watchInbox';
+export * from './watchers';
 
 // Review and post-processing
 export * from './reviewer';
@@ -39,7 +35,7 @@ export * from './autoRestart';
 export * from './heartbeat';
 export * from './processLock';
 export * from './pendingRetries';
-export * from './memoryStore';
+export * from './ftsMemoryStore';
 export * from './hybridSearch';
 export * from './skillFactory';
 export * from './missionControl';

@@ -13,7 +13,7 @@ import {
   type TieredMemory,
   type MemoryTier,
   saveTieredMemory,
-} from './pipeline/memoryStore';
+} from './pipeline/ftsMemoryStore';
 import { log as pipelineLog } from './pipeline/common';
 import {
   loadDomainKnowledge,

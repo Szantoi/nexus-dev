@@ -19,7 +19,7 @@ router.get('/tiered', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing "terminal" parameter' });
     }
 
-    const { queryByTier } = await import('../../../pipeline/memoryStore');
+    const { queryByTier } = await import('../../../pipeline/ftsMemoryStore');
     const tiers = tiersParam.split(',').map(t => t.trim()) as Array<'hot' | 'warm' | 'cold' | 'shared'>;
     const memories = queryByTier(terminal, tiers, limit);
 
@@ -55,7 +55,7 @@ router.post('/save', async (req: Request, res: Response) => {
       });
     }
 
-    const { saveTieredMemory } = await import('../../../pipeline/memoryStore');
+    const { saveTieredMemory } = await import('../../../pipeline/ftsMemoryStore');
     const memory = await saveTieredMemory({
       tier,
       type,
@@ -94,7 +94,7 @@ router.post('/:id/promote', async (req: Request, res: Response) => {
       });
     }
 
-    const { promoteMemory } = await import('../../../pipeline/memoryStore');
+    const { promoteMemory } = await import('../../../pipeline/ftsMemoryStore');
     await promoteMemory(memoryId, newTier, reason);
 
     res.json({

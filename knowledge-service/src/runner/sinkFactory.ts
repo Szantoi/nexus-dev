@@ -20,6 +20,7 @@ import { NodePtyHost, type PtyHost } from './ptyHost';
 import type { RunnerConfig, TerminalRunnerConfig } from './runnerConfig';
 import type { TerminalSink } from './terminalSink';
 import { TerminalSinkRouter } from './terminalSinkRouter';
+import { ConfigurationError, ValidationError, RuntimeStateError } from '../core/errors';
 
 export type TerminalMode = TerminalRunnerConfig['mode'];
 
@@ -55,14 +56,14 @@ export function buildAttachedAssembly(
   if (!expectedIslandId) {
     // The config schema already enforces this; keep the assembly fail-closed
     // for direct callers too.
-    throw new Error('expected_island_id is required when attached terminals are configured');
+    throw new ConfigurationError('expected_island_id is required when attached terminals are configured');
   }
   const policies = new Map<string, AttachedTerminalPolicy>();
   for (const [terminal, entry] of attachedEntries) {
     const provider = entry.provider ?? config.default_provider;
     const providerConfig = config.providers[provider];
     if (!providerConfig) {
-      throw new Error(`provider ${provider} is not configured for attached terminal '${terminal}'`);
+      throw new ConfigurationError(`provider ${provider} is not configured for attached terminal '${terminal}'`);
     }
     policies.set(
       terminal,
@@ -106,13 +107,13 @@ export function resolveTerminalSink(
     case 'attached': {
       const attached = attachedSinks.get(terminal);
       if (!attached) {
-        throw new Error(`AttachedSink unavailable for configured terminal '${terminal}'`);
+        throw new RuntimeStateError(`AttachedSink unavailable for configured terminal '${terminal}'`, terminal);
       }
       return attached;
     }
     default: {
       const exhaustive: never = mode;
-      throw new Error(`Unknown terminal mode for '${terminal}': ${String(exhaustive)}`);
+      throw new ValidationError(`Unknown terminal mode for '${terminal}': ${String(exhaustive)}`, { mode: 'unknown' });
     }
   }
 }

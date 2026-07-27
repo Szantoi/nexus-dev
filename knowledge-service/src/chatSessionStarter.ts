@@ -21,7 +21,7 @@ import { promisify } from 'util';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as terminalsConfig from './config/terminals';
-import { MemoryStore } from './memoryStore';
+import { MemoryStore } from './terminalMemoryStore';
 import { buildContextFromConversation, IncomingTelegramMessage } from './telegram/contextBuilder';
 import { logger } from './core/logger';
 

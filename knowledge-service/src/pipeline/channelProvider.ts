@@ -18,6 +18,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { log } from './common';
 import { secrets } from '../config/env';
+import { ApiCallError, ExternalServiceError } from '../core/errors';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -175,7 +176,7 @@ const telegramProvider: ChannelProvider = {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Telegram API ${response.status}: ${body.slice(0, 200)}`);
+      throw new ApiCallError('Telegram', response.status, body.slice(0, 200));
     }
   },
 
@@ -199,7 +200,7 @@ const telegramProvider: ChannelProvider = {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Telegram sendPhoto ${response.status}: ${text.slice(0, 200)}`);
+      throw new ApiCallError('Telegram.sendPhoto', response.status, text.slice(0, 200));
     }
   },
 
@@ -244,12 +245,12 @@ const slackProvider: ChannelProvider = {
     });
 
     if (!response.ok) {
-      throw new Error(`Slack API HTTP ${response.status}`);
+      throw new ApiCallError('Slack', response.status, '');
     }
 
     const data = await response.json() as { ok: boolean; error?: string };
     if (!data.ok) {
-      throw new Error(`Slack API error: ${data.error}`);
+      throw new ExternalServiceError('Slack', `API error: ${data.error}`);
     }
   },
 
@@ -269,7 +270,7 @@ const slackProvider: ChannelProvider = {
 
     const urlData = await urlResponse.json() as { ok: boolean; upload_url?: string; file_id?: string; error?: string };
     if (!urlData.ok || !urlData.upload_url || !urlData.file_id) {
-      throw new Error(`Slack getUploadURL: ${urlData.error || 'unknown error'}`);
+      throw new ExternalServiceError('Slack.getUploadURL', urlData.error || 'unknown error');
     }
 
     // Upload file
@@ -295,7 +296,7 @@ const slackProvider: ChannelProvider = {
 
     const completeData = await completeResponse.json() as { ok: boolean; error?: string };
     if (!completeData.ok) {
-      throw new Error(`Slack completeUpload: ${completeData.error}`);
+      throw new ExternalServiceError('Slack.completeUpload', completeData.error ?? 'unknown error');
     }
   },
 
@@ -342,7 +343,7 @@ const discordProvider: ChannelProvider = {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Discord API ${response.status}: ${body.slice(0, 200)}`);
+      throw new ApiCallError('Discord', response.status, body.slice(0, 200));
     }
   },
 
@@ -374,7 +375,7 @@ const discordProvider: ChannelProvider = {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(`Discord sendPhoto ${response.status}: ${text.slice(0, 200)}`);
+      throw new ApiCallError('Discord.sendPhoto', response.status, text.slice(0, 200));
     }
   },
 

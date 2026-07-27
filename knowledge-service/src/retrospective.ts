@@ -13,7 +13,7 @@ import Database from 'better-sqlite3';
 import * as path from 'path';
 import * as os from 'node:os';
 import { promises as fs } from 'node:fs';
-import { saveTieredMemory, promoteMemory, type MemoryTier } from './pipeline/memoryStore';
+import { saveTieredMemory, promoteMemory, type MemoryTier } from './pipeline/ftsMemoryStore';
 import { log as pipelineLog } from './pipeline/common';
 
 const log = (prefix: string, message: string) => pipelineLog(`[${prefix}] ${message}`);

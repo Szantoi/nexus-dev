@@ -62,3 +62,9 @@ export { default as epicRouterRoutes } from './epic-router.routes';
 
 // Cost Monitoring routes (2026-07-04 - MSG-BACKEND-126)
 export { default as costMonitoringRoutes } from './costMonitoringRoutes';
+
+// Escalation routes (2026-07-25 refactor)
+export { default as escalationRoutes } from './escalationRoutes';
+
+// Subscription routes (2026-07-25 refactor)
+export { default as subscriptionRoutes } from './subscriptionRoutes';

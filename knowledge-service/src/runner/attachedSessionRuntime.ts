@@ -1,5 +1,6 @@
 import type { RuntimeSession } from './attachedSessionTypes';
 import type { PtySession } from './ptyHost';
+import { TerminalNotFoundError, RuntimeStateError } from '../core/errors';
 
 export function countActiveAttachedSessions(runtime: ReadonlyMap<string, RuntimeSession>): number {
   return [...runtime.values()].filter(
@@ -21,7 +22,7 @@ export function requireAttachedRuntime(
   terminal: string,
 ): RuntimeSession {
   const current = runtime.get(terminal);
-  if (!current) throw new Error(`attached terminal not configured: ${terminal}`);
+  if (!current) throw new TerminalNotFoundError(terminal);
   return current;
 }
 
@@ -36,7 +37,7 @@ export function assertAttachedPreflightState(
       current.session &&
       !['starting', 'ready', 'busy', 'draining'].includes(current.state)
     ) {
-      throw new Error(`attached terminal has a tracked PTY pending cleanup: ${terminal}`);
+      throw new RuntimeStateError(`attached terminal has a tracked PTY pending cleanup: ${terminal}`, terminal);
     }
     if (current.state === 'attention_required') {
       // A session-less stale-marker park is RECONCILABLE: the completion pump
@@ -45,13 +46,13 @@ export function assertAttachedPreflightState(
       // would brick every boot after a mid-task restart (operator file
       // surgery), exactly what durable receipts exist to avoid.
       if (current.attentionReason === 'stale_marker' && !current.session) continue;
-      throw new Error(`attached terminal requires reconciliation: ${terminal}`);
+      throw new RuntimeStateError(`attached terminal requires reconciliation: ${terminal}`, terminal);
     }
     if (current.state === 'failed' && current.messageId && !current.completedBeforeExit) {
-      throw new Error(`attached terminal has unresolved work: ${terminal}`);
+      throw new RuntimeStateError(`attached terminal has unresolved work: ${terminal}`, terminal);
     }
     if (current.restartBudgetExhausted) {
-      throw new Error(`attached terminal restart budget exhausted: ${terminal}`);
+      throw new RuntimeStateError(`attached terminal restart budget exhausted: ${terminal}`, terminal);
     }
   }
 }

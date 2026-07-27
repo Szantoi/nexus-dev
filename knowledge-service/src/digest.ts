@@ -10,7 +10,7 @@
 
 import Database from 'better-sqlite3';
 import * as path from 'path';
-import { saveTieredMemory } from './pipeline/memoryStore';
+import { saveTieredMemory } from './pipeline/ftsMemoryStore';
 import { log as pipelineLog } from './pipeline/common';
 import { MEMORY_DB } from './config/paths';
 

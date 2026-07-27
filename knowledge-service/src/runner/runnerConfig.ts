@@ -10,6 +10,7 @@ import * as path from 'node:path';
 import * as yaml from 'js-yaml';
 import { z } from 'zod';
 import { CLI_PROVIDERS } from './cliAdapter';
+import { ConfigurationError } from '../core/errors';
 
 const SAFE_MODEL = /^[A-Za-z0-9][A-Za-z0-9._:/+-]*$/;
 const SAFE_LOCAL_ARG = /^[^\0\r\n]*$/;
@@ -149,7 +150,7 @@ export function loadRunnerConfig(configPath?: string): RunnerConfig {
   const file = configPath || getRunnerConfigPath();
 
   if (!fs.existsSync(file)) {
-    throw new Error(
+    throw new ConfigurationError(
       `Runner config not found: ${file}\n` +
         'Copy config/runner.yaml.example to config/runner.yaml and fill it in.',
     );
@@ -161,18 +162,18 @@ export function loadRunnerConfig(configPath?: string): RunnerConfig {
     const issues = parsed.error.issues
       .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
       .join('\n');
-    throw new Error(`Invalid runner config (${file}):\n${issues}`);
+    throw new ConfigurationError(`Invalid runner config (${file}):\n${issues}`);
   }
 
   const token = process.env.RUNNER_TOKEN || parsed.data.token;
   if (!token) {
-    throw new Error(
+    throw new ConfigurationError(
       'Runner token missing: set RUNNER_TOKEN or the `token` field in runner.yaml.',
     );
   }
 
   if (Object.keys(parsed.data.terminals).length === 0) {
-    throw new Error('Runner config has no terminals — nothing to serve.');
+    throw new ConfigurationError('Runner config has no terminals — nothing to serve.');
   }
 
   return { ...parsed.data, token };

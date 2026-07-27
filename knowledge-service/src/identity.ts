@@ -17,6 +17,7 @@ import {
   isValidTerminal,
   TERMINALS_DIR_PATH,
 } from './terminalConfig';
+import { TerminalNotFoundError } from './core/errors';
 
 // Base paths
 import { SPACEOS_ROOT } from './config/paths';
@@ -49,7 +50,7 @@ export async function getIdentity(terminal: string): Promise<TerminalIdentity> {
   const canonical = resolveTerminal(terminal);
 
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}. Valid terminals: ${getAllTerminalNames().join(', ')}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -126,7 +127,7 @@ export async function readMemory(terminal: string): Promise<string | null> {
   const canonical = resolveTerminal(terminal);
 
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(canonical)!;
@@ -146,7 +147,7 @@ export async function writeMemory(terminal: string, content: string): Promise<{ 
   const canonical = resolveTerminal(terminal);
 
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(canonical)!;
@@ -168,7 +169,7 @@ export async function appendMemory(terminal: string, content: string): Promise<{
   const canonical = resolveTerminal(terminal);
 
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(canonical)!;

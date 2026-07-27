@@ -20,6 +20,7 @@ import {
   selectSafeLinuxSurvivorsAfterReuse,
 } from './ptyLinuxProcess';
 export { parseLinuxProcessStat } from './ptyLinuxProcess';
+import { ValidationError, RuntimeStateError } from '../core/errors';
 import {
   closePinnedWindowsConpty,
   type WindowsNativeCloser,
@@ -148,19 +149,19 @@ const DEFAULT_NATIVE_PTY: NativePtyFactory = {
 
 function validateSpawnSpec(spec: PtySpawnSpec): void {
   if (!spec.executable || spec.executable.includes('\0')) {
-    throw new Error('PTY executable must be a non-empty, NUL-free path or command');
+    throw new ValidationError('PTY executable must be a non-empty, NUL-free path or command', { executable: 'invalid' });
   }
   if (!spec.cwd || spec.cwd.includes('\0')) {
-    throw new Error('PTY cwd must be a non-empty, NUL-free path');
+    throw new ValidationError('PTY cwd must be a non-empty, NUL-free path', { cwd: 'invalid' });
   }
   if (spec.args.some((argument) => argument.includes('\0'))) {
-    throw new Error('PTY argv entries must not contain NUL bytes');
+    throw new ValidationError('PTY argv entries must not contain NUL bytes', { args: 'contains NUL byte' });
   }
   if (!Number.isInteger(spec.cols) || spec.cols < 1) {
-    throw new Error('PTY cols must be a positive integer');
+    throw new ValidationError('PTY cols must be a positive integer', { cols: 'must be >= 1' });
   }
   if (!Number.isInteger(spec.rows) || spec.rows < 1) {
-    throw new Error('PTY rows must be a positive integer');
+    throw new ValidationError('PTY rows must be a positive integer', { rows: 'must be >= 1' });
   }
 }
 
@@ -277,7 +278,7 @@ class SystemPtyProcessTreeAdapter implements PtyProcessTreeAdapter {
       }
       return;
     }
-    throw new Error('Individual Windows PTY signalling is forbidden; use signalMany');
+    throw new RuntimeStateError('Individual Windows PTY signalling is forbidden; use signalMany');
   }
 
   async signalMany(
@@ -340,7 +341,7 @@ function sameProcess(
 
 function defaultProcessTreeAdapter(): PtyProcessTreeAdapter {
   if (process.platform !== 'linux' && process.platform !== 'win32') {
-    throw new Error(`Attached PTY is unsupported on platform: ${process.platform}`);
+    throw new RuntimeStateError(`Attached PTY is unsupported on platform: ${process.platform}`);
   }
   return new SystemPtyProcessTreeAdapter(process.platform);
 }
@@ -432,7 +433,7 @@ class NodePtySession implements PtySession {
 
   resize(cols: number, rows: number): void {
     if (!Number.isInteger(cols) || cols < 1 || !Number.isInteger(rows) || rows < 1) {
-      throw new Error('PTY dimensions must be positive integers');
+      throw new ValidationError('PTY dimensions must be positive integers', { cols: 'must be >= 1', rows: 'must be >= 1' });
     }
     this.native.resize(cols, rows);
   }
@@ -543,7 +544,7 @@ export class NodePtyHost implements PtyHost {
     this.nativePty = options.nativePty ?? DEFAULT_NATIVE_PTY;
     this.windowsNativeClose = options.windowsNativeClose ?? closePinnedWindowsConpty;
     if (!Number.isInteger(this.terminationGraceMs) || this.terminationGraceMs < 0) {
-      throw new Error('PTY termination grace must be a non-negative integer');
+      throw new ValidationError('PTY termination grace must be a non-negative integer', { terminationGraceMs: 'must be >= 0' });
     }
     if (
       !Number.isInteger(this.cleanupDeadlineMs) ||
@@ -551,8 +552,9 @@ export class NodePtyHost implements PtyHost {
       this.cleanupDeadlineMs > MAX_CLEANUP_DEADLINE_MS ||
       this.cleanupDeadlineMs > 2_147_483_647
     ) {
-      throw new Error(
+      throw new ValidationError(
         `PTY cleanup deadline must be an integer between 1 and ${MAX_CLEANUP_DEADLINE_MS}`,
+        { cleanupDeadlineMs: 'out of range' },
       );
     }
     if (
@@ -560,12 +562,13 @@ export class NodePtyHost implements PtyHost {
       this.spawnDeadlineMs < 1 ||
       this.spawnDeadlineMs > MAX_SPAWN_DEADLINE_MS
     ) {
-      throw new Error(
+      throw new ValidationError(
         `PTY spawn deadline must be an integer between 1 and ${MAX_SPAWN_DEADLINE_MS}`,
+        { spawnDeadlineMs: 'out of range' },
       );
     }
     if (this.terminationGraceMs >= this.cleanupDeadlineMs) {
-      throw new Error('PTY termination grace must be shorter than cleanup deadline');
+      throw new ValidationError('PTY termination grace must be shorter than cleanup deadline', { terminationGraceMs: 'must be < cleanupDeadlineMs' });
     }
   }
 
@@ -734,7 +737,7 @@ export class NodePtyHost implements PtyHost {
       ]
         .filter(Boolean)
         .join('; ');
-      throw new Error(detail);
+      throw new RuntimeStateError(detail);
     }
     return new NodePtySession(
       native,

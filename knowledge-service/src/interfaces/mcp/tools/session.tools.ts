@@ -16,7 +16,7 @@ import {
   saveTieredMemory,
   queryByTier,
   promoteMemory,
-} from '../../../pipeline/memoryStore';
+} from '../../../pipeline/ftsMemoryStore';
 import { buildStartContext } from '../../../sessionHooks';
 import { runRetrospective, applyRetrospective } from '../../../retrospective';
 import { generateHandoff } from '../../../handoff';

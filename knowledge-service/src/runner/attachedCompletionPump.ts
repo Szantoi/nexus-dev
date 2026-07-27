@@ -20,6 +20,7 @@ import type {
 } from './attachedSessionTypes';
 import type { CompletionCursorStore } from './completionCursorStore';
 import type { CompletionReceiptPage, RunnerCompletionReceipt } from './serverClient';
+import { ConfigurationError, ValidationError } from '../core/errors';
 
 const MAX_PAGES_PER_PUMP = 5;
 
@@ -69,10 +70,10 @@ export class AttachedCompletionPump {
 
   constructor(private readonly options: AttachedPumpOptions) {
     if (options.terminals.length === 0) {
-      throw new Error('attached completion pump requires at least one terminal');
+      throw new ConfigurationError('attached completion pump requires at least one terminal');
     }
     if (!options.expectedIslandId) {
-      throw new Error('attached completion pump requires expectedIslandId');
+      throw new ConfigurationError('attached completion pump requires expectedIslandId');
     }
     this.now = options.now ?? Date.now;
   }
@@ -187,7 +188,7 @@ export function startAttachedCompletionPump(
   logger: AttachedPumpLogger,
 ): AttachedPumpHandle {
   if (!Number.isInteger(intervalMs) || intervalMs < 100) {
-    throw new Error('attached pump interval must be an integer >= 100ms');
+    throw new ValidationError('attached pump interval must be an integer >= 100ms', { intervalMs: 'must be >= 100' });
   }
   let stopped = false;
   let timer: NodeJS.Timeout | undefined;

@@ -7,7 +7,7 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'path';
-import { queryByTier, type TieredMemory } from './pipeline/memoryStore';
+import { queryByTier, type TieredMemory } from './pipeline/ftsMemoryStore';
 import { log as pipelineLog } from './pipeline/common';
 import { TERMINALS_PATH } from './config/paths';
 

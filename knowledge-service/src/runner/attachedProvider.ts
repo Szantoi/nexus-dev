@@ -25,6 +25,7 @@ import {
   compilePromptPattern,
   TerminalScreenTracker,
 } from './terminalScreen';
+import { ConfigurationError, ValidationError } from '../core/errors';
 
 const SAFE_MESSAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 
@@ -79,13 +80,13 @@ function buildChildEnv(
   const childEnv: Record<string, string | undefined> = { ...source };
   if (context.providerConfig.auth_env_var) {
     if (!context.entry.credential_env) {
-      throw new Error(
+      throw new ConfigurationError(
         `credential_env missing for attached terminal: ${context.terminal}`,
       );
     }
     const credential = source[context.entry.credential_env];
     if (!credential) {
-      throw new Error(
+      throw new ConfigurationError(
         `credential source unavailable for attached terminal ${context.terminal}: ${context.entry.credential_env}`,
       );
     }
@@ -135,15 +136,16 @@ export function encodeAttachedNudge(
   context: { sessionModel: string; mcpServerName: string },
 ): string {
   if (!SAFE_MESSAGE_ID.test(request.messageId)) {
-    throw new Error(`unsafe mailbox message id refused: ${JSON.stringify(request.messageId)}`);
+    throw new ValidationError(`unsafe mailbox message id refused: ${JSON.stringify(request.messageId)}`, { messageId: 'invalid format' });
   }
   // A task without an explicit model runs on the session's model — that is
   // the default, not a downgrade. Only an EXPLICIT different model is refused:
   // a long-lived session cannot switch models mid-flight, and silently
   // honouring the request on another model would bypass the allowlist intent.
   if (request.model !== undefined && request.model !== context.sessionModel) {
-    throw new Error(
+    throw new ValidationError(
       `attached session runs model '${context.sessionModel}' but task requests '${request.model}'`,
+      { model: 'must match session model' },
     );
   }
   const nudge =
@@ -153,7 +155,7 @@ export function encodeAttachedNudge(
   // Defense in depth: the assembled line must stay control-character-free.
   // biome-ignore lint/suspicious/noControlCharactersInRegex: the control-character guard IS the point
   if (/[\u0000-\u001f\u007f]/.test(nudge)) {
-    throw new Error('attached nudge assembly produced control characters');
+    throw new ValidationError('attached nudge assembly produced control characters', { nudge: 'contains control characters' });
   }
   return `${nudge}\r`;
 }

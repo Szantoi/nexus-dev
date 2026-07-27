@@ -1,4 +1,5 @@
 import type { TerminalSink } from './terminalSink';
+import { ValidationError, ConfigurationError } from '../core/errors';
 
 const MAX_LIFECYCLE_DETAIL_LENGTH = 500;
 
@@ -76,17 +77,17 @@ export interface RunnerShutdownCoordinatorOptions {
 export function assertRunnerShutdownBudget(sink: TerminalSink, configuredGraceMs: number): void {
   const required = sink.minimumShutdownGraceMs?.() ?? 0;
   if (!Number.isSafeInteger(required) || required < 0) {
-    throw new Error(`Terminal sink reported an invalid shutdown grace requirement: ${required}`);
+    throw new ValidationError(`Terminal sink reported an invalid shutdown grace requirement: ${required}`, { minimumShutdownGraceMs: 'invalid' });
   }
   if (required > 120_000) {
     // Valid per-component deadlines can legitimately sum above the runner
     // maximum; report it as an over-budget configuration, not sink corruption.
-    throw new Error(
+    throw new ConfigurationError(
       `Terminal cleanup requires ${required}ms shutdown grace, above the runner maximum 120000; lower the sink's spawn/cleanup deadlines`,
     );
   }
   if (configuredGraceMs < required) {
-    throw new Error(
+    throw new ConfigurationError(
       `Runner shutdown_grace_ms=${configuredGraceMs} is below the terminal cleanup requirement ${required}`,
     );
   }
@@ -116,7 +117,7 @@ export class RunnerShutdownCoordinator {
 
   constructor(private readonly options: RunnerShutdownCoordinatorOptions) {
     if (!Number.isInteger(options.graceMs) || options.graceMs < 1 || options.graceMs > 120_000) {
-      throw new Error('runner shutdown grace must be an integer between 1 and 120000ms');
+      throw new ValidationError('runner shutdown grace must be an integer between 1 and 120000ms', { graceMs: 'out of range' });
     }
   }
 

@@ -22,6 +22,7 @@ import {
   type ExtractorFn,
   type ExtractorName,
 } from './extractors/registry';
+import { GraphCorpusError, ValidationError } from '../core/errors';
 
 /** src/knowledgeGraph → knowledge-service → repo root (same shape from dist/). */
 const NEXUS_REPO_ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -97,7 +98,7 @@ export function getCorpusConfigPath(): string {
 export function loadCorpusConfig(configPath?: string): GraphCorpusConfig {
   const file = configPath || getCorpusConfigPath();
   if (!fs.existsSync(file)) {
-    throw new Error(
+    throw new GraphCorpusError(
       `Graph corpus config not found: ${file}\n` +
         'It declares which trees each island indexes — see docs/plans/GRAPHRAG-PILOT.md.'
     );
@@ -107,7 +108,7 @@ export function loadCorpusConfig(configPath?: string): GraphCorpusConfig {
     const issues = parsed.error.issues
       .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
       .join('\n');
-    throw new Error(`Invalid graph corpus config (${file}):\n${issues}`);
+    throw new GraphCorpusError(`Invalid graph corpus config (${file}):\n${issues}`);
   }
   return parsed.data;
 }
@@ -142,11 +143,11 @@ export function resolveCorpus(
   island: string,
   options: { configPath?: string; repoRootOverride?: string } = {}
 ): ResolvedCorpus {
-  if (!ISLAND_ID_RX.test(island)) throw new Error(`Invalid island id: "${island}"`);
+  if (!ISLAND_ID_RX.test(island)) throw new ValidationError(`Invalid island id: "${island}"`, { island: 'invalid format' });
   // An empty override would resolve to the process CWD and re-base every
   // entity id on it — refuse instead of guessing.
   if (options.repoRootOverride !== undefined && options.repoRootOverride.trim() === '') {
-    throw new Error('repo root override is empty — pass a real path or omit --repo-root');
+    throw new ValidationError('repo root override is empty — pass a real path or omit --repo-root', { repoRootOverride: 'must not be empty' });
   }
 
   const config = loadCorpusConfig(options.configPath);
@@ -157,7 +158,7 @@ export function resolveCorpus(
   const entry = configured.includes(island) ? config.islands[island] : undefined;
   if (entry === undefined) {
     const known = configured.sort().join(', ') || '(none)';
-    throw new Error(
+    throw new GraphCorpusError(
       `No graph corpus configured for island "${island}" — refusing to index. ` +
         `Add it to ${options.configPath || getCorpusConfigPath()} (configured islands: ${known}).`
     );
@@ -170,7 +171,7 @@ export function resolveCorpus(
     // Entity ids are repo-relative: a source outside the repo root would
     // produce '../..'-style ids that collide across islands.
     if (!isWithin(repoRoot, root)) {
-      throw new Error(
+      throw new GraphCorpusError(
         `Corpus source "${source.path}" of island "${island}" escapes its repo root (${repoRoot}).`
       );
     }

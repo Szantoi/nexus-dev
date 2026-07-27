@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { MemoryStore, type MemorySection } from '../../memoryStore';
+import { MemoryStore, TerminalMemoryStore, type MemorySection } from '../../terminalMemoryStore';
 import { getTerminalsRoot } from '../../config/terminals';
 
 const TEST_TERMINAL = 'test-backend';

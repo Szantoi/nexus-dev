@@ -1,3 +1,4 @@
+import { ValidationError, RuntimeStateError } from '../core/errors';
 const DEFAULT_MAX_BUFFER_BYTES = 64 * 1024;
 
 export interface HandoffDisposable {
@@ -25,7 +26,7 @@ class DeferredDisposable implements HandoffDisposable {
   private disposed = false;
 
   attach(target: HandoffDisposable): void {
-    if (this.target) throw new Error('PTY handoff disposable already attached');
+    if (this.target) throw new RuntimeStateError('PTY handoff disposable already attached');
     this.target = target;
     if (this.disposed) target.dispose();
   }
@@ -61,7 +62,7 @@ export class EarlyPtyEventHandoff implements HandoffDisposable {
     private readonly maxBufferBytes = DEFAULT_MAX_BUFFER_BYTES,
   ) {
     if (!Number.isSafeInteger(maxBufferBytes) || maxBufferBytes < 1) {
-      throw new Error('PTY early-event buffer limit must be a positive safe integer');
+      throw new ValidationError('PTY early-event buffer limit must be a positive safe integer', { maxBufferBytes: 'must be >= 1' });
     }
     try {
       this.earlyData = source.onData((data) => this.captureData(data, false));
@@ -121,7 +122,7 @@ export class EarlyPtyEventHandoff implements HandoffDisposable {
     this.events.length = 0;
     this.bufferedBytes = 0;
     if (errors.length > 0) {
-      throw new Error(
+      throw new RuntimeStateError(
         `PTY early-event handoff dispose failed: ${errors
           .map((error) => (error instanceof Error ? error.message : String(error)))
           .join('; ')}`,
@@ -226,6 +227,6 @@ export class EarlyPtyEventHandoff implements HandoffDisposable {
 
   private assertUsable(): void {
     if (this.terminalFailure) throw this.terminalFailure;
-    if (this.state === 'disposed') throw new Error('PTY early-event handoff is disposed');
+    if (this.state === 'disposed') throw new RuntimeStateError('PTY early-event handoff is disposed');
   }
 }

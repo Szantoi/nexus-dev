@@ -12,6 +12,7 @@ import type { ProcessedStore } from './processedStore';
 import type { RunnerConfig } from './runnerConfig';
 import type { LaunchRequest, LaunchResult } from './sessionLauncher';
 import type { UnreadTask } from './serverClient';
+import { RuntimeStateError } from '../core/errors';
 
 const MAX_POLL_ERROR_LENGTH = 500;
 
@@ -99,7 +100,7 @@ export async function pollOnce(
         await deps.claimTask(terminal, task.id);
       } catch (err) {
         if (signal?.aborted) {
-          throw new Error(
+          throw new RuntimeStateError(
             `claim outcome indeterminate during shutdown (${terminal}/${task.id}): ${boundedPollError(err)}`,
           );
         }
@@ -116,7 +117,7 @@ export async function pollOnce(
         try {
           await deps.releaseTask(terminal, task.id);
         } catch (err) {
-          throw new Error(
+          throw new RuntimeStateError(
             `claim release failed during shutdown (${terminal}/${task.id}): ${boundedPollError(err)}`,
           );
         }
@@ -136,7 +137,7 @@ export async function pollOnce(
         }
         const launchDetail = boundedPollError(launchError);
         const releaseDetail = boundedPollError(releaseError);
-        throw new Error(
+        throw new RuntimeStateError(
           `launch threw after claim (${terminal}/${task.id}): ${launchDetail}${
             releaseError ? `; claim release also failed: ${releaseDetail}` : '; claim released'
           }`,
@@ -151,7 +152,7 @@ export async function pollOnce(
         try {
           await deps.releaseTask(terminal, task.id);
         } catch (err) {
-          throw new Error(
+          throw new RuntimeStateError(
             `claim release failed (${terminal}/${task.id}): ${boundedPollError(err)}`,
           );
         }

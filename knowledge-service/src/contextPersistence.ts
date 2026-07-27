@@ -16,6 +16,7 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { resolveTerminal, getTerminalPath, getAllTerminalNames } from './terminalConfig';
+import { TerminalNotFoundError } from './core/errors';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ const TURN_AUTO_REANCHOR_THRESHOLD = 50;
 export async function readStatusMd(terminal: string): Promise<TerminalStatus | null> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -124,7 +125,7 @@ export async function writeStatusMd(
 ): Promise<{ success: boolean; path: string }> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -201,7 +202,7 @@ ${options.nextSteps.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 export async function readSessionState(terminal: string): Promise<SessionState | null> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -224,7 +225,7 @@ export async function writeSessionState(
 ): Promise<{ success: boolean; path: string }> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -271,7 +272,7 @@ export async function writeSessionState(
 export async function readTurnCount(terminal: string): Promise<number> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -300,7 +301,7 @@ export async function incrementTurnCount(
 }> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -326,7 +327,7 @@ export async function incrementTurnCount(
 export async function resetTurnCount(terminal: string): Promise<{ success: boolean; path: string }> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -377,7 +378,7 @@ export async function getContextSaturation(terminal: string): Promise<{
 export async function readCheckpointsMd(terminal: string): Promise<TerminalCheckpoints | null> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -425,7 +426,7 @@ export async function appendCheckpoint(
 ): Promise<{ success: boolean; path: string }> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -479,7 +480,7 @@ ${checkpoint.refs ? `\n**Ref:**\n${checkpoint.refs.map(r => `- ${r}`).join('\n')
 export async function getContextFilesStatus(terminal: string): Promise<ContextFiles> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   const terminalPath = getTerminalPath(terminal)!;
@@ -527,7 +528,7 @@ export async function getAllContextFilesStatus(): Promise<ContextFiles[]> {
 export async function buildSessionStartContext(terminal: string): Promise<string> {
   const canonical = resolveTerminal(terminal);
   if (!canonical) {
-    throw new Error(`Unknown terminal: ${terminal}`);
+    throw new TerminalNotFoundError(terminal);
   }
 
   let context = '';

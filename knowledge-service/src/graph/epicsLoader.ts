@@ -16,6 +16,7 @@ import { EpicsYaml, EpicDependency, WorkflowGraph, GraphNode } from './types';
 import { validateEpicsYaml } from '../pipeline/epicsValidator';
 import { computeGraphProperties } from './operations';
 import { logger } from '../core/logger';
+import { ValidationError, NotFoundError } from '../core/errors';
 
 /**
  * Load and parse EPICS.yaml from file
@@ -50,10 +51,10 @@ export async function loadEpicsYaml(path: string): Promise<EpicsYaml> {
     return parsed as EpicsYaml;
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      throw new Error(`EPICS.yaml not found at path: ${path}`);
+      throw new NotFoundError('EPICS.yaml', path);
     }
     if (error instanceof yaml.YAMLException) {
-      throw new Error(`YAML parse error: ${error.message}`);
+      throw new ValidationError(`YAML parse error: ${error.message}`);
     }
     throw error; // Re-throw validation errors and other errors
   }

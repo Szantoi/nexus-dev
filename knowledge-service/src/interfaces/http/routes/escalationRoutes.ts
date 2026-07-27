@@ -8,7 +8,7 @@ import {
   taskEscalationManager,
   setEscalationConfig,
   getEscalationConfig,
-} from '../pipeline/taskEscalation';
+} from '../../../pipeline/taskEscalation';
 
 const router = Router();
 

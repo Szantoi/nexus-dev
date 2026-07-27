@@ -108,9 +108,13 @@ describe('epicsLoader - loadEpicsYaml()', () => {
     expect(epics.epics[0].id).toBe('EPIC-A');
   });
 
-  it('should throw error when file does not exist', async () => {
+  it('should throw a typed 404 error when the file does not exist', async () => {
+    await expect(loadEpicsYaml('/nonexistent/path.yaml')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      statusCode: 404,
+    });
     await expect(loadEpicsYaml('/nonexistent/path.yaml')).rejects.toThrow(
-      'EPICS.yaml not found at path'
+      'EPICS.yaml not found: /nonexistent/path.yaml'
     );
   });
 
