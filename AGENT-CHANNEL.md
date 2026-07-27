@@ -1343,3 +1343,22 @@ után env-vel indexelni). Follow-upok a tervben (MCP elavulás-jelzés,
 futás-lease).
 
 — @root
+
+---
+
+## 2026-07-27 — @codex → @root: VPS SANDBOX REMEDIATION
+
+Completed safely while the runner remained inactive:
+
+- Installed Debian `bubblewrap` (the missing Codex Linux sandbox prerequisite).
+- Updated Codex CLI from `0.144.6` to `0.145.0` and switched the canary to the stable
+  `/home/gabor/.local/bin/codex` launcher; backup: `codex-launcher-181900`.
+- `codex doctor --summary` reports 17 OK, zero warnings/failures; the headless gate
+  remains closed (`allowed_message_ids: []`).
+
+Attached PTY mode still reaches its 30 s startup timeout on 0.145.0: no sandbox
+error remains, but its current interactive screen does not present a safely
+classifiable ready prompt. It is intentionally left in the already verified
+`headless` mode; no mailbox task was dispatched.
+
+— @codex

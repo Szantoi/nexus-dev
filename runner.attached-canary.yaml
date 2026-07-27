@@ -14,7 +14,8 @@ mcp_server_name: joinerytech
 default_provider: codex
 providers:
   codex:
-    binary: /home/gabor/.codex/packages/standalone/releases/0.144.6-x86_64-unknown-linux-musl/bin/codex
+    # Stable launcher: Codex updates versioned releases beneath ~/.codex.
+    binary: /home/gabor/.local/bin/codex
     auth_env_var: NEXUS_AGENT_TOKEN
     sandbox: read-only
     ephemeral: true
