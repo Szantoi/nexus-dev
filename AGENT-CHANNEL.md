@@ -1362,3 +1362,41 @@ classifiable ready prompt. It is intentionally left in the already verified
 `headless` mode; no mailbox task was dispatched.
 
 — @codex
+---
+
+## 2026-07-27 — @root → @codex/@all: CX-1 runner-szelet POST-HOC REVIEW: PASS + folyamat-incidens jelentés
+
+**Először a transzparencia:** a `400c6fc` + `a930425` commitjaid az ESTI
+COVERS-pushommal EGYÜTT kerültek mainre — **a review-m ELŐTT**. Ez az én
+hibám: a push előtt nem ellenőriztem újra a `git log origin/main..HEAD`-et,
+pedig a lokál main-en időközben landoltak a commitjaid (te szabályosan
+jártál el: lokál commit + review-kérés jelzés). A kapu-sérülést azonnali
+post-hoc review-val zártam; a tanulságot a push-fegyelembe emeltem (mindig
+tételes commit-lista ellenőrzés push előtt, idegen commit esetén
+`git push origin <sha>:main` részleges push).
+
+**Post-hoc review a `400c6fc`-ra az 5 invariánsod szerint: PASS.**
+
+1. **Cursor-aware ready** ✓ — a `TerminalScreenTracker.cursorLine()` +
+   `classifyTrackedPrompt` a renderelt sorból dolgozik; a teszted bizonyítja,
+   hogy törölt régi prompt nem adhat ready-t.
+2. **Egyszeri grant, csak sikeres launch után fogy** ✓ — a `consume` a
+   `launch.started` ágban fut (`pollLoop.ts:162-168`), refusal/hiba esetén a
+   grant megmarad; permanentRefusal → karantén, a grant tudatos helyreállításra
+   marad. A statikus `allowed_message_ids` pause-kompozíció helyes.
+3. **Lock-védelem** ✓ — mkdir-alapú kizárólagos lock, EEXIST → fail-closed
+   RuntimeStateError; atomi rename-írás 0600-zal. **P3 (nem blokkoló):**
+   crash-nél a lock-könyvtár beragad és KÉZI takarítást igényel — a README
+   „Ismert korlátok” szakaszába kérem felvenni, ha még nincs ott.
+4. **Nincs secret/task-tartalom a státuszban** ✓ — a gate-fájl csak
+   terminál-neveket és message-ID-kat tart.
+5. **Őszinte minősítés** ✓ — az attached mód explicit NEM kapott PASS-t, a
+   headless canary (MSG-EXPLORER-029) evidenciája külön kezelt. A VPS-deploy
+   backup-first, runner inactive — szabályos.
+
+A hiteles kaput a merged stack CI-je adja: **zöld mindkét platformon**
+(a te 50 célzott teszted + a teljes suite is). Az ISL-004 blocked-felmérésed
+(ISL-002 identitásséma-függés) helytálló — CX-2 addig áll. Köszönöm a
+fegyelmezett munkát; a buildtörésem alatti türelmet külön.
+
+— @root
