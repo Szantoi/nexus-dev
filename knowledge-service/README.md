@@ -3,11 +3,11 @@
 A SpaceOS/Nexus agent-flotta központi szolgáltatása: **Express HTTP API + MCP
 (JSON-RPC) szerver** egyetlen processzben. Fő képességei:
 
-- **MCP tool-registry** — a Claude Code terminálok tool-készlete (121 tool;
+- **MCP tool-registry** — a Claude Code terminálok tool-készlete (125 tool;
   a pontos listát a
   [contract-teszt](src/__tests__/integration/mcpContract.integration.test.ts) pinneli),
-- **RAG tudáskereső** — a `docs/knowledge/**/*.md` fa indexelése ChromaDB
-  vektortárba, keresés REST-en és MCP-n,
+- **RAG tudáskereső** — a dokumentációk (`docs/**/*.md`) és a forráskód (`.ts`, `.tsx`, `.cs`, `.js`) indexelése ChromaDB vektortárba (helyi Xenova ONNX modellel, lusta importtal), domain-alapú szűréssel (`search_knowledge`),
+- **GraphRAG tudásgráf & hibrid keresés** — Neo4j-alapú gráf-store (`search_graph`, `get_dependencies`, `impact_analysis`, `search_hybrid`), inkrementális ujjlenyomat-indexeléssel,
 - **Terminál-mailbox** — inbox/outbox üzenetek, SSE wake-up értesítések,
 - **[task-message-box](src/task-message-box/README.md)** — kanonikus, SQLite-alapú üzenettár,
 - **Pipeline-automatizmusok** — ütemezők, watcherek, review-folyamat, epic-routing
@@ -109,6 +109,9 @@ A legfontosabb kulcsok (a séma-defaultokkal egyezően):
 | `SPACEOS_ROOT` | a checkout gyökere | a terminals/docs/config fa gyökere; eltérő layoutnál kötelező beállítani |
 | `DATA_DIR` | `knowledge-service/data` | SQLite DB-k, runtime fájlok |
 | `CHROMA_URL` | `http://localhost:8001` | ChromaDB (legacy alias: `CHROMADB_URL`) |
+| `GRAPH_URL` | `bolt://127.0.0.1:7687` | Neo4j GraphRAG (bolt:// vagy neo4j://) |
+| `GRAPH_USER` / `GRAPH_DATABASE` | `neo4j` / `neo4j` | Neo4j felhasználó és adatbázis |
+| `GRAPH_QUERY_TIMEOUT_MS` | `15000` | Neo4j lekérdezési időkorlát (ms) |
 | `KNOWLEDGE_SERVICE_URL` | `http://127.0.0.1:<PORT>` | a szolgáltatás ÖNHÍVÁSAINAK bázis-URL-je |
 | `CORS_ORIGINS` | üres (same-origin) | engedélyezett böngésző-originök |
 | `TRUST_PROXY_HOPS` | `0` | megbízható reverse-proxy hopok |

@@ -1,8 +1,8 @@
 # Nexus-dev — SpaceOS Nexus fejlesztő műhely
 
 A SpaceOS Nexus agent-infrastruktúra **fejlesztési repója**. A fő komponens a
-[`knowledge-service/`](knowledge-service/README.md): MCP-szerver (tool-registry),
-RAG-tudáskereső, terminál-mailbox és pipeline-automatizmusok. A tiszta
+[`knowledge-service/`](knowledge-service/README.md): MCP-szerver (tool-registry, 125 tool),
+RAG- és GraphRAG-tudáskereső (kód- és doksi-indexelés, Neo4j hibrid keresés), terminál-mailbox és pipeline-automatizmusok. A tiszta
 release-repó a `nexus-core`; élesbe csak az itt leírt release-folyamaton át
 kerül kód.
 
