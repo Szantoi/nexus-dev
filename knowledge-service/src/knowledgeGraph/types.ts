@@ -34,9 +34,9 @@ export const ENTITY_TYPES: readonly EntityType[] = [
  * relationship kind (Cypher cannot parameterize relationship types, and a
  * closed vocabulary keeps traversal queries simple).
  */
-export type RelationType = 'DEPENDS_ON' | 'REFERENCES' | 'PART_OF';
+export type RelationType = 'DEPENDS_ON' | 'REFERENCES' | 'PART_OF' | 'COVERS';
 
-export const RELATION_TYPES: readonly RelationType[] = ['DEPENDS_ON', 'REFERENCES', 'PART_OF'];
+export const RELATION_TYPES: readonly RelationType[] = ['DEPENDS_ON', 'REFERENCES', 'PART_OF', 'COVERS'];
 
 export interface GraphEntity {
   /** Stable id, unique within an island — repo-relative path or symbol id. */

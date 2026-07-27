@@ -17,7 +17,7 @@ import type { ExtractionResult } from './docsExtractor';
 import { repoRelativeId, walkFiles } from './fsWalk';
 
 /** Resolve a relative import specifier to an existing file, TS-style. */
-function resolveImport(fromAbsFile: string, specifier: string): string | null {
+export function resolveImport(fromAbsFile: string, specifier: string): string | null {
   const base = path.resolve(path.dirname(fromAbsFile), specifier);
   // ESM-style specifiers name the EMITTED file ('./x.js'), but the graph is a
   // SOURCE graph — the .ts must win over a compiled sibling lying next to it.

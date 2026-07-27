@@ -9,7 +9,7 @@
 #   sources[].path      : repo_root-hoz képest relatív (nem szökhet ki alóla)
 #   sources[].extractor : a regiszterben létező extractor neve
 #                         (src/knowledgeGraph/extractors/registry.ts):
-#                         markdown | typescript | csharp
+#                         markdown | typescript | csharp | coverage
 #
 # GÉPFÜGGŐ SZIGETEK: ez a fájl gitre kerül, a checkoutok viszont gépenként
 # mások. Ha egy korpusz csak egy adott gépen létezik, a `repo_root` egy
@@ -44,6 +44,11 @@ islands:
         extractor: markdown
       - path: knowledge-service/src
         extractor: typescript
+      # A `coverage` extractor (teszt→kód COVERS élek) SZÁNDÉKOSAN nincs még
+      # bekötve: a coverage-final.json gitignore-olt és gépfüggő — a VPS-timer
+      # spaceos-futása fail-closed elhasalna rajta, két gép eltérő coverage-e
+      # pedig fingerprint/sweep-divergenciát okozna. Bekötés csak a
+      # sweep-kompatibilis terv (@root kapu) után.
 
   # JoineryTech: a C#-kódbázis + a saját dokumentációja. A checkout csak azon a
   # gépen van meg, ahol a JOINERYTECH_ROOT be van állítva (a VPS-en

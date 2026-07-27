@@ -31,7 +31,7 @@ export default defineConfig({
     testTimeout: 15000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'text-summary'],
+      reporter: ['text', 'text-summary', 'json'],
       // Coverage floor (TASK-QC-005 baseline, RAISED by TASK-QC-006 on
       // 2026-07-18). These are RATCHET values: they may only go UP; lowering
       // requires a documented ADR. Measured on the full hermetic suite after

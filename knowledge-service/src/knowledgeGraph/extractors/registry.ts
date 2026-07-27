@@ -8,6 +8,7 @@
  * the indexer need no change.
  */
 
+import { extractCoverage } from './coverageExtractor';
 import { extractCSharp } from './csharpExtractor';
 import { extractDocs, type ExtractionResult } from './docsExtractor';
 import { extractTypeScript } from './tsExtractor';
@@ -18,6 +19,7 @@ export const EXTRACTORS = {
   markdown: extractDocs,
   typescript: extractTypeScript,
   csharp: extractCSharp,
+  coverage: extractCoverage,
 } as const satisfies Record<string, ExtractorFn>;
 
 export type ExtractorName = keyof typeof EXTRACTORS;
