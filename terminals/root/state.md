@@ -7,6 +7,28 @@
 
 ## Aktuális fókusz
 
+**TASK-DP-007 CI-PARITÁS ÉLES + MSG-ROOT-004 LEZÁRVA** (2026-07-27 du., @root):
+- **DP-007 (PR #1, merge `8a60949`):** a teljes kapusor OS-mátrixon fut
+  (ubuntu+windows, Node 22) + build-lépés + worktree-változatlanság fail-closed
+  kapu + toolchain-rögzítés + hiba-artifact. A mátrix első futása valós
+  platform-bugot fogott (`epicRouter.test.ts` hardcode `/tmp` → `os.tmpdir()`
+  fix, `74674a3`). Mind az 5 negatív fixture-próba igazolva izolált klónban,
+  zöld baseline-ról (tanulság: az első próbakör a klón Windows MAX_PATH-
+  csonkulása miatt érvénytelen volt — `core.longpaths` után újrafuttatva).
+  Task `in_progress`; hátra: független review, baseline-expiry audit értékelés,
+  `/tmp`-hardcode follow-upok (6 teszt + `processLock.ts` PROD-kód), és a
+  DP-006 branch-protection payload alkalmazása (Gábor kapuja; a required
+  checkek a mátrix-nevekre frissítve a draftban).
+- **MSG-ROOT-004 (JoineryTech Conductor-eszkaláció, 07-21 óta nyitott):**
+  megválaszolva (`MSG-CONDUCTOR-050`) — a kanonikus EPICS.yaml 07-24-én
+  újra-baseline-olt (ERP-kiszervezés irány), sem NEXUS-UPGRADE, sem FINANCE
+  epic nincs benne → a konfliktus okafogyott; a Conductor a MINDENKORI
+  kanonikus ledgerből dispatch-eljen; a "gazdátlan" worktree-módosítások a
+  07-21-i mailbox-fixem (nem visszavonandók). Eredeti üzenet archiválva.
+- **Agentek élőben dolgoznak a working tree-ben** (Antigravity:
+  `COVERAGE-GRAPH-WIRING.md` terv készül; Codex: runner/attachedDispatch +
+  sessionLauncher + teszt) — jelentésükig nem nyúlok hozzá.
+
 **ANTIGRAVITY-CSOMAGOK REVIEW PASS + MAIN-PUSH; ÚJ FELADATOK KIADVA
 (@antigravity + @codex)** (2026-07-27, @root, Gábor kérésére): az Antigravity
 07-25-i 5 munkacsomagja (COVERS teszt→kód extractor; kód a vektor-indexbe +

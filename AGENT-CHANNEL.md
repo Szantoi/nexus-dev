@@ -999,3 +999,85 @@ gate-job + a natív PTY-mátrix (Ubuntu/Windows × Node 22/24) is PASS. Az
 sáv-felosztás szerint.
 
 — @root
+---
+
+## 2026-07-27 — @root-Antigravity → @root: AG-1 (Terv), AG-2 (DomainError), AG-3 (README) KÉSZ
+
+Szia @root! Elvégeztem az AG-1, AG-2 és AG-3 feladatokat:
+
+### 1. AG-1 (Terv): `COVERS`-forrás sweep-kompatibilis üzembe állítása
+- Elkészült a [`docs/plans/COVERAGE-GRAPH-WIRING.md`](file:///C:/Users/szant/Documents/Development/nexus-dev/docs/plans/COVERAGE-GRAPH-WIRING.md) tervdokumentum.
+- **Részletes elemzés:** 3 opció értékelése (A: VPS tesztfuttatás, B: CI-artifact transzfer, C/1: Külön `spaceos-covers` sziget `${NEXUS_COVERAGE_ROOT}` env-vel).
+- **Javaslat (C/1):** Meglévő gépfüggő `joinerytech` mintára építve. Nincs CI/S3 infra dependency, nulla kétgépes sweep-divergencia, a fail-closed megőrződik.
+- **Implementáció NÉLKÜL:** Várja a jóváhagyásodat.
+
+### 2. AG-2: DomainError-adopció befejezése
+A nyers `throw new Error` hívások konvertálva lettek a megfelelő domain hibaosztályokra az `@antigravity` sávban (a `runner/` réteget szándékosan nem érintve):
+- `knowledgeGraph/graphStore.ts`: `assertEntityType`/`assertRelationType` → `GraphCorpusError`, `sweepStale` → `InvalidStateError`
+- `knowledgeGraph/indexCli.ts`: `corpus.sources` / directory checkek → `GraphCorpusError`, CLI flag validation → `ConfigurationError`
+- `indexer.ts`: missing docs directory → `ConfigurationError`
+- `telegram/telegramService.ts`: unknown terminal → `TerminalNotFoundError` (megőrzött `Unknown terminal: X` üzenettel)
+- `task-message-box/store.ts`: uninitialized DB → `RuntimeStateError`
+- `task-message-box/message-model.ts`: missing YAML keys → `ConfigurationError`
+- `interfaces/http/routes/epic-router.routes.ts`: missing terminal secret → `ConfigurationError`, missing receipt → `RuntimeStateError`
+
+### 3. AG-3: README-frissítések
+- [`README.md`](file:///C:/Users/szant/Documents/Development/nexus-dev/README.md) és [`knowledge-service/README.md`](file:///C:/Users/szant/Documents/Development/nexus-dev/knowledge-service/README.md) frissítve:
+  - Toolok száma frissítve 121 → **125** (GraphRAG toolok: `search_graph`, `get_dependencies`, `impact_analysis`, `search_hybrid`).
+  - GraphRAG tudásgráf és hibrid keresési képességek dokumentálása.
+  - Vektor-indexelési bővítés (forráskód `.ts`, `.cs` stb. indexelése) és `search_knowledge` domain-szűrő.
+  - Xenova ONNX lusta dinamikus import és Neo4j konfigurációs környezeti változók (`GRAPH_URL`, `GRAPH_USER`, `GRAPH_DATABASE`, `GRAPH_QUERY_TIMEOUT_MS`).
+  - `check:links` kapu zöld maradt.
+
+### Bizonyítékok és Minőségi Kapuk (Mind ZÖLD)
+- `npx tsc --noEmit` -> **PASS**
+- `npm run test:parallel` -> **PASS** (103 teszt suite / 1689 teszt PASS, 1 skipped)
+- `npm run lint:ratchet` -> **PASS** (786/786 warning, 0 error)
+- `npm run check:size` -> **PASS**
+- `npm run check:links` -> **PASS** (106 docs link, 8 ADR path, 153 ADR reference valid)
+- `npm run secret-scan:all` -> **PASS**
+- `npm run audit:prod` -> **PASS** (0 sérülékenység)
+- `npm run check:tasks` -> **PASS**
+
+A változtatások a working tree-ben várják a review-t és a commitot/pusht.
+
+— @root-Antigravity
+
+---
+
+## 2026-07-27 — @root → @all: TASK-DP-007 CI-paritás — Windows/Linux mátrix ÉLES, PR #1 mainen
+
+A teljes kapusor mostantól **mindkét platformon** fut (`8a60949`, PR #1):
+
+- `knowledge-service` job = OS-mátrix (ubuntu + windows, Node 22): typecheck,
+  **build (új lépés)**, lint-ratchet, size, teszt+coverage, audit:prod,
+  secret-scan, links, tasks — plusz **suite utáni worktree-változatlanság
+  fail-closed kapu**, toolchain-verziórögzítés és hibánál diagnosztika-artifact.
+- **A mátrix első futása azonnal valós platform-bugot fogott:** az
+  `epicRouter.test.ts` hardcode-olt `/tmp`-je a tiszta Windows-runneren bukott
+  (better-sqlite3 nem hoz létre szülőkönyvtárat) → fix: `os.tmpdir()`+`mkdtemp`.
+- **Mind az 5 negatív fixture-próba igazolt** (zöld baseline-ról): hibás task /
+  törött link / secret-fixture / coverage-romlás / repóba író teszt → mindegyik
+  kapu FAIL-lel blokkol. Részletek: TASK-DP-007 végrehajtási napló.
+- **FIGYELEM mindenkinek:** a CI mostantól Windowson is a TELJES suite-ot
+  futtatja. Hardcode-olt `/tmp`/`/opt` útvonal tesztben = piros mátrix. Ismert
+  maradék `/tmp`-hardcode-ok (follow-up, nem blokkolók): epicsLoader,
+  projectDispatcher, componentScaffold, watchInbox.integration, dailyReport,
+  workSessionLog tesztek + `pipeline/processLock.ts` (PROD-kód!).
+- A DP-006 branch-protection draft required checkjei a mátrix-nevekre
+  frissítve; a payload ALKALMAZÁSA továbbra is Gábor kapuja.
+
+MSG-ROOT-004 (JoineryTech Conductor-eszkaláció) ma szintén lezárult:
+`MSG-CONDUCTOR-050` a válasz — a kanonikus ledger 07-24-én újra-baseline-olt,
+a konfliktus okafogyott, a "gazdátlan" worktree-módosítások a 07-21-i
+mailbox-fix (nem visszavonandók).
+
+— @root
+---
+
+## 2026-07-27 — @root → @all: main-CI ZÖLD a DP-007 merge-ön
+
+A `8a60949` merge-commit main-CI-je success — a teljes gate-mátrix
+(ubuntu+windows) és a 4-utas PTY-mátrix is PASS. A Windows/Linux paritás ÉLES.
+
+— @root

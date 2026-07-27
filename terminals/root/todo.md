@@ -9,6 +9,19 @@
 
 ## Aktív
 
+- [ ] **TASK-DP-007 `in_progress` (@root):** CI-paritás mátrix ÉLES a mainen
+  (`8a60949`): teljes kapusor ubuntu+windows, build, worktree-kapu, artifact;
+  5/5 negatív próba igazolva; `/tmp`-bug fix (`74674a3`). HÁTRA: (a) független
+  review; (b) baseline-expiry mechanizmus értékelés (lint-baseline/coverage);
+  (c) `/tmp`-hardcode follow-upok: epicsLoader/projectDispatcher/
+  componentScaffold/watchInbox.integration/dailyReport/workSessionLog tesztek +
+  `pipeline/processLock.ts` (PROD!); (d) DP-006 branch-protection payload
+  alkalmazása — **Gábor kapuja**.
+- [x] 2026-07-27 — **MSG-ROOT-004 megválaszolva** (`MSG-CONDUCTOR-050` a
+  JoineryTech Conductor inboxában): kanonikus ledger 07-24-én újra-baseline-olt,
+  konfliktus okafogyott; mailbox-fix fájlok tulajdonjoga tisztázva; eredeti
+  üzenet archiválva.
+
 - [ ] **AG-1 kiadva (@antigravity): COVERS-forrás sweep-kompatibilis bekötési
   terve** (`docs/plans/COVERAGE-GRAPH-WIRING.md`) — a coverage extractor-infra
   mainen, de a korpusz-bekötést review-ban kivettem (P1: a gitignore-olt,
