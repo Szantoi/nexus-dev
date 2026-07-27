@@ -5,7 +5,7 @@ program: NEXUS-DEVELOPMENT-PROCESS
 project: nexus/knowledge-service
 milestone: DP-M3
 epic: DP-CI-CONTROLS
-status: ready
+status: in_progress
 priority: critical
 depends_on: [TASK-DP-003, TASK-DP-006]
 parallel_with: []
@@ -70,3 +70,29 @@ nem PASS: dokumentált feloldási feltétellel `blocked`.
 ## Végrehajtási napló
 
 Az implementáló a program README kötelező protokollja szerint tölti ki.
+
+### 2026-07-27 — @root: indítás + 1. inkrementum (branch: `dp-007-ci-parity`)
+
+- **Base commit:** `f2c45d2` (origin/main, CI zöld). **Owner:** @root.
+  **Erőforráskeret:** 1 session + PR-validációs CI-futások.
+- **Goal/siker/kilépés:** a task fejléce szerint; a PR-mátrix zöldje Linux+
+  Windows ugyanarra a commitra a mérce.
+- **Scope-2 (ADR-001 linkek): már megoldva** — a QC-009-ben dokumentált két
+  hibás hivatkozás a QC-006 worker `contextPersistence.test.ts` fixture-ében
+  volt (`refs: ['ADR-001']`); a jelenlegi fán `ADR-001`-találat nincs, a
+  `check:links` 153 ADR-említést validál zölden. Nincs teendő.
+- **1. inkrementum (ez a commit):**
+  - `ci.yml`: a `knowledge-service` job OS-mátrix (ubuntu + windows), teljes
+    kapusor mindkét platformon; `Build` lépés (tsc emit — a typecheck nem fogja
+    az emit-only hibákat); toolchain-verziórögzítő lépés; suite utáni
+    „worktree változatlan" fail-closed kapu; hibánál diagnosztika-artifact
+    (coverage + npm-logok, 7 nap retenció); job-timeout 25 perc.
+  - `TASK-DP-006-branch-protection-config.json`: a required check-kontextusok
+    a mátrix-nevekre frissítve (`knowledge-service (ubuntu-latest|windows-latest)`)
+    — a payload továbbra is DRAFT, alkalmazása emberi kapu.
+- **Hátralévő scope:** negatív fixture-próbák (hibás task, törött link,
+  secret-fixture, coverage-romlás, repóba író teszt) PR-branchen; baseline-
+  lejárat auditja (file-size allowlistnek van owner+expiry+task mezője és a
+  lejárat fail-closed; a lint-baseline és coverage-küszöb owner/task-hivatkozása
+  megvan a kommentekben — expiry-mechanizmusuk értékelendő); required-check
+  kikényszerítés = DP-006 payload alkalmazása (Gábor kapuja).

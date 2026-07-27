@@ -9,13 +9,14 @@
       "command": "gh api repos/Szantoi/nexus-dev/branches/main/protection",
       "result": "404 Branch not protected (verified 2026-07-18, read-only, no write performed)"
     },
-    "known_caveat": "The required_status_checks.checks[].context value assumes the ci.yml `knowledge-service` job keeps its current single-job, no-matrix shape. Re-verify against the GitHub Checks tab before applying, especially if TASK-DP-007 introduces an OS matrix (which would change the check-run name, e.g. to 'knowledge-service (ubuntu-latest)')."
+    "known_caveat": "Updated by TASK-DP-007 (2026-07-27): ci.yml now runs the `knowledge-service` job as an OS matrix, so the check-run names are 'knowledge-service (ubuntu-latest)' and 'knowledge-service (windows-latest)' — both listed as required contexts below. Re-verify the exact names against the GitHub Checks tab of a fresh run before applying."
   },
   "protection_payload": {
     "required_status_checks": {
       "strict": true,
       "checks": [
-        { "context": "knowledge-service" }
+        { "context": "knowledge-service (ubuntu-latest)" },
+        { "context": "knowledge-service (windows-latest)" }
       ]
     },
     "enforce_admins": true,
