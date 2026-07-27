@@ -31,6 +31,7 @@ import { isValidTransition, canonicalTypes, canonicalStatuses } from './message-
 
 import { DATA_DIR, TERMINALS_PATH } from '../config/paths';
 import { logger } from '../core/logger';
+import { RuntimeStateError } from '../core/errors';
 
 const DB_PATH = path.join(DATA_DIR, 'taskmessagebox.db');
 const TERMINALS_ROOT = TERMINALS_PATH;
@@ -157,14 +158,24 @@ function migrateTypeCheckIfStale(db: Database.Database): void {
   const colList = MESSAGE_COLUMNS.filter((c) => oldCols.has(c)).join(', ');
 
   db.pragma('foreign_keys = OFF');
-  db.transaction(() => {
-    db.exec(messagesTableDDL('messages_new') + ';');
-    db.exec(`INSERT INTO messages_new (${colList}) SELECT ${colList} FROM messages`);
-    db.exec(`DROP TABLE messages`);
-    db.exec(`ALTER TABLE messages_new RENAME TO messages`);
-    db.exec(MESSAGE_INDEXES); // indexes were dropped with the old table
-  })();
-  db.pragma('foreign_keys = ON');
+  // Old installations can retain views (for example `v_inbox`) that reference
+  // `messages`.  During the rebuild the table is briefly absent; without legacy
+  // rename behavior SQLite tries to rewrite those views and aborts the rename.
+  // Keeping their SQL untouched is safe because the replacement keeps the same
+  // final table name and preserves the view contract.
+  db.pragma('legacy_alter_table = ON');
+  try {
+    db.transaction(() => {
+      db.exec(messagesTableDDL('messages_new') + ';');
+      db.exec(`INSERT INTO messages_new (${colList}) SELECT ${colList} FROM messages`);
+      db.exec(`DROP TABLE messages`);
+      db.exec(`ALTER TABLE messages_new RENAME TO messages`);
+      db.exec(MESSAGE_INDEXES); // indexes were dropped with the old table
+    })();
+  } finally {
+    db.pragma('legacy_alter_table = OFF');
+    db.pragma('foreign_keys = ON');
+  }
 }
 
 // ─── Database Instance ───────────────────────────────────────────────────────
@@ -202,7 +213,7 @@ export async function initDatabase(): Promise<void> {
 
 export function getDb(): Database.Database {
   if (!db) {
-    throw new Error('[TaskMessageBox] Database not initialized. Call initDatabase() first.');
+    throw new RuntimeStateError('[TaskMessageBox] Database not initialized. Call initDatabase() first.');
   }
   return db;
 }

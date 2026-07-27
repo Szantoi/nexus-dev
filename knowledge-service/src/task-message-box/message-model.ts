@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { MESSAGE_MODEL_CONFIG_PATH } from '../config/paths';
 import { logger } from '../core/logger';
+import { ConfigurationError } from '../core/errors';
 
 const log = (msg: string) => logger.info(`[MessageModel] ${msg}`);
 const warn = (msg: string) => logger.warn(`[MessageModel] ⚠️ ${msg}`);
@@ -45,7 +46,7 @@ function loadConfig(): MessageModelConfig {
     const raw = fs.readFileSync(MESSAGE_MODEL_CONFIG_PATH, 'utf-8');
     const cfg = yaml.load(raw) as MessageModelConfig;
     if (!cfg || !Array.isArray(cfg.types) || !Array.isArray(cfg.statuses)) {
-      throw new Error('message-model.yaml missing required "types"/"statuses" arrays');
+      throw new ConfigurationError('message-model.yaml missing required "types"/"statuses" arrays');
     }
     cached = cfg;
     log(`Loaded canonical model v${cfg.version}: ${cfg.types.length} types, ${cfg.statuses.length} statuses, ` +

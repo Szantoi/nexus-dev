@@ -21,6 +21,7 @@ import {
 import { startChatSession } from '../chatSessionStarter';
 import { sendFromTerminal } from './multiBotManager';
 import { logger } from '../core/logger';
+import { TerminalNotFoundError } from '../core/errors';
 import { TMUX_ENTER_VARIANTS } from '../pipeline/common';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -167,7 +168,7 @@ export async function injectMessageToTerminal(
 ): Promise<boolean> {
   const sessionName = TERMINAL_SESSIONS[targetTerminal];
   if (!sessionName) {
-    throw new Error(`Unknown terminal: ${targetTerminal}`);
+    throw new TerminalNotFoundError(targetTerminal);
   }
 
   // Format the message with metadata

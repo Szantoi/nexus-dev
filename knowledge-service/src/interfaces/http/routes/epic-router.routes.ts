@@ -43,6 +43,7 @@ import {
 import { terminateColdSession } from '../../../sessionStarter';
 import { getSessionMode } from '../../../config/terminals';
 import { logger } from '../../../core/logger';
+import { ConfigurationError, RuntimeStateError } from '../../../core/errors';
 import { requireRoot } from '../../../auth/tokenAuth';
 
 const router = Router();
@@ -61,7 +62,7 @@ const router = Router();
 function generateTerminalToken(terminal: string): string {
   const terminalSecret = secrets.terminalTokenSecret;
   if (!terminalSecret) {
-    throw new Error('Terminal token authentication is not configured');
+    throw new ConfigurationError('Terminal token authentication is not configured');
   }
   return crypto
     .createHash('sha256')
@@ -837,7 +838,7 @@ export async function completeTaskForMcp(
   });
   const receipt = getRunnerCompletionReceipt(islandId, terminal, messageId);
   if (!receipt) {
-    throw new Error(`Completion receipt missing after successful completion: ${terminal}/${messageId}`);
+    throw new RuntimeStateError(`Completion receipt missing after successful completion: ${terminal}/${messageId}`);
   }
 
   // Cold session mode: terminate session after task completion

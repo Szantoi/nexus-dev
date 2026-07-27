@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { MarkdownTextSplitter, RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { logger } from './core/logger';
+import { ConfigurationError } from './core/errors';
 import { useVoyage } from './embeddings';
 import { addChunks } from './vectorStore';
 import { KNOWLEDGE_BASE_PATH } from './config/paths';
@@ -106,7 +107,7 @@ export async function buildIndex(options: BuildIndexOptions = {}): Promise<Index
   const includeCode = options.includeCode ?? true;
 
   if (!fs.existsSync(docsDir)) {
-    throw new Error(`Knowledge base not found: ${docsDir}`);
+    throw new ConfigurationError(`Knowledge base not found: ${docsDir}`);
   }
 
   const items: FileItem[] = [];

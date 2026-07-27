@@ -19,6 +19,7 @@ import neo4j, { type Driver } from 'neo4j-driver-lite';
 import { env, secrets } from '../config/env';
 import { logger } from '../core/logger';
 import { DEFAULT_ISLAND, ISLAND_ID_RX, UnknownIslandError } from '../core/island';
+import { GraphCorpusError, InvalidStateError } from '../core/errors';
 import type { EntityType, GraphEntity, GraphRelation, TraversalHit } from './types';
 import { ENTITY_TYPES, RELATION_TYPES, type RelationType } from './types';
 
@@ -198,12 +199,12 @@ function toEntity(value: unknown): GraphEntity {
 
 function assertEntityType(type: string): asserts type is EntityType {
   if (!(ENTITY_TYPES as readonly string[]).includes(type))
-    throw new Error(`Unknown entity type: ${type}`);
+    throw new GraphCorpusError(`Unknown entity type: ${type}`);
 }
 
 function assertRelationType(type: string): asserts type is RelationType {
   if (!(RELATION_TYPES as readonly string[]).includes(type))
-    throw new Error(`Unknown relation type: ${type}`);
+    throw new GraphCorpusError(`Unknown relation type: ${type}`);
 }
 
 /**
@@ -284,7 +285,7 @@ export async function sweepStale(syncTag: string, island?: string): Promise<void
   const islandId = resolveIsland(island);
   // An empty tag would make the comparison delete nothing (or, with `<>`,
   // exactly the fresh elements) — refuse rather than silently no-op.
-  if (syncTag.trim() === '') throw new Error('sweepStale requires a non-empty sync tag');
+  if (syncTag.trim() === '') throw new InvalidStateError('sweepStale requires a non-empty sync tag');
   await run(
     'MATCH (:KnowledgeEntity {island: $island})-[r:RELATES]->' +
       '(:KnowledgeEntity {island: $island}) ' +
