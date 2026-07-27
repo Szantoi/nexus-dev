@@ -3,24 +3,36 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-27
+**Utolsó frissítés:** 2026-07-27 (napzárás)
 
 ## Aktuális fókusz
 
-**AG-1 COVERS-BEKÖTÉS ÉLES (@root, 2026-07-27 késő este, Gábor kérésére
-átvéve az Antigravity limitje miatt):** terv-v2 + implementáció (`a88bd83`):
-relációtípus-szkópolt sweep (EXTRACTOR_RELATION_TYPES tulajdonjoggal),
-env-kapuzott `${NEXUS_COVERAGE_ROOT}` forrás a spaceos szigetben (egy-író
-szabály), per-forrás `{h,t}` fingerprint latest-run skip-kapuval
-(checkout-drift őr), orphan-szűrő + ghost-prune. 3 adverzariális review-
-lencse (4 P1 + 3 P2 + 3 P3; P1-ek és javítható P2-k fixálva; a pre-existing
-átfedő-futás-clobber follow-up a tervben). Élő VPS-validáció: 1229 tartós
-COVERS-él; coverage nélküli futás azonos állapotot hagy; --if-changed
-azonos profilban no-op. HÁTRA: VPS dev-checkout pull (az OLD kód timere a
-régi meta-formátummal teljes indexet csinál, de nem hibázik — a COVERS-t
-viszont a pull-ig söpri, mert a régi sweep nem típus-szkópolt!). Codex-
-koordináció: státuszkérés + érintő változások kiment a csatornán; CX
-lokálisan inaktív ~19h óta.
+**NAPZÁRÁS 2026-07-27 — minden szál lezárt, `origin/main` = `08a1e1a`, CI
+zöld.** A nap terméke időrendben: (1) Antigravity 5 csomag audit+merge
+(1 P1 kapuőr-fixszel); (2) TASK-DP-007 CI-paritás éles (Windows+Linux teljes
+kapusor, 5/5 negatív próba, `/tmp`-platformbug fogva+javítva); (3)
+MSG-ROOT-004 Conductor-eszkaláció lezárva; (4) Antigravity 2. csomag audit
+(evidencia-integritás lelet + 4 lint-fix) + AG-1 terv-review; (5) **AG-1
+COVERS-bekötés @root által befejezve és ÉLESBEN** (lásd lent); (6) **Codex
+CX-1 post-hoc review PASS** (dispatch-gate + cursor-aware tracker + VPS
+sandbox-remediáció; attached mód őszintén NEM PASS, headless canary
+MSG-EXPLORER-029 PASS; ISL-004 helyesen blocked az ISL-002-re).
+
+**AG-1 COVERS-BEKÖTÉS ÉLES ÉS VPS-N IGAZOLT** (`a88bd83`): relációtípus-
+szkópolt sweep (EXTRACTOR_RELATION_TYPES tulajdonjoggal), env-kapuzott
+`${NEXUS_COVERAGE_ROOT}` forrás (egy-író szabály), per-forrás `{h,t}`
+fingerprint latest-run kapuval (checkout-drift őr), orphan-szűrő +
+ghost-prune. 3 adverzariális lencse: 4 P1 javítva. Élő végállapot: 1229
+COVERS-él a spaceos-gráfban; a VPS dev-checkout pullolva, a timer az új
+kóddal explicit skip-loggal, NULLA írással fut („its relation types are NOT
+swept" + „up to date"). Follow-upok a tervben (COVERAGE-GRAPH-WIRING.md v2):
+átfedő-futás lease, MCP elavulás-jelzés.
+
+**PUSH-INCIDENS (2×, transzparensen jelentve a csatornán):** a Codex lokál
+main-re commitolt munkája kétszer került review ELŐTT mainre az én pushommal
+(`400c6fc`+`a930425`, majd `3944540`) — mindkettő post-hoc review PASS, CI
+végig zöld. A szabály mostantól mechanikus: külön lépésben elolvasott
+`origin/main..HEAD` lista + SHA-szerinti push ([[agent-channel-koordinacio]]).
 
 **ANTIGRAVITY-AUDIT KÉSZ (2026-07-27 este, @root, Gábor kérésére):** a második
 napi csomag (AG-2 DomainError II+III, AG-3 README-k, `/tmp`-refaktor, plusz a

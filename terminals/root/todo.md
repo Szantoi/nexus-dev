@@ -5,9 +5,24 @@
 > Program/mérföldkő/epic szintű GÉPI állapot: `docs/projects/EPICS.yaml` — task-zárás
 > után oda is szinkronizálni kell (eljárás a fájl fejlécében; TASK-QC-001).
 
-**Utolsó frissítés:** 2026-07-27
+**Utolsó frissítés:** 2026-07-27 (napzárás)
 
 ## Aktív
+
+- [ ] **COVERS follow-upok** (a `docs/plans/COVERAGE-GRAPH-WIRING.md` v2
+  „Ismert korlátok" szakaszából, jelölt: @antigravity ha visszatér a kerete):
+  (a) átfedő index-futások upsert-clobbere (pre-existing) → futás-lease;
+  (b) MCP toolok COVERS-elavulás-jelzése; (c) a coverage frissen tartása
+  (test:coverage + env-es index a dev gépen — most kézi).
+- [ ] **CX-1 folytatás (@codex):** attached-mód canary-hangolás — a Codex
+  0.145.0 interaktív képernyője még nem ad biztonságosan osztályozható ready
+  promptot (30s startup-timeout); headless módban áll, gate zárva. P3: a
+  dispatch-gate beragadó lockjának kézi takarítása a runner README-be.
+- [x] 2026-07-27 — **Codex CX-1 post-hoc review PASS** (`400c6fc`+kísérők):
+  mind az 5 invariáns igazolva (grant csak launch.started után fogy;
+  mkdir-lock fail-closed; nincs secret a státuszban; cursor-aware ready;
+  őszinte attached-minősítés). Push-incidens 2× — mechanikus szabály a
+  memóriában.
 
 - [ ] **TASK-DP-007 `in_progress` (@root):** CI-paritás mátrix ÉLES a mainen
   (`8a60949`): teljes kapusor ubuntu+windows, build, worktree-kapu, artifact;
@@ -38,11 +53,13 @@
   adverzariális lencse: 4 P1 + 2 P2 javítva; élő VPS-validáció: 1229 tartós
   COVERS-él, VPS-profil futás nem bántja. Follow-up (tervben dokumentálva):
   átfedő-futás upsert-clobber → futás-lease; MCP elavulás-jelzés.
-- [ ] **AG-2 kiadva (@antigravity): DomainError-adopció befejezése** (maradék
-  nyers `throw new Error`-ok, pl. indexer.ts) + **AG-3: README-frissítés**.
-- [ ] **CX-1 kiadva (@codex): valós Codex `explorer` PoC read-only (VPS/Linux)**
-  — pattern-canary hangolás a mainen lévő D-pumpa ellen (`TASK-ISL-007` (b));
-  utána CX-2: ISL-004 kanonikus store scope-claimmel.
+- [x] 2026-07-27 — **AG-2 (DomainError II+III) + AG-3 (README-k) KÉSZ** — az
+  esti auditban átment, mainen (`7e21785..294eb5f`).
+- [x] 2026-07-27 — **CX-1 headless szakasz KÉSZ** (@codex): dispatch-gate +
+  cursor-aware tracker + friss headless canary `MSG-EXPLORER-029` PASS; VPS
+  sandbox-remediáció (bubblewrap, stabil launcher). Attached mód tudatosan
+  NEM PASS — folytatás külön aktív tételben. **CX-2 (ISL-004) blocked** az
+  ISL-002 identitássémára (Codex felmérése, helytálló).
 - [x] 2026-07-27 — **Antigravity 5 munkacsomagjának független review-ja +
   main-push:** minden kaput újrafuttattam (typecheck 0; 1687 teszt PASS;
   lint 786/786; size/links/secret/audit/tasks zöld). Verdikt: PASS, 1 P1
