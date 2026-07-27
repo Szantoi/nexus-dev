@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import {
   loadEpicsYaml,
@@ -69,7 +70,7 @@ epics:
     # Missing: project, tasks_yaml
 `;
 
-const TEST_DIR = '/tmp/spaceos-test-epics';
+const TEST_DIR = path.join(os.tmpdir(), 'spaceos-test-epics');
 const TEST_FILE_PATH = path.join(TEST_DIR, 'EPICS-test.yaml');
 const INVALID_FILE_PATH = path.join(TEST_DIR, 'EPICS-invalid.yaml');
 

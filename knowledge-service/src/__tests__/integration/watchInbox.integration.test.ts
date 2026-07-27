@@ -13,6 +13,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { runWatchInbox } from '../../pipeline/watchInbox';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 
 // Mock fetch globally
@@ -35,7 +36,7 @@ vi.mock('../../pipeline/common', () => ({
 }));
 
 describe('watchInbox MCP API Integration (MSG-BACKEND-193)', () => {
-  const mockInboxPath = '/tmp/test-inbox';
+  const mockInboxPath = path.join(os.tmpdir(), 'test-inbox');
   const mockUnreadFile = path.join(mockInboxPath, '2026-07-08_001_test-task.md');
 
   beforeEach(async () => {

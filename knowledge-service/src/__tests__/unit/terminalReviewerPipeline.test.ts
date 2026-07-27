@@ -57,8 +57,11 @@ vi.mock('../../pipeline/common', () => ({
   log: vi.fn(async () => {}),
   telegram: vi.fn(async () => {}),
 }));
+import * as os from 'os';
+import * as path from 'path';
+
 vi.mock('../../config/terminals', () => ({
-  getTmuxSocket: () => '/tmp/test-spaceos.tmux',
+  getTmuxSocket: () => path.join(os.tmpdir(), 'test-spaceos.tmux'),
 }));
 vi.mock('../../sessionStarter', () => ({ startWorkSession: H.startWorkSessionMock }));
 

@@ -9,6 +9,7 @@
 
 import { promises as fs } from 'node:fs';
 import { existsSync } from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import { log as pipelineLog } from './common';
 
@@ -32,7 +33,7 @@ export interface LockResult {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const LOCK_DIR = '/tmp/spaceos-locks';
+const LOCK_DIR = path.join(os.tmpdir(), 'spaceos-locks');
 const STALE_LOCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 // ─── Lock File Operations ────────────────────────────────────────────────────

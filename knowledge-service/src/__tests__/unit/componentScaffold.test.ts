@@ -10,8 +10,10 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { scaffoldComponent, getScaffoldTemplates } from '../../generators/componentScaffold';
 import type { ScaffoldParams } from '../../generators/componentScaffold';
 import { existsSync, rmSync } from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
-const TEST_OUTPUT_DIR = '/tmp/spaceos-scaffold-test';
+const TEST_OUTPUT_DIR = path.join(os.tmpdir(), 'spaceos-scaffold-test');
 
 describe('Component Scaffold', () => {
   beforeEach(() => {

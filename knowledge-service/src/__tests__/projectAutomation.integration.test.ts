@@ -16,9 +16,10 @@ import * as yaml from 'js-yaml';
 // epicRouter opens its SQLite DB under DATA_DIR at import time → redirect to
 // a temp dir BEFORE the module graph loads (vi.hoisted runs first).
 const TEST_BASE_DIR = vi.hoisted(() => {
-  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
-  const root = `${base.replace(/[\\/]+$/, '')}/project-automation-test-${process.pid}`;
-  process.env.DATA_DIR = `${root}/data`;
+  const os = require('node:os');
+  const path = require('node:path');
+  const root = path.join(os.tmpdir(), `project-automation-test-${process.pid}`);
+  process.env.DATA_DIR = path.join(root, 'data');
   return root;
 });
 

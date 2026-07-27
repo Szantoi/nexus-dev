@@ -6,17 +6,18 @@
  * scope, so we point them at a temp directory BEFORE importing (vi.hoisted).
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import * as yaml from 'js-yaml';
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 const TEST_ROOT = vi.hoisted(() => {
-  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
-  const root = `${base.replace(/[\\/]+$/, '')}/mode4-test-${process.pid}`;
+  const os = require('node:os');
+  const path = require('node:path');
+  const root = path.join(os.tmpdir(), `mode4-test-${process.pid}`);
   process.env.SPACEOS_ROOT = root;
-  process.env.TERMINALS_PATH = `${root}/terminals`;
-  process.env.EPICS_PATH = `${root}/EPICS.yaml`;
+  process.env.TERMINALS_PATH = path.join(root, 'terminals');
+  process.env.EPICS_PATH = path.join(root, 'EPICS.yaml');
   delete process.env.SPACEOS_MODE;
   return root;
 });

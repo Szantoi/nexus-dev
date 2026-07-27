@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -20,7 +21,7 @@ describe('Mailbox Service', () => {
   beforeEach(async () => {
     // Create unique test directory for this test run
     const uniqueId = crypto.randomBytes(8).toString('hex');
-    TEST_TERMINALS_ROOT = `/tmp/test-terminals-${uniqueId}`;
+    TEST_TERMINALS_ROOT = path.join(os.tmpdir(), `test-terminals-${uniqueId}`);
 
     // Create test directory structure
     await fs.mkdir(TEST_TERMINALS_ROOT, { recursive: true });

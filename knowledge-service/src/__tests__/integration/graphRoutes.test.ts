@@ -12,8 +12,9 @@ import * as yaml from 'js-yaml';
 
 // graphRoutes reads EPICS_PATH at module scope → set env BEFORE the import runs
 const TEST_EPICS_PATH = vi.hoisted(() => {
-  const base = process.env.TMPDIR || process.env.TEMP || process.env.TMP || '/tmp';
-  const p = `${base.replace(/[\\/]+$/, '')}/graph-routes-test-${process.pid}-EPICS.yaml`;
+  const os = require('node:os');
+  const path = require('node:path');
+  const p = path.join(os.tmpdir(), `graph-routes-test-${process.pid}-EPICS.yaml`);
   process.env.EPICS_PATH = p;
   return p;
 });
@@ -242,7 +243,7 @@ describe('PUT /api/graph/epics/:id', () => {
         .send({ description: 'Temp file test' });
 
       // Check for .tmp file
-      const tmpPath = TEST_EPICS_PATH + '.tmp';
+      const tmpPath = `${TEST_EPICS_PATH}.tmp`;
       let tmpExists = false;
       try {
         await fs.access(tmpPath);

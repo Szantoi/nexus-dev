@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
+
+const TEST_SPACEOS_ROOT = path.join(os.tmpdir(), 'spaceos-test');
 import {
   generateDailyReport,
   saveDailyReportMarkdown,
@@ -13,12 +16,17 @@ import {
  * Tests report generation, markdown saving, and metrics aggregation.
  */
 
-// Mock dependencies
-vi.mock('../../pipeline/common', () => ({
-  telegram: vi.fn().mockResolvedValue(undefined),
-  log: vi.fn().mockResolvedValue(undefined),
-  SPACEOS_ROOT: '/tmp/spaceos-test',
-}));
+vi.mock('../../pipeline/common', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('../../pipeline/common')>();
+  const os = require('node:os');
+  const path = require('node:path');
+  return {
+    ...mod,
+    telegram: vi.fn().mockResolvedValue(undefined),
+    log: vi.fn().mockResolvedValue(undefined),
+    SPACEOS_ROOT: path.join(os.tmpdir(), 'spaceos-test'),
+  };
+});
 
 vi.mock('../../task-audit/taskCreation', () => ({
   getDailySummary: vi.fn().mockResolvedValue({
@@ -45,7 +53,7 @@ describe('DailyReport', () => {
     vi.clearAllMocks();
     // Ensure test directory exists
     try {
-      await fs.mkdir('/tmp/spaceos-test/docs/reports/daily', { recursive: true });
+      await fs.mkdir(path.join(TEST_SPACEOS_ROOT, 'docs/reports/daily'), { recursive: true });
     } catch {
       // Directory may already exist
     }
@@ -54,7 +62,7 @@ describe('DailyReport', () => {
   afterEach(async () => {
     // Cleanup test files
     try {
-      await fs.rm('/tmp/spaceos-test', { recursive: true, force: true });
+      await fs.rm(TEST_SPACEOS_ROOT, { recursive: true, force: true });
     } catch {
       // Ignore cleanup errors
     }
@@ -180,7 +188,7 @@ describe('DailyReport', () => {
     it('should create directory if not exists', async () => {
       // Remove directory first
       try {
-        await fs.rm('/tmp/spaceos-test/docs/reports/daily', { recursive: true, force: true });
+        await fs.rm(path.join(TEST_SPACEOS_ROOT, 'docs/reports/daily'), { recursive: true, force: true });
       } catch {
         // Ignore
       }

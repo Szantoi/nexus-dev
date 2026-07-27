@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { logger } from '../core/logger';
 import { getTerminalsPath } from './paths';
@@ -57,7 +58,7 @@ export function loadConfig(): TerminalsConfig {
         conductor: { session: 'spaceos-conductor', priority: true, model: 'sonnet', description: 'Conductor' },
       },
       legacyAliases: {},
-      tmuxSocket: '/tmp/spaceos.tmux',
+      tmuxSocket: path.join(os.tmpdir(), 'spaceos.tmux'),
     };
     return _config;
   }

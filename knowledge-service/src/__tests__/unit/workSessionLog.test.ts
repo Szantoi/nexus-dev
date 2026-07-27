@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import {
   logWorkSessionRequest,
@@ -18,7 +19,7 @@ import {
 } from '../../pipeline/workSessionLog';
 
 // Test with a temporary directory
-const TEST_LOG_DIR = '/tmp/spaceos-test-logs';
+const TEST_LOG_DIR = path.join(os.tmpdir(), 'spaceos-test-logs');
 const ORIGINAL_ROOT = process.env.SPACEOS_ROOT;
 
 describe('Work Session Log', () => {

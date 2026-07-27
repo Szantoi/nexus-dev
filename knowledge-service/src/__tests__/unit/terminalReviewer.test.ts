@@ -51,8 +51,11 @@ vi.mock('../pipeline/reviewLog', () => ({
   generateReviewId: vi.fn().mockReturnValue('REV-TEST-001'),
 }));
 
+import * as os from 'os';
+import * as path from 'path';
+
 vi.mock('../config/terminals', () => ({
-  getTmuxSocket: () => '/tmp/spaceos.tmux',
+  getTmuxSocket: () => path.join(os.tmpdir(), 'spaceos.tmux'),
   getTerminalsRoot: () => '/opt/spaceos/terminals',
 }));
 

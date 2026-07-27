@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs/promises';
+import * as os from 'os';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import {
@@ -22,8 +23,8 @@ import {
 } from '../pipeline/projectDispatcher';
 
 // Test fixtures directory
-const TEST_PROJECTS_DIR = '/tmp/test-projects-dispatcher';
-const TEST_TERMINALS_DIR = '/tmp/test-terminals-dispatcher';
+const TEST_PROJECTS_DIR = path.join(os.tmpdir(), 'test-projects-dispatcher');
+const TEST_TERMINALS_DIR = path.join(os.tmpdir(), 'test-terminals-dispatcher');
 
 // Helper function to create test task chain
 const createTestTaskChain = (): TaskChain => ({
