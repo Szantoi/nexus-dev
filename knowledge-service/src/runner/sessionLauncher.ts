@@ -28,6 +28,8 @@ export interface LaunchRequest {
 export interface LaunchResult {
   started: boolean;
   reason?: string;
+  /** A configuration or policy refusal that cannot succeed on a later poll. */
+  permanentRefusal?: boolean;
   provider?: CliProvider;
   model?: string;
 }

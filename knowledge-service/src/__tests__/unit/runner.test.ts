@@ -87,6 +87,18 @@ describe('loadRunnerConfig', () => {
     }
   });
 
+  it('uses an explicitly selected token environment variable over RUNNER_TOKEN', () => {
+    process.env.RUNNER_TOKEN = 'master-token';
+    process.env.EXPLORER_RUNNER_TOKEN = 'explorer-token';
+    try {
+      const cfg = loadRunnerConfig(writeConfig(`${VALID_YAML}token_env: EXPLORER_RUNNER_TOKEN\n`));
+      expect(cfg.token).toBe('explorer-token');
+    } finally {
+      delete process.env.RUNNER_TOKEN;
+      delete process.env.EXPLORER_RUNNER_TOKEN;
+    }
+  });
+
   it('fails closed without a token', () => {
     const yaml = VALID_YAML.replace('token: "test-token"\n', '');
     expect(() => loadRunnerConfig(writeConfig(yaml))).toThrow(/token missing/i);
@@ -162,6 +174,26 @@ terminals: {}
         }),
       ).toThrow();
     }
+    expect(
+      RunnerConfigSchema.parse({
+        ...base,
+        expected_island_id: 'island-a',
+        terminals: {
+          ...base.terminals,
+          backend: { ...base.terminals.backend, allowed_message_ids: ['MSG-CANARY-1'] },
+        },
+      }).terminals.backend.allowed_message_ids,
+    ).toEqual(['MSG-CANARY-1']);
+    expect(() =>
+      RunnerConfigSchema.parse({
+        ...base,
+        expected_island_id: 'island-a',
+        terminals: {
+          ...base.terminals,
+          backend: { ...base.terminals.backend, allowed_message_ids: ['MSG-CANARY-1', 'MSG-CANARY-1'] },
+        },
+      }),
+    ).toThrow(/allowed_message_ids/);
   });
 
   it('bounds the shutdown grace interval to the coordinator contract', () => {
@@ -677,6 +709,41 @@ describe('pollOnce', () => {
     expect(deps.store.shouldLaunch('MSG-1', { maxAttempts: 3, retryCooldownMs: 0 })).toBe(true);
   });
 
+  it('does not claim out-of-scope tasks when a terminal has an explicit allowlist', async () => {
+    const base = makeConfig();
+    const cfg: RunnerConfig = {
+      ...base,
+      terminals: {
+        backend: { ...base.terminals.backend, allowed_message_ids: ['MSG-CANARY'] },
+      },
+    };
+    const deps = makeDeps({ backend: [{ id: 'MSG-HISTORICAL' }, { id: 'MSG-CANARY' }] });
+
+    const res = await pollOnce(cfg, deps);
+
+    expect(res).toMatchObject({ launched: 1, skipped: 1 });
+    expect(deps.claimTask).toHaveBeenCalledTimes(1);
+    expect(deps.claimTask).toHaveBeenCalledWith('backend', 'MSG-CANARY');
+    expect(deps.launch).toHaveBeenCalledWith({ terminal: 'backend', messageId: 'MSG-CANARY', model: undefined });
+    expect(deps.store.get('MSG-HISTORICAL')).toBeUndefined();
+  });
+
+  it('consumes a dynamic canary grant only after the local session starts', async () => {
+    const base = makeConfig();
+    const cfg: RunnerConfig = {
+      ...base,
+      terminals: { backend: { ...base.terminals.backend, allowed_message_ids: [] } },
+    };
+    const deps = makeDeps({ backend: [{ id: 'MSG-CANARY' }] });
+    const gate = { allows: vi.fn().mockReturnValue(true), consume: vi.fn() };
+    deps.dispatchGate = gate;
+
+    const res = await pollOnce(cfg, deps);
+
+    expect(res.launched).toBe(1);
+    expect(gate.consume).toHaveBeenCalledWith('backend', 'MSG-CANARY');
+  });
+
   it('reports failed terminals instead of throwing', async () => {
     const cfg = makeConfig();
     const deps = makeDeps({});
@@ -696,6 +763,29 @@ describe('pollOnce', () => {
     expect(res.launched).toBe(0);
     expect(deps.releaseTask).toHaveBeenCalledWith('backend', 'MSG-1');
     expect(deps.store.shouldLaunch('MSG-1', { maxAttempts: 3, retryCooldownMs: 0 })).toBe(true);
+  });
+
+  it('quarantines a task whose launch refusal cannot recover on a later poll', async () => {
+    const cfg = makeConfig();
+    const deps = makeDeps({ backend: [{ id: 'MSG-MODEL-MISMATCH' }] });
+    deps.launch.mockReturnValue({
+      started: false,
+      reason: 'attached input encoding failed: session model differs',
+      permanentRefusal: true,
+    });
+
+    const res = await pollOnce(cfg, deps);
+
+    expect(res).toMatchObject({ launched: 0, skipped: 1 });
+    expect(deps.releaseTask).toHaveBeenCalledWith('backend', 'MSG-MODEL-MISMATCH');
+    expect(deps.store.get('MSG-MODEL-MISMATCH')).toMatchObject({
+      terminal: 'backend',
+      attempts: 0,
+      disposition: 'quarantine',
+    });
+    expect(
+      deps.store.shouldLaunch('MSG-MODEL-MISMATCH', { maxAttempts: 3, retryCooldownMs: 0 }),
+    ).toBe(false);
   });
 
   it('does not launch when the server refuses the task claim', async () => {

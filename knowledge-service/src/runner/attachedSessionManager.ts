@@ -70,6 +70,14 @@ export {
   type AttachedStableIdleProof,
   type AttachedTerminalPolicy,
 } from './attachedSessionTypes';
+
+const TERMINAL_COLOR_QUERIES = [
+  { query: '\u001b]10;?', response: '\u001b]10;rgb:ffff/ffff/ffff\u001b\\' },
+  { query: '\u001b]11;?', response: '\u001b]11;rgb:0000/0000/0000\u001b\\' },
+] as const;
+const TERMINAL_QUERY_TAIL_LENGTH = 4_096;
+const CODEX_UPDATE_PROMPT = 'Update available!';
+const CODEX_UPDATE_CONTINUE_PROMPT = 'Press enter to continue';
 /**
  * Provider-neutral lifecycle owner for persistent attached terminals.
  * Completion and idle facts are supplied explicitly; PTY text never completes
@@ -84,6 +92,10 @@ export class AttachedSessionManager implements TerminalSink {
   private readonly cleanupMarginMs: number;
   private readonly isCurrentSession = createAttachedSessionMatcher(this.runtime);
   private readonly requireRuntime = (terminal: string) => requireAttachedRuntime(this.runtime, terminal);
+  /** Per-PTY tail for split terminal control queries. */
+  private readonly terminalQueryTails = new WeakMap<PtySession, string>();
+  /** The update notice is dismissed at most once for each PTY generation. */
+  private readonly dismissedUpdatePrompts = new WeakSet<PtySession>();
   /** Kill failures already pushed to a cleanup ledger; prevents double-report. */
   private readonly killFailureRecorded = new WeakSet<PtySession>();
   private shuttingDown = false;
@@ -535,6 +547,34 @@ export class AttachedSessionManager implements TerminalSink {
 
   }
 
+  /**
+   * node-pty owns the process side of a terminal but does not emulate terminal
+   * replies. Codex asks for OSC 10/11 colors before rendering its first prompt;
+   * provide fixed high-contrast values so an unattended, read-only session can
+   * progress exactly as it does in an interactive terminal.
+   */
+  private answerTerminalColorQueries(session: PtySession, data: string): void {
+    let pending = `${this.terminalQueryTails.get(session) ?? ''}${data}`;
+    for (const { query, response } of TERMINAL_COLOR_QUERIES) {
+      while (pending.includes(query)) {
+        session.write(response);
+        pending = pending.replace(query, '');
+      }
+    }
+    if (
+      !this.dismissedUpdatePrompts.has(session)
+      && pending.includes(CODEX_UPDATE_PROMPT)
+      && pending.includes(CODEX_UPDATE_CONTINUE_PROMPT)
+    ) {
+      // Select Codex's documented "Skip until next version" option. A runner
+      // never upgrades a CLI on its own; this merely clears the interactive
+      // startup modal so the existing, pinned binary can reach its prompt.
+      session.write('3\r');
+      this.dismissedUpdatePrompts.add(session);
+    }
+    this.terminalQueryTails.set(session, pending.slice(-TERMINAL_QUERY_TAIL_LENGTH));
+  }
+
   private handleData(
     terminal: string,
     session: PtySession,
@@ -546,6 +586,23 @@ export class AttachedSessionManager implements TerminalSink {
     current.outputEpoch++;
     current.lastOutputAt = Math.max(current.lastOutputAt, this.now());
     const policy = this.policies.get(terminal)!;
+    try {
+      this.answerTerminalColorQueries(session, data);
+    } catch (error) {
+      if (current.state === 'starting') {
+        clearAttachedStartupTimer(current);
+        const failure = appendLifecycleErrors(
+          `terminal query responder failed: ${errorText(error)}`,
+          disposeAttachedSubscriptions(current),
+        );
+        this.cleanupFailedStart(terminal, session, generation, failure, current.automaticAttempt);
+      } else {
+        current.state = 'attention_required';
+        current.attentionReason = 'terminal_query_responder_failed';
+        current.lastError = `terminal query responder failed: ${errorText(error)}`;
+      }
+      return;
+    }
     // Every chunk reaches the provider's screen tracker in EVERY state, so a
     // TUI entered while busy can never poison a later idle classification.
     try {

@@ -75,6 +75,15 @@ a backlog és poll indítása előtt `await sink.ensureReady?.()` preflightot fu
 így egy még be nem kötött `attached` terminál fail-closed leállítja a runnert —
 nem esik csendben headlessre.
 
+### Üzemi fallback Codex TUI-indítási hiba esetén
+
+Ha a `mode: attached` Codex TUI a PTY-n nem jut el igazolható promptig, a
+terminált **kifejezetten** `mode: headless` értékre kell állítani és újra kell
+indítani a runnert. Ez nem automatikus degradáció: a konfigurációs módosítás
+auditálható, a `codex exec --json` pedig strukturált `complete_task` esemény
+alapján zárja le a feladatot. A headless fallback megtartja a provider, modell,
+sandbox és MCP-konfigurációt; csak a perzisztens interaktív PTY-t váltja ki.
+
 ## Attached lifecycle alap (3C)
 
 Az `AttachedSessionManager` állapotgépe terminálonként legfeljebb egy PTY-t
@@ -210,8 +219,20 @@ csendben.
   `sse_enabled`, `max_backoff_ms`, `log_dir`, `quarantine_existing_on_first_start`,
   provider/model allowlistek, terminálonkénti `mode`
   (`headless` default / `attached` step 3),
+  opcionális terminálonkénti `allowed_message_ids` dispatch-gate (a `[]`
+  explicit, biztonságos pause: a runner nem claimeli a postaláda többi
+  feladatát),
   sandbox, timeout és kimeneti limit. Codexnél az automatizálási út
   `codex exec --json --ephemeral`; a prompt stdinre kerül.
+- **Egyszeri canary-grant:** `npm run runner:gate -- grant explorer MSG-...`
+  egy helyi, titokmentes `dispatch-gates.json` bejegyzést készít. A runner
+  csak a megadott üzenetet indíthatja, és a grant a sikeres launch után
+  automatikusan elfogy. `npm run runner:gate -- status` a grantokat, aktív
+  sessiont és az utolsó strukturált esemény típusát mutatja; `pause explorer`
+  minden dinamikus grantot töröl az adott terminálhoz. A `grant`/`pause` és a
+  runner-fogyasztás közös, kizárólagos `.lock` könyvtárat használ: ütközéskor
+  a művelet fail-closed hibával leáll (ismételd meg), a `status.locked` pedig
+  jelzi, hogy éppen folyamatban van-e módosítás.
 - **`shutdown_grace_ms`** (default 20 000, max 120 000): a shutdown-koordinátor
   teljes kerete. Induláskor az `assertRunnerShutdownBudget` a sink
   `minimumShutdownGraceMs()` igénye ellen validálja és **fail-closed elutasítja**
@@ -258,10 +279,10 @@ runner fail-closed leáll, és egyetlen sessiont sem indít.
   utáni `failed`/backoff állapot viszont már cancellálható. Ugyanez a szemantika
   minden automatikus `cleanupFailedStart` stopping-ablakra is áll (review 2,
   P3 — elfogadott, dokumentált korlát).
-- Attached: egy **explicit** más modellt kérő task minden poll-tickben
-  claim→refusal→release ciklust fut (a `max_attempts` csak indított sessionre
-  számol) — ez minden refusal-okra igaz, pre-existing viselkedés; a végleges
-  gyógyír egy „tartósan futtathatatlan task" karantén (D-review P3 follow-up).
+- Attached: egy **explicit** más modellt kérő task végleges policy-elutasítás.
+  A poll a claim release után tartósan karanténba helyezi, ezért nem indul újra
+  minden tickben. Átmeneti refusal (például még nem ready PTY) továbbra is
+  újrapróbálható marad.
 - A screen-parser a duplázott ESC-et (`ESC ESC [...]`) nem kezeli
   sequence-restartként — terminfo-vezérelt program ilyet nem ad ki, és a
   release-t a receipt + outputEpoch + csend-kapu úgyis dominálja (D-review P3).

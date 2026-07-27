@@ -12,6 +12,7 @@ import type { ProcessedStore } from './processedStore';
 import type { RunnerConfig } from './runnerConfig';
 import type { LaunchRequest, LaunchResult } from './sessionLauncher';
 import type { UnreadTask } from './serverClient';
+import type { DispatchGate } from './dispatchGate';
 import { RuntimeStateError } from '../core/errors';
 
 const MAX_POLL_ERROR_LENGTH = 500;
@@ -32,6 +33,8 @@ export interface PollDeps {
   launch(req: LaunchRequest): LaunchResult;
   isBusy(terminal: string): boolean;
   store: ProcessedStore;
+  /** Optional single-use, locally managed canary grants. */
+  dispatchGate?: DispatchGate;
 }
 
 export interface PollTickResult {
@@ -81,6 +84,18 @@ export async function pollOnce(
 
     for (const task of tasks) {
       if (signal?.aborted) break;
+      const allowedMessageIds = config.terminals[terminal].allowed_message_ids;
+      const dynamicallyAllowed = deps.dispatchGate?.allows(terminal, task.id) ?? false;
+      // A defined list is a deployment gate: leave out-of-scope backlog work
+      // untouched (unclaimed and unrecorded) during an isolated canary.
+      if (
+        allowedMessageIds !== undefined &&
+        !allowedMessageIds.includes(task.id) &&
+        !dynamicallyAllowed
+      ) {
+        result.skipped++;
+        continue;
+      }
       // One session per terminal — the rest waits for the next tick.
       if (deps.isBusy(terminal)) {
         result.skipped++;
@@ -146,6 +161,17 @@ export async function pollOnce(
       if (launch.started) {
         deps.store.recordLaunch(task.id, terminal, now);
         stateDirty = true;
+        if (dynamicallyAllowed) {
+          try {
+            // Fail closed on the next task: an unavailable gate file leaves
+            // the exact same message grant in place for deliberate recovery.
+            deps.dispatchGate?.consume(terminal, task.id);
+          } catch (error) {
+            logger.error(
+              `[Runner] Dispatch gate consumption failed (${terminal}/${task.id}): ${boundedPollError(error)}`,
+            );
+          }
+        }
         result.launched++;
       } else {
         logger.warn(`[Runner] Launch refused (${terminal}/${task.id}): ${launch.reason}`);
@@ -154,6 +180,13 @@ export async function pollOnce(
         } catch (err) {
           throw new RuntimeStateError(
             `claim release failed (${terminal}/${task.id}): ${boundedPollError(err)}`,
+          );
+        }
+        if (launch.permanentRefusal) {
+          deps.store.recordQuarantine(task.id, terminal, now);
+          stateDirty = true;
+          logger.warn(
+            `[Runner] Quarantined permanently refused task (${terminal}/${task.id}): ${launch.reason}`,
           );
         }
         result.skipped++;

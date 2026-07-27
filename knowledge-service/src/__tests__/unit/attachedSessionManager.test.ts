@@ -275,6 +275,27 @@ afterEach(() => {
 });
 
 describe('AttachedSessionManager', () => {
+  it('answers split terminal color queries before classifying readiness', async () => {
+    const { manager, host } = fixture();
+    const startup = manager.ensureReady();
+    await Promise.resolve();
+    const session = host.sessions[0]!;
+
+    session.emitData('\u001b]10');
+    session.emitData(';?\u001b]11;?');
+    session.emitData('Codex: Update available!');
+    session.emitData(' Press enter to continue');
+
+    expect(session.writes).toEqual([
+      '\u001b]10;rgb:ffff/ffff/ffff\u001b\\',
+      '\u001b]11;rgb:0000/0000/0000\u001b\\',
+      '3\r',
+    ]);
+    session.emitData('READY');
+    await startup;
+    expect(manager.snapshot('backend')).toMatchObject({ state: 'ready' });
+  });
+
   it('exposes spawn settlement plus native cleanup deadline plus a runner shutdown margin', () => {
     const { manager } = fixture();
 

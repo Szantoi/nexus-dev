@@ -6,7 +6,7 @@ project: nexus/knowledge-service
 milestone: ISL-M3
 epic: ISL-CLI-ADAPTERS
 status: in_progress
-updated: 2026-07-22
+updated: 2026-07-27
 priority: critical
 depends_on: [TASK-ISL-001]
 parallel_with: [TASK-ISL-002, TASK-ISL-004]
@@ -378,3 +378,72 @@ Ezek **nem záró bizonyítékok**, mert a legutolsó review után három P1 mar
 volt stage, commit, push vagy deploy. A stop-dokumentáció külön lokális
 checkpoint commitja nem jelent C-elfogadást. A task és az `ISL-CLI-ADAPTERS`
 epic továbbra is `in_progress`/`active`.
+
+### 2026-07-27 — Valós Codex Explorer attached PoC és biztonságos headless fallback
+
+- **Goal:** a VPS/Linux Codex Explorer terminálon megmérni, hogy az attached
+  PTY-session determinisztikusan ready állapotba jut-e, és csak ekkor kipróbálni
+  a receipt-alapú, egyetlen feladatra korlátozott dispatch-et.
+- **Sikerkritérium:** a valós Codex verzióra hangolt cursor-aware képernyőmodell
+  két egymást követő promptmintát ismer fel; a PTY-n küldött rövid nudge nem
+  tartalmaz task-tartalmat; completionhez továbbra is csak a szerver durable
+  `complete_task` receiptje számít.
+- **Kilépési feltétel:** attached mód csak bizonyított ready + completion +
+  stabil-idle lánc után kaphat PASS minősítést. Ellenkező esetben az attached
+  terminál nem indulhat automatikusan, a fallbacknek pedig explicit és zártnak
+  kell maradnia.
+
+Eredmény:
+
+- a VPS-en futó Codex TUI 90 másodpercen belül nem adott stabil, küldhető
+  promptot; a cursor-aware `TerminalScreenTracker` a startup/spinner képet
+  helyesen kezelte, de nem hamisította ready állapottá;
+- azonos jelenség jelentkezett a JoineryTech MCP-konfiguráció eltávolításával
+  is, ezért a blokk nem mailbox-, MCP- vagy task-dispatch eredetű;
+- a renderer regresszióját célzott teszt fedi: törölt/felülírt régi promptból
+  nem lehet ready osztályozás;
+- az operatív fallback `mode: headless`: a `codex exec --json` one-shot út
+  valós, read-only Explorer feladaton durable fetch/ack/`complete_task`
+  receiptet és 0 exit kódot adott. Az attached TUI emiatt nem lett promótálva;
+- a canary konfigurációban az `allowed_message_ids: []` alaphelyzetben teljes
+  pause. Egy külön, titokmentes `dispatch-gates.json` csak név szerinti,
+  egyszer használható grantet enged; a grant a sikeres helyi launch után
+  fogy el. Operátori `grant`/`pause` és runner-fogyasztás kizárólagos lockkal
+  védett, ütközéskor fail-closed. A `runner:gate status` a grantokat, az aktív
+  sessiont, az utolsó esemény metaadatát és a lock állapotát mutatja.
+
+Ellenőrzési bizonyíték:
+
+- a dispatch-gate, CLI és runner célzott tesztjei: 50 PASS;
+- typecheck, build, Biome, link- és whitespace-check PASS;
+- VPS backup-first rollout után a `FileDispatchGate` modul betöltése és a
+  `runner:gate status` PASS; nincs aktív grant vagy session, a runner
+  kontrolláltan `inactive` maradt;
+- a valós runner célvégpont `127.0.0.1:3458/ready` PASS. A `3466` csak
+  tailnet-címen hallgat, ezért loopbackről nem runner-egészségjelző.
+
+**Állapot:** az attached Codex PoC **NEM PASS**, ezért az ISL-007 továbbra is
+`in_progress`. A headless Codex út és a zárt, egyszer használható canary-kapu
+üzemi evidenciája rendelkezésre áll. Következő valós canaryhoz új, explicit
+read-only Explorer feladat kell a konfigurált modellel; a meglévő régi,
+eltérő modellkérésű inbox tételek nem indulhatnak el.
+
+### 2026-07-27 — Friss, explicit headless read-only canary revalidáció
+
+Egy új, alacsony prioritású Explorer feladat (`MSG-EXPLORER-029`) a kanonikus,
+Conductor-hitelesített mailbox API-n jött létre. A feladat kizárólag a saját
+MCP `fetch_task`/`ack_task` hívását, a workdir és `AGENTS.md` olvasását, majd
+a durable MCP `complete_task` lezárást engedte; fájl-, konfiguráció-, git- és
+dokumentációmódosítást kifejezetten tiltott.
+
+- a statikus `allowed_message_ids: []` zárva maradt; kizárólag a lokális,
+  egyszer használható `grant explorer MSG-EXPLORER-029` nyitotta meg ezt az
+  egy üzenetet;
+- a runner indítás után a grantet elfogyasztotta, az utolsó strukturált esemény
+  `completed` lett, aktív session nem maradt;
+- a canary a terminál konfigurált alapmodelljével futott; a korábbi, eltérő
+  modellkérésű `MSG-EXPLORER-019…021` tételek változatlanul nem indultak el;
+- a bizonyíték után a runner ismét kontrolláltan `inactive`; gate grant `[]`,
+  lock `false`, active marker nincs.
+
+Ez a headless út friss operatív PASS-a; az attached PoC állapotát nem módosítja.

@@ -2,6 +2,7 @@ import type { AttachedTaskMarkerStore } from './attachedTaskMarkerStore';
 import { clearStabilityTimer } from './attachedRestartPolicy';
 import type { AttachedTerminalPolicy, RuntimeSession } from './attachedSessionTypes';
 import type { LaunchRequest, LaunchResult } from './sessionLauncher';
+import { ValidationError } from '../core/errors';
 
 export function dispatchAttachedTask(
   current: RuntimeSession | undefined,
@@ -20,7 +21,13 @@ export function dispatchAttachedTask(
   try {
     input = policy.encodeDispatch(request);
   } catch (error) {
-    return { started: false, reason: `attached input encoding failed: ${errorText(error)}` };
+    return {
+      started: false,
+      reason: `attached input encoding failed: ${errorText(error)}`,
+      // An invalid message id or a requested model that differs from the
+      // long-lived session model cannot recover by retrying the same task.
+      permanentRefusal: error instanceof ValidationError,
+    };
   }
   const now = new Date(nowMs).toISOString();
   const marker = {

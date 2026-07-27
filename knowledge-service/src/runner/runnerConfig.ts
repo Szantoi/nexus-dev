@@ -49,6 +49,14 @@ const TerminalEntrySchema = z
     provider: z.enum(CLI_PROVIDERS).optional(),
     models: z.array(z.string().regex(SAFE_MODEL)).min(1).default(['sonnet']),
     default_model: z.string().regex(SAFE_MODEL).default('sonnet'),
+    /** Optional per-terminal dispatch gate; an empty list safely pauses it. */
+    allowed_message_ids: z
+      .array(z.string().min(1).max(200).regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/))
+      .max(500)
+      .optional()
+      .refine((ids) => ids === undefined || new Set(ids).size === ids.length, {
+        message: 'allowed_message_ids must not contain duplicates',
+      }),
     additional_write_dirs: z.array(z.string().min(1)).default([]),
     credential_env: z.string().regex(SAFE_ENV_NAME).optional(),
     // Execution model for this terminal. `headless` (default) = today's
@@ -86,6 +94,8 @@ export const RunnerConfigSchema = z
   .object({
     server_url: z.url(),
     token: z.string().min(1).optional(),
+    /** Select a specific service identity without placing its secret in YAML. */
+    token_env: z.string().regex(SAFE_ENV_NAME).optional(),
     poll_interval_ms: z.coerce.number().int().min(500).default(5000),
     sse_enabled: z.boolean().default(true),
     max_backoff_ms: z.coerce.number().int().min(1000).default(300_000),
@@ -165,10 +175,15 @@ export function loadRunnerConfig(configPath?: string): RunnerConfig {
     throw new ConfigurationError(`Invalid runner config (${file}):\n${issues}`);
   }
 
-  const token = process.env.RUNNER_TOKEN || parsed.data.token;
+  const configuredTokenEnv = parsed.data.token_env;
+  const token = configuredTokenEnv
+    ? process.env[configuredTokenEnv]
+    : process.env.RUNNER_TOKEN || parsed.data.token;
   if (!token) {
     throw new ConfigurationError(
-      'Runner token missing: set RUNNER_TOKEN or the `token` field in runner.yaml.',
+      configuredTokenEnv
+        ? `Runner token missing: environment variable ${configuredTokenEnv} is not set.`
+        : 'Runner token missing: set RUNNER_TOKEN or the `token` field in runner.yaml.',
     );
   }
 

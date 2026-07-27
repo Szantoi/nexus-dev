@@ -18,6 +18,7 @@ import {
   type AttachedPumpHandle,
 } from './attachedCompletionPump';
 import { CompletionCursorStore } from './completionCursorStore';
+import { FileDispatchGate } from './dispatchGate';
 import { startPollLoop } from './pollLoop';
 import { startSseListener, type SseListenerHandle } from './sseListener';
 import { discoverConfiguredClis } from './cliDiscovery';
@@ -48,6 +49,7 @@ async function main(): Promise<void> {
   }
 
   const store = new ProcessedStore(path.join(config.log_dir, 'runner-state.json'));
+  const dispatchGate = new FileDispatchGate(path.join(config.log_dir, 'dispatch-gates.json'));
   const storeLoadState = store.load();
 
   const client = new ServerClient(config.server_url, config.token);
@@ -98,6 +100,7 @@ async function main(): Promise<void> {
       launch: (req) => sink.dispatch(req),
       isBusy: (terminal) => sink.isBusy(terminal),
       store,
+      dispatchGate,
     });
     coordinator.registerIngressStopper(async () => {
       await stopRunnerIngress(loop, sseListeners);

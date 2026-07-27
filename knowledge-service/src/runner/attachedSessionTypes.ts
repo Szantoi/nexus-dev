@@ -155,6 +155,7 @@ export type AttachedAttentionReason =
   | 'marker_cleanup_failed'
   | 'cleanup_indeterminate'
   | 'idle_classifier_failed'
+  | 'terminal_query_responder_failed'
   | 'task_crash'
   | 'stale_marker'
   | 'completion_idle_timeout';

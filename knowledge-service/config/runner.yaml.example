@@ -90,6 +90,9 @@ log_dir: logs/runner
 #               attached:
 #                 ready_pattern: '[>›❯]\s*$'
 #                 idle_pattern: '[>›❯]\s*$'
+#   allowed_message_ids: optional dispatch gate. When present, only the named
+#             IDs may be claimed; use [] to pause a terminal safely without
+#             changing its credentials, provider, or mailbox permissions.
 terminals:
   conductor:
     workdir: /opt/nexus/terminals/conductor

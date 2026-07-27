@@ -57,6 +57,13 @@
       "expires": "2026-10-18",
       "task": "TASK-QC-008E",
       "reason": "821 lines — epic router REST routes; decomposition scheduled in TASK-QC-008E (coordinate with the in-flight security hardening changes)."
+    },
+    {
+      "file": "src/runner/attachedSessionManager.ts",
+      "owner": "runner",
+      "expires": "2026-10-18",
+      "task": "TASK-ISL-007",
+      "reason": "841 lines — attached session manager state machine; decomposition scheduled in TASK-ISL-007."
     }
   ]
 }

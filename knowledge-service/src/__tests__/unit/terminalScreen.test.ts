@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyTrackedPrompt,
   classifyPromptSample,
   compilePromptPattern,
   TerminalScreenTracker,
@@ -112,6 +113,19 @@ describe('TerminalScreenTracker', () => {
     tracker.observe(`prompt> ${ESC}[?1049hTUI CONTENT`);
     expect(tracker.isAlternateScreen).toBe(true);
     expect(tracker.strippedTail).toBe('prompt> ');
+  });
+
+  it('uses the cursor-aware rendered row instead of stale append-only output', () => {
+    const tracker = new TerminalScreenTracker();
+    const pattern = compilePromptPattern(String.raw`[>›❯]\s*$`, 'test');
+    tracker.observe(`loading${ESC}[2K\r› `);
+    expect(classifyTrackedPrompt(tracker, pattern)).toBe(true);
+
+    // Codex redraws inline status text with cursor-left and erase commands.
+    // The old append-only tracker kept the old prompt suffix and accepted it.
+    tracker.observe(`${ESC}[2DWorking${ESC}[K`);
+    expect(tracker.cursorLine()).toBe('Working');
+    expect(classifyTrackedPrompt(tracker, pattern)).toBe(false);
   });
 
   it('bounds the stripped tail', () => {
