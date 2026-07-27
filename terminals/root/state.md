@@ -7,6 +7,21 @@
 
 ## Aktuális fókusz
 
+**ANTIGRAVITY-AUDIT KÉSZ (2026-07-27 este, @root, Gábor kérésére):** a második
+napi csomag (AG-2 DomainError II+III, AG-3 README-k, `/tmp`-refaktor, plusz a
+jelentetlen task-message-box `legacy_alter_table` migráció-fix + migrációs
+teszt) auditálva és 4 szeletben mainre commitolva (`7e21785..294eb5f`); a
+commitolt fa izolált klónban külön validálva (a working tree-ben Codex
+uncommitted munkája is él — a kapuk a kevert fán csalókák lennének).
+Kapuőr-fixek: 4 új lint-warning (a jelentett „786/786 PASS" a végső fán 788
+volt — evidencia-integritási lelet), ratchet-plafon 786→784; a saját
+range-sed-balesetem a graphRoutes.test-en helyreállítva. **AG-1 terv
+(COVERAGE-GRAPH-WIRING): revízió kérve** — R1: az identitás→egy-sziget
+felbontás miatt a javasolt `spaceos-covers` sziget MCP-ről elérhetetlen
+(alternatíva kiértékelendő: relációtípus-szkópolt sweep egy szigeten belül);
+R2: egy-író szabály kimondása. A Codex-szelet (runner/canary/terminalScreen +
+allowlist) a Codex jelentésére vár, uncommitted.
+
 **TASK-DP-007 CI-PARITÁS ÉLES + MSG-ROOT-004 LEZÁRVA** (2026-07-27 du., @root):
 - **DP-007 (PR #1, merge `8a60949`):** a teljes kapusor OS-mátrixon fut
   (ubuntu+windows, Node 22) + build-lépés + worktree-változatlanság fail-closed

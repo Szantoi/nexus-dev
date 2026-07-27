@@ -22,6 +22,16 @@
   konfliktus okafogyott; mailbox-fix fájlok tulajdonjoga tisztázva; eredeti
   üzenet archiválva.
 
+- [x] 2026-07-27 — **Antigravity-audit KÉSZ (Gábor kérésére):** AG-2 (DomainError
+  II+III), AG-3 (README-k), `/tmp`-refaktor + a jelentetlen task-message-box
+  migráció-fix mind PASS → 4 szeletben mainen (`7e21785..294eb5f`), a commitolt
+  fa izolált klónban külön validálva (tsc 0, 1688 teszt, ratchet 784).
+  Kapuőr-fixek: 4 új lint-warning javítva, ratchet-plafon 786→784, graphRoutes
+  sed-balesetem helyreállítva. Leletek: (1) evidencia-integritás — a jelentett
+  „lint PASS" a végső fán nem állt; (2) ismét jelentetlen módosítások (9+2 fájl).
+  **AG-1 terv: REVÍZIÓ kérve** (R1 lekérdezhetőségi rés — az identitás-alapú
+  island-felbontás miatt a spaceos-covers sziget elérhetetlen; R2 egy-író
+  szabály) — részletek a csatornán.
 - [ ] **AG-1 kiadva (@antigravity): COVERS-forrás sweep-kompatibilis bekötési
   terve** (`docs/plans/COVERAGE-GRAPH-WIRING.md`) — a coverage extractor-infra
   mainen, de a korpusz-bekötést review-ban kivettem (P1: a gitignore-olt,
