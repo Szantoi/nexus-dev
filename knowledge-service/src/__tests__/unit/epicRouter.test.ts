@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import Database from 'better-sqlite3';
+import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -13,8 +14,11 @@ import * as fs from 'fs';
  * - Project and Epic CRUD
  */
 
-// Use in-memory database for testing
-const TEST_DB_PATH = '/tmp/test-epic-router.db';
+// A per-run unique directory under the OS temp root. A literal '/tmp' does not
+// exist on a clean Windows runner, and better-sqlite3 refuses to create parent
+// directories — the suite must not depend on a pre-existing global path.
+const TEST_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'epic-router-test-'));
+const TEST_DB_PATH = path.join(TEST_DIR, 'test-epic-router.db');
 
 // Clean up before tests
 beforeEach(() => {
@@ -24,9 +28,7 @@ beforeEach(() => {
 });
 
 afterAll(() => {
-  if (fs.existsSync(TEST_DB_PATH)) {
-    fs.unlinkSync(TEST_DB_PATH);
-  }
+  fs.rmSync(TEST_DIR, { recursive: true, force: true });
 });
 
 describe('Epic Router', () => {
