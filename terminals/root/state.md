@@ -7,6 +7,21 @@
 
 ## Aktuális fókusz
 
+**AG-1 COVERS-BEKÖTÉS ÉLES (@root, 2026-07-27 késő este, Gábor kérésére
+átvéve az Antigravity limitje miatt):** terv-v2 + implementáció (`a88bd83`):
+relációtípus-szkópolt sweep (EXTRACTOR_RELATION_TYPES tulajdonjoggal),
+env-kapuzott `${NEXUS_COVERAGE_ROOT}` forrás a spaceos szigetben (egy-író
+szabály), per-forrás `{h,t}` fingerprint latest-run skip-kapuval
+(checkout-drift őr), orphan-szűrő + ghost-prune. 3 adverzariális review-
+lencse (4 P1 + 3 P2 + 3 P3; P1-ek és javítható P2-k fixálva; a pre-existing
+átfedő-futás-clobber follow-up a tervben). Élő VPS-validáció: 1229 tartós
+COVERS-él; coverage nélküli futás azonos állapotot hagy; --if-changed
+azonos profilban no-op. HÁTRA: VPS dev-checkout pull (az OLD kód timere a
+régi meta-formátummal teljes indexet csinál, de nem hibázik — a COVERS-t
+viszont a pull-ig söpri, mert a régi sweep nem típus-szkópolt!). Codex-
+koordináció: státuszkérés + érintő változások kiment a csatornán; CX
+lokálisan inaktív ~19h óta.
+
 **ANTIGRAVITY-AUDIT KÉSZ (2026-07-27 este, @root, Gábor kérésére):** a második
 napi csomag (AG-2 DomainError II+III, AG-3 README-k, `/tmp`-refaktor, plusz a
 jelentetlen task-message-box `legacy_alter_table` migráció-fix + migrációs

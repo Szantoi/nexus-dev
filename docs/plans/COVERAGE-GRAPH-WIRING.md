@@ -217,3 +217,102 @@ kapukat le kell futtatni:
 ---
 
 *Ez a dokumentum terv; implementáció csak `@root` jóváhagyása után kezdődhet.*
+
+---
+
+# v2 — A DÖNTÖTT ÉS IMPLEMENTÁLT DIZÁJN (2026-07-27, @root)
+
+> A v1 @root-review-ja két rést talált a C/1-ben (R1: az island kizárólag a
+> hívó identitásából jön és egy identitás EGY szigetre képez → a külön
+> `spaceos-covers` sziget MCP-ről elérhetetlen lenne; R2: kimondatlan egy-író
+> szabály). Az Antigravity keret-limit miatt a revíziót és az implementációt
+> @root vette át (Gábor jóváhagyásával). A választott irány a review-ban
+> felvetett **(b) alternatíva: egy sziget, relációtípus-szkópolt sweep**.
+
+## A dizájn három eleme
+
+1. **Relációtípus-tulajdonjog (registry):** minden extractor DEKLARÁLJA, mely
+   reláció-típusokat állíthat elő (`EXTRACTOR_RELATION_TYPES`: markdown →
+   REFERENCES; typescript/csharp → DEPENDS_ON, PART_OF; coverage → COVERS).
+   Az indexelő fail-closed kikényszeríti: deklarálatlan típus kibocsátása
+   hiba — az ilyen él sosem lenne söpörve, tehát némán elavulna.
+2. **Típus-szkópolt sweep (`sweepStale(tag, island, sweepRelationTypes)`):**
+   a futás CSAK az aktív forrásai által deklarált él-típusokat söpri. A
+   VPS-timer (docs+src korpusz) így soha nem törli a dev gép COVERS-éleit.
+   Az entitás-sweep sziget-szintű marad — az entitások közös szókincs, minden
+   feltétel nélküli forrás minden futásban újrapecsételi őket. (Emiatt
+   KORLÁT: gépfüggő forrás nem lehet entitások kizárólagos tulajdonosa — a
+   coverage-forrás végpontjai a ts-forrás moduljai, ez teljesül.)
+3. **Env-kapuzott forrás + per-forrás fingerprint:** a `graph-corpus.yaml`-ban
+   a forrás-útvonal lehet `${VAR}`: ahol a változó nincs beállítva, a forrás
+   EXPLICIT kihagyással kimarad (log + a sweep-szkópból is kimarad) — ahol be
+   van állítva, kötelezően létezik (fail-closed). A `--if-changed` ujjlenyomat
+   FORRÁSONKÉNT tárolódik (`KnowledgeIndexMeta.sourceHashesJson`, kulcs:
+   `extractor:deklarált-útvonal` — gépfüggetlen): egy futás csak a SAJÁT
+   forrásainak bejegyzéseit hasonlítja/frissíti/invalidálja, a másik gép
+   bejegyzéseit megőrzi. E nélkül a két gép eltérő forrás-halmaza minden
+   futásban kölcsönösen érvénytelenítené egymás fingerprint-jét (re-index
+   hurok).
+
+## Amit ez megold (v1-célok + review-leletek)
+
+| Cél | Hogyan |
+|---|---|
+| VPS-timer nem törik el | a coverage-forrás env-kapuzott, a VPS-en explicit skip |
+| Nincs kétgépes él-söprés | a docs+src futás sweep-szkópjában nincs COVERS |
+| Nincs fingerprint-thrash | per-forrás hash, idegen bejegyzés megőrzve |
+| R1 lekérdezhetőség | a COVERS a `spaceos` szigetben él — a meglévő identitás-modellel elérhető |
+| R2 egy-író | a `NEXUS_COVERAGE_ROOT`-ot kizárólag a coverage-t termelő gépen szabad beállítani (yaml-komment rögzíti) |
+| Fail-closed őszinteség | skip = log + „NOT swept”; hiányzó fájl beállított env-nél = hiba; deklarálatlan típus = hiba |
+
+## Adverzariális review (3 lencse, 2026-07-27) — leletek és sorsuk
+
+A szerző=jóváhagyó helyzet miatt az implementáció 3 független adverzariális
+review-agenten ment át (adatvesztés/sweep; hamis-frissesség; config/fail-
+closed). 4 P1 + 3 P2 + 3 P3 lelet — a P1-ek és a javítható P2-k JAVÍTVA:
+
+- **P1 (javítva): üresre szűrt gated forrás sweep-je.** A sweep-szkóp a
+  szűrés ELŐTT dőlt el → egy all-orphan coverage-eredmény 0 írással söpörte
+  volna ki az összes COVERS-élt, és a hamis-üres fingerprint be is égett
+  volna. Fix: a szkóp a szűrés UTÁN dől el, és az üresre szűrt gated forrás
+  fail-closed hiba.
+- **P1 (javítva): „szellem-hash”.** Configból eltávolított forrás bejegyzése
+  a metában maradt → a forrás visszakerülésekor hamis skip egy olyan gráfon,
+  amiből az entitás-sweep már törölte az adatait. Fix: a meta-írás csak a
+  config által deklarált kulcsokat tartja meg (aktív + env-kapuzott).
+- **P1 (javítva): checkout-drift + skip.** Egy másik gép futása (eltérő
+  checkout) sziget-szintű entitás-sweepje elviheti e gép éleit, miközben a
+  hash-ek egyeznek → tartós hamis „naprakész”. Fix: a bejegyzés a futás
+  syncTag-jét is tárolja (`{h,t}`), és skip CSAK akkor, ha a bejegyzés a
+  sziget LEGUTOLSÓ futásából származik (`t === indexedAt`) — gépváltás után
+  az első futás mindig teljes index (árban: egy váltásonkénti újraindexelés).
+- **P2 (javítva):** üres `--config` némán defaultra esett → hiba; duplikált
+  (extractor, path) forrás-bejegyzés → hiba; bulk/all-gated ágak tesztei
+  pótolva.
+- **P1 (pre-existing, NEM javítva — follow-up): átfedő futások upsert-
+  clobbere.** Egy lassú, régebbi tagű futás feltétel nélküli SET-jei
+  felülírhatják egy gyorsabb, újabb futás friss adatát (és feltámaszthatnak
+  törölt node-okat), miközben a meta az újabb futásé marad. Ez a viselkedés
+  a mostani változás ELŐTT is fennállt; érdemi gyógyír egy futás-lease
+  (pl. meta-node-alapú) — külön tétel.
+
+## Ismert korlátok / follow-up
+
+- **Átfedő futások upsert-clobbere** (lásd fent, pre-existing) — futás-lease
+  follow-up.
+- **Checkout-drift átmeneti törlés:** két gép eltérő checkoutja esetén a
+  később futó gép sweepje törli a másik gép még nem szinkronizált entitásait
+  (minden entitás-típusra, nem COVERS-specifikus, pre-existing). Öngyógyuló:
+  az érintett gép következő futása visszaírja — a latest-run-kapu garantálja,
+  hogy ez a futás nem skippel.
+- **Elgépelt env-változónév** a forrás-útvonalban megkülönböztethetetlen a
+  szándékos „ezen a gépen nincs” esettől (explicit skip-log van, hiba nincs)
+  — inherens korlát, a log az őr.
+- **Elavulás-jelzés az MCP toolokban** (v1 4. nyitott kérdése): a
+  `sourceHashesJson` + `indexedAt` alapján a toolok jelezhetnék, ha a
+  COVERS-réteg régebbi, mint a kód-réteg — külön tétel, nincs implementálva.
+- A meta olvasás-módosítás-írás nem atomi: két átfedő futás legfeljebb egy
+  felesleges újraindexelést okoz, hamis „naprakész”-t nem (invalidáció
+  feltétel nélkül nyer; az író-ág monoton `indexedAt`-kapus).
+- A régi (egész-korpusz `corpusHash`) meta-formátum olvasáskor üresre
+  degradál → az átállás utáni első futás egyszeri teljes index.

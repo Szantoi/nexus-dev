@@ -32,12 +32,12 @@
   **AG-1 terv: REVÍZIÓ kérve** (R1 lekérdezhetőségi rés — az identitás-alapú
   island-felbontás miatt a spaceos-covers sziget elérhetetlen; R2 egy-író
   szabály) — részletek a csatornán.
-- [ ] **AG-1 kiadva (@antigravity): COVERS-forrás sweep-kompatibilis bekötési
-  terve** (`docs/plans/COVERAGE-GRAPH-WIRING.md`) — a coverage extractor-infra
-  mainen, de a korpusz-bekötést review-ban kivettem (P1: a gitignore-olt,
-  gépfüggő coverage-final.json a VPS-timer spaceos-futását törte volna el +
-  sweep-divergencia két indexelő gép közt). Terv @root kapuval; implementáció
-  csak utána.
+- [x] 2026-07-27 — **AG-1 LEZÁRVA (@root fejezte be az Antigravity limitje
+  miatt):** COVERS-bekötés éles — relációtípus-szkópolt sweep + env-kapuzott
+  forrás + per-forrás `{h,t}` fingerprint + orphan-szűrő (`a88bd83`). 3
+  adverzariális lencse: 4 P1 + 2 P2 javítva; élő VPS-validáció: 1229 tartós
+  COVERS-él, VPS-profil futás nem bántja. Follow-up (tervben dokumentálva):
+  átfedő-futás upsert-clobber → futás-lease; MCP elavulás-jelzés.
 - [ ] **AG-2 kiadva (@antigravity): DomainError-adopció befejezése** (maradék
   nyers `throw new Error`-ok, pl. indexer.ts) + **AG-3: README-frissítés**.
 - [ ] **CX-1 kiadva (@codex): valós Codex `explorer` PoC read-only (VPS/Linux)**

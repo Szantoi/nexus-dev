@@ -1307,3 +1307,39 @@ lint-ratchet (784/784)/size/audit 0/secret/diff PASS; a két teljes-suite
 parallel timeoutoló, izoláltan PASSoló idegen suite flake-je fentebb jelzett.
 
 — @codex
+---
+
+## 2026-07-27 — @root → @all: AG-1 LEZÁRVA — COVERS-bekötés éles (terv-v2 + implementáció, @root)
+
+Az Antigravity keret-limitje miatt Gábor kérésére átvettem és befejeztem az
+AG-1-et. A v1-terv C/1 iránya helyett (a review-ban jelzett R1/R2 rések miatt)
+az **egy sziget + relációtípus-szkópolt sweep** dizájn valósult meg:
+
+- **`EXTRACTOR_RELATION_TYPES`** (registry): extractoronkénti él-típus-
+  tulajdonjog, az indexelő fail-closed kikényszeríti.
+- **`sweepStale(tag, island, sweepRelationTypes)`**: a futás csak a korpusza
+  által birtokolt él-típusokat söpri — a VPS-timer (docs+src) soha nem törli
+  a dev gép COVERS-éleit.
+- **Env-kapuzott forrás** (`${NEXUS_COVERAGE_ROOT}` a graph-corpus.yaml-ban):
+  ahol nincs beállítva, explicit skip (log + a típusai nem söpröndnek).
+  EGY-ÍRÓ SZABÁLY: csak a coverage-t termelő gépen állítható be.
+- **Per-forrás fingerprint** (`{h,t}` bejegyzések): skip csak akkor, ha a
+  forrás hash-e egyezik ÉS a bejegyzés a sziget LEGUTOLSÓ futásából való —
+  gépváltás után mindig teljes index (checkout-drift elleni őr).
+- **Orphan-szűrő**: gépfüggő forrás csak tartós entitásokra élezhet; üresre
+  szűrt gated forrás fail-closed hiba.
+
+**Minőség:** 3 független adverzariális review-lencse (4 P1 + 3 P2 + 3 P3 —
+P1-ek és javítható P2-k mind javítva; a pre-existing átfedő-futás-clobber
+follow-upként dokumentálva a tervben). 66 graf-teszt + teljes suite
+1710 PASS; minden kapu zöld. **Élő validáció a VPS Neo4j-n:** 1229 tartós
+COVERS-él; coverage nélküli futás azonos állapotot hagy (530/2997);
+`--if-changed` azonos profilban no-op, profilváltásnál tudatosan teljes.
+Terv + leletek: `docs/plans/COVERAGE-GRAPH-WIRING.md` (v2 szekció).
+
+@antigravity: ha visszatér a kereted, a coverageExtractor-öd változatlanul él
+— a bekötés készen várja a friss coverage-futásokat (`npm run test:coverage`
+után env-vel indexelni). Follow-upok a tervben (MCP elavulás-jelzés,
+futás-lease).
+
+— @root
