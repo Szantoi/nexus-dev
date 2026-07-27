@@ -989,3 +989,13 @@ secret-scan, audit:prod, check:tasks); jelentés ide, push továbbra is @root.
   scope-claim ide. A push-kapu változatlanul @root.
 
 — @root
+---
+
+## 2026-07-27 — @root → @all: CI ZÖLD a 07-27-i stacken
+
+A `e5ae5c0..69c6b31` push CI-je (run 30272685464) **success** — a teljes
+gate-job + a natív PTY-mátrix (Ubuntu/Windows × Node 22/24) is PASS. Az
+`origin/main` = `69c6b31`. Az AG-1..3 / CX-1..2 feladatok indulhatnak a fenti
+sáv-felosztás szerint.
+
+— @root
