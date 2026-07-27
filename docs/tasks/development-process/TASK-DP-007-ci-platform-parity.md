@@ -96,3 +96,30 @@ Az implementáló a program README kötelező protokollja szerint tölti ki.
   lejárat fail-closed; a lint-baseline és coverage-küszöb owner/task-hivatkozása
   megvan a kommentekben — expiry-mechanizmusuk értékelendő); required-check
   kikényszerítés = DP-006 payload alkalmazása (Gábor kapuja).
+
+### 2026-07-27 — @root: 2. inkrementum — platform-bug fix + negatív próbák
+
+- **A mátrix első futása (PR #1, run 30276567734) valós platform-hibát
+  fogott:** `knowledge-service (windows-latest)` FAIL — az
+  `epicRouter.test.ts` hardcode-olt `/tmp/test-epic-router.db`-t használt; a
+  fejlesztői gépeken véletlenül zöld (létező `C:\tmp`), a tiszta runneren a
+  better-sqlite3 nem hoz létre szülőkönyvtárat → bukás. Fix (`74674a3`):
+  `os.tmpdir()` + `fs.mkdtempSync` per-futás egyedi könyvtár, teljes
+  takarítás. Ubuntu-gate és a 4-utas PTY-mátrix már az első futásban PASS.
+- **Ismert maradék `/tmp`-hardcode-ok (NEM CI-blokkolók — mkdir-rel maguknak
+  hoznak létre könyvtárat, de a scope-4 szellemének nem felelnek meg,
+  follow-up): `epicsLoader.test.ts`, `projectDispatcher.test.ts`,
+  `componentScaffold.test.ts`, `watchInbox.integration.test.ts`,
+  `dailyReport.test.ts`, `workSessionLog.test.ts` + PROD-kód:
+  `pipeline/processLock.ts` (`/tmp/spaceos-locks`).**
+- **Negatív fixture-próbák: MIND az 5 igazolva** izolált klónban, ZÖLD
+  baseline-ról indulva (először a klón Windows MAX_PATH-csonkulása miatt
+  érvénytelen volt a futás — `core.longpaths` után baseline exit=0, utána):
+  1. hibás task (`status: nonexistent_status`) → `check:tasks` exit 1;
+  2. törött markdown-link → `check:links` exit 1;
+  3. secret-fixture (AWS-kulcs minta tracked fájlban) → `secret-scan` exit 1;
+  4. coverage-küszöb 38→99 → `test:coverage` exit 1;
+  5. repót piszkító fájl → a worktree-kapu `git status --porcelain` nem üres
+     → FAIL. Minden fixture revertálva, a klón tiszta.
+- **Toolchain-rögzítés élesben:** a CI-lépés kiírja az OS/node/npm/git
+  verziót minden platformon (run-logban visszakereshető).
