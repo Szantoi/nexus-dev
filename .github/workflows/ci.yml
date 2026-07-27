@@ -83,8 +83,19 @@ jobs:
       - name: Native PTY contract smoke
         run: npm run smoke:pty
 
+  # TASK-DP-007: the FULL gate suite runs on BOTH supported platforms from the
+  # same commit — green only means merge-ready if Windows and Linux agree.
+  # Check-run names are 'knowledge-service (ubuntu-latest)' and
+  # 'knowledge-service (windows-latest)' — the branch-protection draft
+  # (docs/tasks/development-process/TASK-DP-006-branch-protection-config.json)
+  # lists both as required contexts.
   knowledge-service:
-    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: knowledge-service
@@ -110,12 +121,27 @@ jobs:
           cache: npm
           cache-dependency-path: knowledge-service/package-lock.json
 
+      # TASK-DP-007: every run records the exact toolchain, so a red/green
+      # difference between platforms is attributable to a concrete version.
+      - name: Record platform and toolchain versions
+        run: |
+          echo "os=${{ runner.os }}"
+          node --version
+          npm --version
+          git --version
+
       - name: Install
         run: npm ci --prefer-offline
 
       # Local repro: npm run typecheck
       - name: Typecheck
         run: npm run typecheck
+
+      # Local repro: npm run build — a clean checkout must COMPILE, not just
+      # typecheck (tsc --noEmit skips emit-only failures). dist/ is gitignored,
+      # so this does not dirty the worktree-clean gate below.
+      - name: Build
+        run: npm run build
 
       # Local repro: npm run lint:ratchet (rule details: npm run lint)
       - name: Lint ratchet (errors fail, warning count may not grow)
@@ -149,3 +175,33 @@ jobs:
       # invariant gate (TASK-DP-003, docs/tasks/task-schema.json).
       - name: Task schema and consistency gate
         run: npm run check:tasks
+
+      # TASK-DP-007: a hermetic suite must leave the repository untouched — a
+      # test that writes into the worktree (data/, terminal state, fixtures)
+      # passes locally by accident and poisons every later gate. Fail closed
+      # on ANY tracked modification or new untracked file.
+      - name: Worktree must be unchanged after the full gate suite
+        working-directory: .
+        shell: bash
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::Gate suite modified the repository worktree:"
+            git status --porcelain
+            exit 1
+          fi
+
+      # TASK-DP-007: on failure, archive the machine-readable outputs needed
+      # to diagnose without re-running (coverage report, npm debug logs).
+      # Secrets cannot reach these artifacts: the secret-scan gate runs on the
+      # same tree, and coverage/logs contain only repo-derived content.
+      - name: Archive failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-failure-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            knowledge-service/coverage/coverage-summary.json
+            knowledge-service/coverage/coverage-final.json
+            ~/.npm/_logs/
+          if-no-files-found: ignore
+          retention-days: 7
