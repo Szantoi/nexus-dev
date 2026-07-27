@@ -5,19 +5,32 @@
 > Program/mérföldkő/epic szintű GÉPI állapot: `docs/projects/EPICS.yaml` — task-zárás
 > után oda is szinkronizálni kell (eljárás a fájl fejlécében; TASK-QC-001).
 
-**Utolsó frissítés:** 2026-07-25
+**Utolsó frissítés:** 2026-07-27
 
 ## Aktív
 
-- [ ] **A VPS dev-checkoutban a `sharp` nem tölthető be** (2026-07-25):
-  `node -e "require('sharp')"` elhasal (`sharp.cjs:115`, a saját hibakezelője
-  crashel egy `code` nélküli hibán, így elrejti a valódi okot) — a platform-
-  csomagok (`@img/sharp-linux-x64`) telepítve VANNAK, tehát nem a lock hiánya.
-  Következmény: `/opt/nexus-dev` alatt a `vectorStore` importja megöli a
-  processzt (a `@xenova/transformers` húzza be). PROD **nem érintett** (fut,
-  szerveroldali embeddinggel), a CI (ubuntu) zöld. Lehetséges tiszta javítás:
-  a Xenova-embedding lusta importja, hogy egy nem használt backend ne dönthesse
-  el a modulbetöltést.
+- [ ] **AG-1 kiadva (@antigravity): COVERS-forrás sweep-kompatibilis bekötési
+  terve** (`docs/plans/COVERAGE-GRAPH-WIRING.md`) — a coverage extractor-infra
+  mainen, de a korpusz-bekötést review-ban kivettem (P1: a gitignore-olt,
+  gépfüggő coverage-final.json a VPS-timer spaceos-futását törte volna el +
+  sweep-divergencia két indexelő gép közt). Terv @root kapuval; implementáció
+  csak utána.
+- [ ] **AG-2 kiadva (@antigravity): DomainError-adopció befejezése** (maradék
+  nyers `throw new Error`-ok, pl. indexer.ts) + **AG-3: README-frissítés**.
+- [ ] **CX-1 kiadva (@codex): valós Codex `explorer` PoC read-only (VPS/Linux)**
+  — pattern-canary hangolás a mainen lévő D-pumpa ellen (`TASK-ISL-007` (b));
+  utána CX-2: ISL-004 kanonikus store scope-claimmel.
+- [x] 2026-07-27 — **Antigravity 5 munkacsomagjának független review-ja +
+  main-push:** minden kaput újrafuttattam (typecheck 0; 1687 teszt PASS;
+  lint 786/786; size/links/secret/audit/tasks zöld). Verdikt: PASS, 1 P1
+  kapuőr-fixszel (coverage-forrás kivéve a gitre kerülő graph-corpus.yaml-ból).
+  A nem jelentett DomainError/runner-konverziókat is átnéztem — korrektek, de
+  a jelentési fegyelmet jeleztem a csatornán.
+
+- [x] 2026-07-25 — **A VPS dev-checkout `sharp` modulbetöltési hiba javítva:**
+  `src/xenovaEmbedding.ts` frissítve lusta dinamikus importra (`await import('@xenova/transformers')`).
+  A `xenovaEmbedding.ts` és `vectorStore.ts` importja nem futtatja a `@xenova/transformers` / `sharp`
+  modulbetöltést a modul betöltésekor. Minden kapu zöld.
 
 - [ ] **BIZTONSÁG (alacsony prioritás) — a VPS Chroma publish-e `0.0.0.0:8001`**
   (2026-07-25): a `spaceos_chromadb` minden interfészre publikál, de a védelmet
@@ -42,8 +55,8 @@
   adatból, majd a kód bevétele a vektor-indexbe (ma csak a doksi van benne).
 
 - [ ] **AttachedSink D lezárása (`TASK-ISL-007`):** implementáció + review-2
-  PASS lokálisan (2026-07-23 éjjel). HÁTRA VAN: (a) a lokális C+D stack pushja
-  mainre + Linux CI — Gábor kapuja; (b) **valós Codex `explorer` PoC**
+  PASS lokálisan (2026-07-23 éjjel). ~~(a) push mainre~~ **KÉSZ** (`68d343c`
+  az origin/main-en, CI zöld). HÁTRA VAN: (b) **valós Codex `explorer` PoC**
   read-only módban (VPS/Linux; Windows-natív Codex BLOCKED) a
   ready/idle-pattern canary-hangolásával — emberi kapu; (c) P3 follow-upok:
   tartósan futtathatatlan task karanténja (explicit modell-mismatch churn),
@@ -131,10 +144,12 @@
 
 ## Backlog
 
-### 4. fázis — Architektúra (EPICS.yaml: `EPIC-KS-ARCH-REFACTOR`, KS-M3)
-- [ ] `src/routes/` maradék 2 fájl átmozgatása `interfaces/http/routes/` alá
-- [ ] `pipeline/` alfolderezés (watchers/, planning/, epics/, coordination/, integrations/)
-- [ ] Két `memoryStore.ts` (root vs pipeline) egyeztetése/átnevezése
+- [x] 2026-07-25 — **`src/routes/` maradék 2 fájl átmozgatva `interfaces/http/routes/` alá:**
+  `escalationRoutes.ts` és `subscriptionRoutes.ts` átmozgatva, `src/routes` mappa törölve, `app.ts`, `subscriptionManager.ts` és `routes/index.ts` frissítve. Typecheck + 101 suite / 1685 teszt PASS.
+- [x] 2026-07-25 — **Két `memoryStore.ts` elnevezései tisztázva:**
+  `terminalMemoryStore.ts` (dual-session WAL memóriatár) és `ftsMemoryStore.ts` (FTS5 multi-tier memóriatár) elkészült, `src/memoryStore.ts` és `src/pipeline/memoryStore.ts` shimként szolgálnak a visszakompatibilitáshoz, minden import frissítve. Typecheck + 101 suite / 1685 teszt PASS.
+- [x] 2026-07-25 — **`pipeline/` alfolderezés elindítva (`watchers/`):**
+  A 11 megfigyelő modul átmozgatva `src/pipeline/watchers/` alá, `watchers/index.ts` exportálja őket, a meglévő importok re-export shimekkel és `index.ts`-sel 100%-ban működnek. Typecheck + 101 suite / 1685 teszt PASS.
 - [ ] `DomainError`-hierarchia kiterjesztése (72 nyers `throw new Error` cseréje)
 
 ### VPS-deploy + lokális ébresztés (terv 2026-07-15, Gábor igénye: lokális wake + erős biztonság)
@@ -143,12 +158,8 @@
 - [ ] VPS knowledge-base indexelése: a `nexus-dev-knowledge` kollekció ~üres (1 doc) — indexer futtatása a docs/knowledge-re
 - [ ] Chroma végleges zárás: compose-ban `127.0.0.1:8001:8000` + recreate (most DOCKER-USER iptables + systemd tartja); Gábor jóváhagyásával
 - [ ] Runner mint Windows-szolgáltatás (auto-indulás bootkor) — most kézzel indul
-- [ ] `search_knowledge` domain-szűrő paraméter (projekt-szkópolt RAG egy kollekcióban, ChromaDB `where`)
-
-### Egy szerver — több sziget (Gábor 2026-07-16: központi + sziget-saját tudás, ne fusson szigetenként szerver)
-- [ ] **A meglévő sziget-service-ek kiváltása**: ma 3456 (nexus), 3458, 3460 (doorstar) külön processz fut — a több-szigetes kiszolgálás kész, ezek beolvaszthatók EGY service-be (agent_islands mapping + kliensek átirányítása). Ez a tényleges "ne fusson szigetenként szerver" lépés.
-- [ ] Indexer sziget-paraméter: `addChunks` már fogad islandot, de az indexer CLI még csak az ISLAND_ID-t indexeli — több sziget indexelése egy futásból
-- [ ] `search_knowledge` domain-szűrő (szigeten BELÜLI projekt-szkóp; a chunk-metaadatban már van `domain`)
+- [x] 2026-07-25 — **`search_knowledge` domain-szűrő paraméter:**
+  `vectorStore.searchKnowledge` elfogadja a 4. `domain` paramétert (ChromaDB `where: { domain: { $eq: domain } }` és in-memory szűrés), a `search_knowledge` MCP tool inputSchema frissítve, unit teszt + contract teszt zöld. Typecheck + 102 suite / 1687 teszt PASS.
 - [ ] Funkció-szkópolt MCP tool-nézetek: a tool-permission mátrix kiegészítése funkció-profilokkal (pl. knowledge-only, mailbox-only), hogy egy agentnek ne 200+ toolból kelljen válogatnia — monolit marad, csak a felület szeletelődik
 
 ### Kisebb tételek

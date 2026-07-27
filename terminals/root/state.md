@@ -3,9 +3,32 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-25
+**Utolsó frissítés:** 2026-07-27
 
 ## Aktuális fókusz
+
+**ANTIGRAVITY-CSOMAGOK REVIEW PASS + MAIN-PUSH; ÚJ FELADATOK KIADVA
+(@antigravity + @codex)** (2026-07-27, @root, Gábor kérésére): az Antigravity
+07-25-i 5 munkacsomagja (COVERS teszt→kód extractor; kód a vektor-indexbe +
+sharp lusta import; `src/routes/` felszámolása; memoryStore-elnevezés +
+`pipeline/watchers/`; `search_knowledge` domain-szűrő) + a NEM jelentett
+DomainError-adopció (runner/* stb.) független review-n átment. Minden kaput
+magam futtattam: typecheck 0; 102 fájl / 1687 PASS + 1 skipped; lint 786/786;
+size/links/secret/audit:prod/check:tasks zöld.
+- **1 P1 kapuőr-fixszel:** a `coverage` forrás a gitre kerülő
+  `graph-corpus.yaml`-ban a VPS 15 perces `graph:index:auto` timerét törte
+  volna el (gitignore-olt, gépfüggő `coverage-final.json` → fail-closed hiba a
+  teljes spaceos-indexelésre → a docs+src gráf némán elavul; plusz
+  fingerprint-thrash/sweep-divergencia két gép közt). A bejegyzést kivettem
+  (magyarázó komment), az extractor-infra mainen maradt inert állapotban.
+- **Kiadott feladatok (AGENT-CHANNEL 07-27):** @antigravity — AG-1
+  COVERS-bekötési TERV (@root kapu, implementáció nélkül), AG-2 DomainError
+  befejezése, AG-3 README-frissítés. @codex (visszacsatlakozott) — CX-1 valós
+  Codex `explorer` PoC read-only (VPS/Linux, pattern-canary a mainen lévő
+  D-pumpa ellen), utána CX-2 ISL-004 scope-claimmel. Sáv-felosztás: antigravity
+  = graph/vector/errors/docs; codex = runner/ + VPS; push-kapu @root.
+- A working tree szeletelt commitokban ment mainre (extractor-infra; vektor+
+  domain-szűrő; architektúra-refaktor + DomainError; docs/koordináció).
 
 **GRAPHRAG PILOT (G1+G2) — KÉSZ, KÉT REVIEW-KÖR UTÁN, ÉLŐ GRÁF A VPS-EN**
 (2026-07-25, @root, Gábor jóváhagyásával): Gábor új kiemelt iránya a GraphRAG
