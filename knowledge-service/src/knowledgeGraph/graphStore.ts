@@ -281,17 +281,37 @@ export async function upsertRelations(
  * the newer graph, instead of each sweeping away the other's freshly written
  * nodes and leaving the island empty.
  */
-export async function sweepStale(syncTag: string, island?: string): Promise<void> {
+export async function sweepStale(
+  syncTag: string,
+  island: string | undefined,
+  sweepRelationTypes: readonly RelationType[]
+): Promise<void> {
   const islandId = resolveIsland(island);
   // An empty tag would make the comparison delete nothing (or, with `<>`,
   // exactly the fresh elements) — refuse rather than silently no-op.
   if (syncTag.trim() === '') throw new InvalidStateError('sweepStale requires a non-empty sync tag');
+  // The RELATION sweep is TYPE-SCOPED: a run only deletes stale edges of the
+  // types its corpus's extractors could have re-produced. A run whose corpus
+  // lacks the coverage source (its input is machine-local) therefore leaves
+  // COVERS edges alone instead of sweeping another machine's work. An empty
+  // list is refused: it would mean "sweep entities but no relation types",
+  // which no caller legitimately wants — the indexer always owns at least
+  // one type per active source.
+  if (sweepRelationTypes.length === 0) {
+    throw new InvalidStateError('sweepStale requires at least one relation type to sweep');
+  }
+  for (const type of sweepRelationTypes) assertRelationType(type);
   await run(
     'MATCH (:KnowledgeEntity {island: $island})-[r:RELATES]->' +
       '(:KnowledgeEntity {island: $island}) ' +
-      "WHERE coalesce(r.syncedAt, '') < $syncTag DELETE r",
-    { island: islandId, syncTag }
+      "WHERE r.type IN $types AND coalesce(r.syncedAt, '') < $syncTag DELETE r",
+    { island: islandId, syncTag, types: [...sweepRelationTypes] }
   );
+  // The ENTITY sweep stays island-wide: nodes are shared vocabulary between
+  // sources (the coverage source's endpoints are the ts source's modules), so
+  // every unconditional source re-stamps them each run. DETACH also drops any
+  // protected-type edge whose ENDPOINT died — correct, because an edge to a
+  // deleted file is stale by definition, whoever produced it.
   await run(
     'MATCH (n:KnowledgeEntity {island: $island}) ' +
       "WHERE coalesce(n.syncedAt, '') < $syncTag DETACH DELETE n",
@@ -501,14 +521,58 @@ export async function traverse(
  * Bookkeeping for one island's index run. Stored on its OWN label so the
  * entity sweep (which only touches :KnowledgeEntity) can never delete it.
  */
+/** One source's freshness record: content hash + the run that wrote it. */
+export interface SourceIndexEntry {
+  /** sha256 of the source's (filtered) extraction result. */
+  h: string;
+  /** The syncTag of the run that wrote this entry. A skip is only honest if
+   *  the entry comes from the island's LATEST run (t === meta.indexedAt) —
+   *  a later run by another machine may have swept entities this source's
+   *  edges hang on (checkout drift), so an older entry's matching hash says
+   *  nothing about what the graph still holds. */
+  t: string;
+}
+
 export interface IndexMeta {
-  /** Fingerprint of the extracted corpus — equal means nothing to write. */
-  corpusHash: string;
+  /**
+   * Per-source freshness, keyed by the source's machine-independent key
+   * (`extractor:declaredPath`). Per SOURCE, not per corpus: two machines
+   * index the same island with different source subsets (the coverage source
+   * only exists where tests run), so a whole-corpus hash would mismatch on
+   * every host switch and re-write the graph in a loop. Each run compares and
+   * refreshes only ITS OWN sources' entries and must preserve the rest.
+   */
+  sourceHashes: Record<string, SourceIndexEntry>;
   /** Commit the corpus was at, when the repo root is a git checkout. */
   commit?: string;
   indexedAt: string;
   nodes: number;
   relations: number;
+}
+
+function parseSourceHashes(raw: unknown): Record<string, SourceIndexEntry> {
+  // Unparseable/legacy metadata (the pre-source-hash `corpusHash` format)
+  // degrades to "nothing recorded" — the next run does one full index and
+  // writes the new format. Never a crash, never a false "up to date".
+  if (typeof raw !== 'string' || raw === '') return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out: Record<string, SourceIndexEntry> = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        typeof (value as { h?: unknown }).h === 'string' &&
+        typeof (value as { t?: unknown }).t === 'string'
+      ) {
+        out[key] = { h: (value as { h: string }).h, t: (value as { t: string }).t };
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export async function readIndexMeta(island?: string): Promise<IndexMeta | null> {
@@ -520,7 +584,7 @@ export async function readIndexMeta(island?: string): Promise<IndexMeta | null> 
     ?.properties;
   if (props === undefined) return null;
   const meta: IndexMeta = {
-    corpusHash: String(props.corpusHash ?? ''),
+    sourceHashes: parseSourceHashes(props.sourceHashesJson),
     indexedAt: String(props.indexedAt ?? ''),
     nodes: Number(props.nodes ?? 0),
     relations: Number(props.relations ?? 0),
@@ -530,30 +594,66 @@ export async function readIndexMeta(island?: string): Promise<IndexMeta | null> 
 }
 
 /**
- * Drop an island's index fingerprint. Called BEFORE a write pass so that a
- * fingerprint exists only when a complete run finished: otherwise a run that
- * died mid-write would leave the OLD fingerprint next to a graph that no
- * longer matches it, and a later `--if-changed` run would skip over the
+ * Invalidate an island's freshness record BEFORE a write pass, so a
+ * fingerprint exists only for sources whose last run COMPLETED: a run that
+ * died mid-write must not leave a hash that lets `--if-changed` skip over the
  * damage while reporting "up to date".
+ *
+ * With `sourceKeys`, only those entries are dropped — the other machines'
+ * sources (which this run does not touch and cannot damage) keep their
+ * freshness. Without it, the whole meta node goes (full reset).
  */
-export async function clearIndexMeta(island?: string): Promise<void> {
+export async function clearIndexMeta(island?: string, sourceKeys?: readonly string[]): Promise<void> {
   const islandId = resolveIsland(island);
-  await run('MATCH (m:KnowledgeIndexMeta {island: $island}) DELETE m', { island: islandId });
+  if (sourceKeys === undefined) {
+    await run('MATCH (m:KnowledgeIndexMeta {island: $island}) DELETE m', { island: islandId });
+    return;
+  }
+  const existing = await readIndexMeta(islandId);
+  if (existing === null) return;
+  const remaining = { ...existing.sourceHashes };
+  for (const key of sourceKeys) delete remaining[key];
+  // Unconditional SET (no monotonic guard): an invalidation must always win —
+  // it can only cause an extra full index, never a false "up to date".
+  await run(
+    'MATCH (m:KnowledgeIndexMeta {island: $island}) SET m.sourceHashesJson = $json',
+    { island: islandId, json: JSON.stringify(remaining) }
+  );
 }
 
-export async function writeIndexMeta(meta: IndexMeta, island?: string): Promise<void> {
+export async function writeIndexMeta(
+  meta: IndexMeta,
+  island?: string,
+  options: { retainOnlyKeys?: readonly string[] } = {}
+): Promise<void> {
   const islandId = resolveIsland(island);
+  // MERGE semantics for the hash map: this run refreshes its own sources'
+  // entries and must not drop entries owned by sources it did not run (the
+  // read-merge-write is not atomic; a concurrent run's lost entry costs one
+  // extra re-index, never a false skip).
+  const current = await readIndexMeta(islandId);
+  let merged = { ...(current?.sourceHashes ?? {}), ...meta.sourceHashes };
+  // Prune GHOST entries: a stored key outside the corpus's declared sources
+  // (active AND env-gated) belongs to a source REMOVED from the config. This
+  // run's island-wide entity sweep has already deleted that source's nodes,
+  // so keeping its hash would make a later re-added, unchanged source skip
+  // over a graph that no longer holds its data — a false "up to date".
+  // Pruning errs the safe way: at worst one extra full index.
+  if (options.retainOnlyKeys !== undefined) {
+    const retain = new Set(options.retainOnlyKeys);
+    merged = Object.fromEntries(Object.entries(merged).filter(([key]) => retain.has(key)));
+  }
   await run(
     'MERGE (m:KnowledgeIndexMeta {island: $island}) ' +
       // Monotonic: two overlapping runs must not let the older one demote the
       // newer one's fingerprint (indexedAt is an ISO timestamp, so string
       // comparison is chronological).
       "WITH m WHERE $indexedAt >= coalesce(m.indexedAt, '') " +
-      'SET m.corpusHash = $corpusHash, m.commit = $commit, m.indexedAt = $indexedAt, ' +
+      'SET m.sourceHashesJson = $sourceHashesJson, m.commit = $commit, m.indexedAt = $indexedAt, ' +
       'm.nodes = $nodes, m.relations = $relations',
     {
       island: islandId,
-      corpusHash: meta.corpusHash,
+      sourceHashesJson: JSON.stringify(merged),
       commit: meta.commit ?? null,
       indexedAt: meta.indexedAt,
       nodes: neo4j.int(meta.nodes),

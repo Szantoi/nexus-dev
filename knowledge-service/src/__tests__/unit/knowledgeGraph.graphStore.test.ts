@@ -248,7 +248,7 @@ describe('knowledgeGraph/graphStore', () => {
     [cypher, params] = executeQuery.mock.calls.at(-1) as unknown as [string, { syncTag?: string }];
     expect(cypher).toContain('r.syncedAt = $syncTag');
 
-    await sweepStale('tag-1', 'isle');
+    await sweepStale('tag-1', 'isle', ['REFERENCES', 'DEPENDS_ON']);
     const sweeps = executeQuery.mock.calls.slice(-2) as unknown as Array<
       [string, Record<string, unknown>]
     >;
@@ -256,6 +256,13 @@ describe('knowledgeGraph/graphStore', () => {
     // instead of sweeping away each other's freshly written nodes.
     expect(sweeps[0][0]).toContain("coalesce(r.syncedAt, '') < $syncTag DELETE r");
     expect(sweeps[1][0]).toContain("coalesce(n.syncedAt, '') < $syncTag DETACH DELETE n");
+    // The RELATION sweep is type-scoped: only the types this run's corpus
+    // declares may be deleted — an unlisted type (e.g. COVERS written by the
+    // machine that owns the coverage source) must survive the sweep.
+    expect(sweeps[0][0]).toContain('r.type IN $types');
+    expect(sweeps[0][1].types).toEqual(['REFERENCES', 'DEPENDS_ON']);
+    // The ENTITY sweep stays island-wide (nodes are shared vocabulary).
+    expect(sweeps[1][0]).not.toContain('$types');
     // Both sweep statements MUST stay island-scoped — without this assertion a
     // dropped island filter would turn a re-index into a cross-island wipe.
     for (const [cypher, params] of sweeps) {
@@ -267,7 +274,21 @@ describe('knowledgeGraph/graphStore', () => {
 
   it('refuses to sweep with an empty sync tag', async () => {
     const { executeQuery } = fakeDriver();
-    await expect(sweepStale('  ', 'isle')).rejects.toThrow(/non-empty sync tag/);
+    await expect(sweepStale('  ', 'isle', ['REFERENCES'])).rejects.toThrow(/non-empty sync tag/);
+    expect(executeQuery).not.toHaveBeenCalled();
+  });
+
+  it('refuses to sweep with an empty relation-type scope', async () => {
+    const { executeQuery } = fakeDriver();
+    await expect(sweepStale('tag-1', 'isle', [])).rejects.toThrow(/at least one relation type/);
+    expect(executeQuery).not.toHaveBeenCalled();
+  });
+
+  it('refuses to sweep an unknown relation type', async () => {
+    const { executeQuery } = fakeDriver();
+    await expect(
+      sweepStale('tag-1', 'isle', ['NOT_A_TYPE' as never])
+    ).rejects.toThrow(/Unknown relation type/);
     expect(executeQuery).not.toHaveBeenCalled();
   });
 

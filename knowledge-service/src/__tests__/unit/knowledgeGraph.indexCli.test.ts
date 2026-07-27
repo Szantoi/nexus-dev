@@ -74,6 +74,13 @@ const statsRecord = {
   },
 };
 
+/**
+ * The machine-independent meta key of the env-gated coverage source: the
+ * LITERAL '${...}' declared path, not a template placeholder — assembled by
+ * concatenation so the linter's template-curly heuristic stays quiet.
+ */
+const GATED_COVERAGE_KEY = ['coverage:$', '{NEXUS_COVERAGE_ROOT}'].join('');
+
 describe('runGraphIndex', () => {
   it('upserts everything with the sync tag and sweeps ONLY afterwards', async () => {
     const executeQuery = vi.fn(async (cypher: string) => ({
@@ -175,9 +182,177 @@ describe('runGraphIndex', () => {
 
     // Unreachable through the config schema (min 1 source), reachable via API.
     await expect(
-      runGraphIndex({ island: 'isle', repoRoot, sources: [] }, 'tag-47')
+      runGraphIndex({ island: 'isle', repoRoot, sources: [], skippedSources: [] }, 'tag-47')
     ).rejects.toThrow(/no sources/);
     expect(executeQuery).not.toHaveBeenCalled();
+  });
+
+  it('scopes the relation sweep to the corpus extractors\' declared types', async () => {
+    const executeQuery = vi.fn(async (cypher: string) => ({
+      records: String(cypher).includes('count(DISTINCT n)') ? [statsRecord] : [],
+      summary: { counters: {} },
+    }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    await runGraphIndex(corpusFor(repoRoot), 'tag-60');
+    const sweep = executeQuery.mock.calls.find((c) =>
+      String(c[0]).includes("coalesce(r.syncedAt, '') < $syncTag DELETE r")
+    ) as unknown as [string, { types: string[] }];
+    expect(sweep).toBeDefined();
+    // markdown + typescript own exactly these — COVERS (another machine's
+    // coverage source) must never be in a docs+src run's sweep scope.
+    expect(sweep[1].types).toEqual(['DEPENDS_ON', 'PART_OF', 'REFERENCES']);
+  });
+
+  it('fails closed when an extractor emits an undeclared relation type', async () => {
+    const executeQuery = vi.fn(async () => ({ records: [], summary: { counters: {} } }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    // An undeclared type would be upserted but never swept: permanently stale
+    // edges presented as live data. The run must refuse instead.
+    const rogue = {
+      island: 'isle',
+      repoRoot,
+      skippedSources: [],
+      sources: [
+        {
+          root: path.join(repoRoot, 'docs'),
+          declaredPath: 'docs',
+          extractor: 'markdown' as const,
+          extract: () => ({
+            entities: [{ id: 'docs/a.md', type: 'Doc' as const, name: 'a' }],
+            relations: [{ from: 'docs/a.md', to: 'docs/b.md', type: 'COVERS' as const }],
+          }),
+        },
+      ],
+    };
+    await expect(runGraphIndex(rogue, 'tag-61')).rejects.toThrow(/undeclared relation type/);
+    expect(
+      executeQuery.mock.calls.some((c) => String(c[0]).includes('MERGE (n:KnowledgeEntity'))
+    ).toBe(false);
+  });
+
+  it('skips an env-gated source explicitly and keeps its types out of the sweep', async () => {
+    const executeQuery = vi.fn(async (cypher: string) => ({
+      records: String(cypher).includes('count(DISTINCT n)') ? [statsRecord] : [],
+      summary: { counters: {} },
+    }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    const configPath = path.join(repoRoot, 'gated-corpus.yaml');
+    fs.writeFileSync(
+      configPath,
+      [
+        'islands:',
+        '  isle:',
+        `    repo_root: ${JSON.stringify(repoRoot)}`,
+        '    sources:',
+        '      - path: docs',
+        '        extractor: markdown',
+        `      - path: "${['$', '{KG_TEST_UNSET_COVERAGE_ROOT}'].join('')}"`,
+        '        extractor: coverage',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    delete process.env.KG_TEST_UNSET_COVERAGE_ROOT;
+    const corpus = resolveCorpus('isle', { configPath });
+    expect(corpus.skippedSources).toEqual([
+      {
+        declaredPath: ['$', '{KG_TEST_UNSET_COVERAGE_ROOT}'].join(''),
+        extractor: 'coverage',
+        variable: 'KG_TEST_UNSET_COVERAGE_ROOT',
+      },
+    ]);
+
+    await runGraphIndex(corpus, 'tag-62');
+    const sweep = executeQuery.mock.calls.find((c) =>
+      String(c[0]).includes("coalesce(r.syncedAt, '') < $syncTag DELETE r")
+    ) as unknown as [string, { types: string[] }];
+    // The skipped coverage source's COVERS type is NOT swept — this is the
+    // invariant that lets the VPS timer run without deleting the dev
+    // machine's test→code edges.
+    expect(sweep[1].types).toEqual(['REFERENCES']);
+  });
+
+  it('drops a gated source\'s orphans — edges may only attach to durable entities', async () => {
+    const executeQuery = vi.fn(async (cypher: string) => ({
+      records: String(cypher).includes('count(DISTINCT n)') ? [statsRecord] : [],
+      summary: { counters: {} },
+    }));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+
+    // The gated source links one entity the unconditional source owns
+    // ('src/a.ts') and one it does NOT ('vitest.config.ts') — the orphan and
+    // both its edges must be dropped, or the next docs+src run's island-wide
+    // entity sweep would DETACH-delete them anyway (quiet decay).
+    const corpus = {
+      island: 'isle',
+      repoRoot,
+      skippedSources: [],
+      sources: [
+        {
+          root: path.join(repoRoot, 'knowledge-service', 'src'),
+          declaredPath: 'knowledge-service/src',
+          envGated: false,
+          extractor: 'typescript' as const,
+          extract: () => ({
+            entities: [
+              { id: 'src/a.ts', type: 'Module' as const, name: 'a' },
+              { id: 'src/a.test.ts', type: 'Module' as const, name: 'a.test' },
+            ],
+            relations: [{ from: 'src/a.test.ts', to: 'src/a.ts', type: 'DEPENDS_ON' as const }],
+          }),
+        },
+        {
+          root: path.join(repoRoot, 'docs'),
+          declaredPath: ['$', '{KG_TEST_COVER}'].join(''),
+          envGated: true,
+          extractor: 'coverage' as const,
+          extract: () => ({
+            entities: [
+              { id: 'src/a.ts', type: 'Module' as const, name: 'a' },
+              { id: 'vitest.config.ts', type: 'Module' as const, name: 'vitest.config' },
+            ],
+            relations: [
+              { from: 'src/a.test.ts', to: 'src/a.ts', type: 'COVERS' as const },
+              { from: 'src/a.test.ts', to: 'vitest.config.ts', type: 'COVERS' as const },
+            ],
+          }),
+        },
+      ],
+    };
+    await runGraphIndex(corpus, 'tag-63');
+
+    const upsertParams = executeQuery.mock.calls
+      .filter((c) => String(c[0]).includes('MERGE (n:KnowledgeEntity'))
+      .flatMap((c) => (c[1] as { rows: Array<{ id: string }> }).rows.map((r) => r.id));
+    expect(upsertParams).not.toContain('vitest.config.ts');
+
+    // Relation rows carry island-prefixed endpoint keys (fromKey/toKey).
+    const relationRows = executeQuery.mock.calls
+      .filter((c) => String(c[0]).includes('MERGE (a)-[r:RELATES'))
+      .flatMap((c) => (c[1] as { rows: Array<{ toKey: string; type: string }> }).rows);
+    expect(relationRows.some((r) => r.type === 'COVERS' && r.toKey.endsWith('src/a.ts'))).toBe(
+      true
+    );
+    expect(relationRows.some((r) => r.toKey.endsWith('vitest.config.ts'))).toBe(false);
   });
 
   it('refuses to sweep when the corpus extracts to nothing', async () => {
@@ -202,21 +377,23 @@ describe('runGraphIndex', () => {
   });
 });
 
-/** Driver that can answer the index-meta read with a stored fingerprint. */
-function driverWithMeta(storedHash: string | null) {
+/** Driver that can answer the index-meta read with stored source hashes.
+ *  `indexedAt` defaults to matching entries' `t` claims made by callers —
+ *  pass it explicitly when testing the latest-run gate. */
+function driverWithMeta(storedHashesJson: string | null, indexedAt = '2026-07-25T00:00:00.000Z') {
     const executeQuery = vi.fn(async (cypher: string) => {
       const text = String(cypher);
       if (text.includes('KnowledgeIndexMeta') && text.includes('RETURN m')) {
         return {
           records:
-            storedHash === null
+            storedHashesJson === null
               ? []
               : [
                   {
                     get: () => ({
                       properties: {
-                        corpusHash: storedHash,
-                        indexedAt: '2026-07-25T00:00:00.000Z',
+                        sourceHashesJson: storedHashesJson,
+                        indexedAt,
                         nodes: 42,
                         relations: 7,
                       },
@@ -285,17 +462,38 @@ describe('incremental re-index (--if-changed)', () => {
     expect(corpusFingerprint([...two].reverse(), [])).toBe(corpusFingerprint(two, []));
   });
 
-  it('writes nothing when the corpus fingerprint already matches', async () => {
+  it('writes nothing when every source fingerprint already matches', async () => {
     // First run to learn what this fixture hashes to.
     const first = driverWithMeta(null);
     await runGraphIndex(corpusFor(repoRoot), 'tag-50');
     const metaWrite = first.executeQuery.mock.calls.find((c) =>
       String(c[0]).includes('MERGE (m:KnowledgeIndexMeta')
-    )?.[1] as { corpusHash: string };
-    expect(metaWrite.corpusHash).toMatch(/^[a-f0-9]{64}$/);
+    )?.[1] as { sourceHashesJson: string };
+    const learnedHashes = JSON.parse(metaWrite.sourceHashesJson) as Record<
+      string,
+      { h: string; t: string }
+    >;
+    // Per SOURCE, keyed machine-independently (extractor:declaredPath), each
+    // entry stamped with the run that wrote it.
+    expect(Object.keys(learnedHashes).sort()).toEqual([
+      'markdown:docs',
+      'typescript:knowledge-service/src',
+    ]);
+    for (const entry of Object.values(learnedHashes)) {
+      expect(entry.h).toMatch(/^[a-f0-9]{64}$/);
+      expect(entry.t).toBe('tag-50');
+    }
 
     resetGraphStoreForTests();
-    const second = driverWithMeta(metaWrite.corpusHash);
+    // A foreign entry (another machine's env-gated source) must not disturb
+    // the skip decision — this run only consults its OWN sources.
+    const second = driverWithMeta(
+      JSON.stringify({
+        ...learnedHashes,
+        [GATED_COVERAGE_KEY]: { h: 'f'.repeat(64), t: 'tag-40' },
+      }),
+      'tag-50' // the island's latest run IS the one that wrote our entries
+    );
     const result = await runGraphIndex(corpusFor(repoRoot), 'tag-51', { skipIfUnchanged: true });
 
     expect(result.skipped).toBe(true);
@@ -316,9 +514,85 @@ describe('incremental re-index (--if-changed)', () => {
     expect(cyphers.some((c) => c.includes('MERGE (m:KnowledgeIndexMeta'))).toBe(true);
   });
 
+  it('refuses to skip when the entries are not from the island\'s LATEST run', async () => {
+    // Learn real hashes first.
+    const first = driverWithMeta(null);
+    await runGraphIndex(corpusFor(repoRoot), 'tag-70');
+    const metaWrite = first.executeQuery.mock.calls.find((c) =>
+      String(c[0]).includes('MERGE (m:KnowledgeIndexMeta')
+    )?.[1] as { sourceHashesJson: string };
+    resetGraphStoreForTests();
+
+    // Same hashes, but the island's latest run (indexedAt) is NEWER than the
+    // run that wrote them — another machine indexed in between and its
+    // island-wide entity sweep may have taken this host's edges (checkout
+    // drift). A matching hash proves nothing here: must re-index, not skip.
+    const { executeQuery } = driverWithMeta(metaWrite.sourceHashesJson, 'tag-99-newer-run');
+    const result = await runGraphIndex(corpusFor(repoRoot), 'tag-71', { skipIfUnchanged: true });
+    expect(result.skipped).toBeUndefined();
+    expect(
+      executeQuery.mock.calls.some((c) => String(c[0]).includes('MERGE (n:KnowledgeEntity'))
+    ).toBe(true);
+  });
+
+  it('prunes a REMOVED source\'s ghost entry but keeps declared env-gated ones', async () => {
+    // Stored meta: an entry for a source this config no longer declares
+    // ('typescript:gone/src') and one for a declared-but-skipped env-gated
+    // coverage source. The island-wide entity sweep just deleted the removed
+    // source's nodes, so its hash MUST go (else re-adding the unchanged
+    // source would falsely skip) — while the env-gated entry survives.
+    const configPath = path.join(repoRoot, 'pruning-corpus.yaml');
+    fs.writeFileSync(
+      configPath,
+      [
+        'islands:',
+        '  isle:',
+        `    repo_root: ${JSON.stringify(repoRoot)}`,
+        '    sources:',
+        '      - path: docs',
+        '        extractor: markdown',
+        `      - path: "${['$', '{KG_TEST_UNSET_COVERAGE_ROOT}'].join('')}"`,
+        '        extractor: coverage',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    delete process.env.KG_TEST_UNSET_COVERAGE_ROOT;
+    const gatedKey = ['coverage:$', '{KG_TEST_UNSET_COVERAGE_ROOT}'].join('');
+    const stored = JSON.stringify({
+      'markdown:docs': { h: 'a'.repeat(64), t: 't0' },
+      'typescript:gone/src': { h: 'b'.repeat(64), t: 't0' },
+      [gatedKey]: { h: 'c'.repeat(64), t: 't0' },
+    });
+    const { executeQuery } = driverWithMeta(stored, 't0');
+    await runGraphIndex(resolveCorpus('isle', { configPath }), 'tag-72');
+
+    const metaWrite = executeQuery.mock.calls.find((c) =>
+      String(c[0]).includes('MERGE (m:KnowledgeIndexMeta')
+    )?.[1] as { sourceHashesJson: string };
+    const written = JSON.parse(metaWrite.sourceHashesJson) as Record<string, unknown>;
+    expect(Object.keys(written).sort()).toEqual([gatedKey, 'markdown:docs'].sort());
+  });
+
   it('records the fingerprint only AFTER the graph actually holds the data', async () => {
+    // Existing meta: this run's own sources are recorded as fresh, plus a
+    // FOREIGN entry owned by another machine's env-gated source.
+    const storedJson = JSON.stringify({
+      'markdown:docs': { h: 'a'.repeat(64), t: 't0' },
+      'typescript:knowledge-service/src': { h: 'b'.repeat(64), t: 't0' },
+      [GATED_COVERAGE_KEY]: { h: 'c'.repeat(64), t: 't0' },
+    });
     const executeQuery = vi.fn(async (cypher: string) => {
-      if (String(cypher).includes('MERGE (n:KnowledgeEntity')) throw new Error('write failed');
+      const text = String(cypher);
+      if (text.includes('MERGE (n:KnowledgeEntity')) throw new Error('write failed');
+      if (text.includes('KnowledgeIndexMeta') && text.includes('RETURN m')) {
+        return {
+          records: [
+            { get: () => ({ properties: { sourceHashesJson: storedJson, indexedAt: 't0' } }) },
+          ],
+          summary: {},
+        };
+      }
       return { records: [], summary: { counters: {} } };
     });
     setGraphDriverForTests({
@@ -335,13 +609,20 @@ describe('incremental re-index (--if-changed)', () => {
     expect(
       executeQuery.mock.calls.some((c) => String(c[0]).includes('MERGE (m:KnowledgeIndexMeta'))
     ).toBe(false);
-    // And the OLD fingerprint must be gone too: without this, reverting the
-    // corpus after a failed run reads as "up to date" over a mutated graph.
-    const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
-    const invalidation = cyphers.findIndex((c) => c.includes('KnowledgeIndexMeta') && c.includes('DELETE'));
+    // And this run's OLD entries must be invalidated BEFORE the first upsert:
+    // without that, reverting the corpus after a failed run reads as "up to
+    // date" over a mutated graph. The FOREIGN source's entry survives — this
+    // run cannot damage data it does not touch.
+    const calls = executeQuery.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
+    const cyphers = calls.map((c) => String(c[0]));
+    const invalidation = cyphers.findIndex(
+      (c) => c.includes('KnowledgeIndexMeta') && c.includes('SET m.sourceHashesJson')
+    );
     const firstUpsert = cyphers.findIndex((c) => c.includes('MERGE (n:KnowledgeEntity'));
     expect(invalidation).toBeGreaterThan(-1);
     expect(invalidation).toBeLessThan(firstUpsert);
+    const remaining = JSON.parse(String(calls[invalidation][1].json)) as Record<string, string>;
+    expect(Object.keys(remaining)).toEqual([GATED_COVERAGE_KEY]);
   });
 });
 
@@ -410,11 +691,16 @@ describe('runIndexCli', () => {
     expect(await runIndexCli(cliArgs())).toBe(0);
     const learned = learner.executeQuery.mock.calls.find((c) =>
       String(c[0]).includes('MERGE (m:KnowledgeIndexMeta')
-    )?.[1] as { corpusHash: string };
+    )?.[1] as { sourceHashesJson: string };
+    // The skip gate needs the entries to come from the island's latest run —
+    // mirror the real state by using the entries' own written tag.
+    const learnedTag = (
+      Object.values(JSON.parse(learned.sourceHashesJson)) as Array<{ t: string }>
+    )[0].t;
     resetGraphStoreForTests();
 
     // With the flag: the write is skipped.
-    const auto = driverWithMeta(learned.corpusHash);
+    const auto = driverWithMeta(learned.sourceHashesJson, learnedTag);
     expect(await runIndexCli(cliArgs(['--if-changed']))).toBe(0);
     const autoCyphers = auto.executeQuery.mock.calls.map((c) => String(c[0]));
     expect(autoCyphers.some((c) => c.includes('MERGE (n:KnowledgeEntity'))).toBe(false);
@@ -422,7 +708,7 @@ describe('runIndexCli', () => {
 
     // WITHOUT the flag: still a full index — this is the operator's escape
     // hatch when the graph and the fingerprint have drifted apart.
-    const manual = driverWithMeta(learned.corpusHash);
+    const manual = driverWithMeta(learned.sourceHashesJson, learnedTag);
     expect(await runIndexCli(cliArgs())).toBe(0);
     const manualCyphers = manual.executeQuery.mock.calls.map((c) => String(c[0]));
     expect(manualCyphers.some((c) => c.includes('MERGE (n:KnowledgeEntity'))).toBe(true);

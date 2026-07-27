@@ -44,11 +44,17 @@ islands:
         extractor: markdown
       - path: knowledge-service/src
         extractor: typescript
-      # A `coverage` extractor (teszt→kód COVERS élek) SZÁNDÉKOSAN nincs még
-      # bekötve: a coverage-final.json gitignore-olt és gépfüggő — a VPS-timer
-      # spaceos-futása fail-closed elhasalna rajta, két gép eltérő coverage-e
-      # pedig fingerprint/sweep-divergenciát okozna. Bekötés csak a
-      # sweep-kompatibilis terv (@root kapu) után.
+      # Teszt→kód térkép (COVERS élek). GÉPFÜGGŐ FORRÁS: az input
+      # (coverage-final.json) csak ott létezik, ahol a tesztek futnak. A
+      # `${VAR}` forrás-útvonal env-kapu: ahol a NEXUS_COVERAGE_ROOT nincs
+      # beállítva, ott a forrás EXPLICIT kihagyással kimarad, és a futás a
+      # COVERS éltípust NEM söpri (relációtípus-szkópolt sweep) — így a
+      # VPS-timer nem törli a dev gép COVERS-éleit. EGY-ÍRÓ SZABÁLY: a
+      # változót kizárólag AZON az egy gépen állítsd be, ahol a coverage
+      # keletkezik (ma: a Windows dev gép; értéke pl.
+      # "knowledge-service/coverage"). Futtatás előtt: npm run test:coverage.
+      - path: "${NEXUS_COVERAGE_ROOT}"
+        extractor: coverage
 
   # JoineryTech: a C#-kódbázis + a saját dokumentációja. A checkout csak azon a
   # gépen van meg, ahol a JOINERYTECH_ROOT be van állítva (a VPS-en
