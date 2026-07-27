@@ -37,7 +37,7 @@ export async function loadEpicsYaml(path: string): Promise<EpicsYaml> {
     const validation = validateEpicsYaml(parsed);
     if (!validation.valid) {
       const errorMessages = validation.errors.map(e => `[${e.code}] ${e.message}`).join('\n');
-      throw new Error(`EPICS.yaml validation failed:\n${errorMessages}`);
+      throw new ValidationError(`EPICS.yaml validation failed:\n${errorMessages}`);
     }
 
     // Warn on validation warnings
@@ -207,7 +207,7 @@ export async function writeEpicsYaml(path: string, data: EpicsYaml): Promise<voi
     const validation = validateEpicsYaml(data);
     if (!validation.valid) {
       const errorMessages = validation.errors.map(e => `[${e.code}] ${e.message}`).join('\n');
-      throw new Error(`EPICS.yaml validation failed:\n${errorMessages}`);
+      throw new ValidationError(`EPICS.yaml validation failed:\n${errorMessages}`);
     }
 
     // Serialize to YAML

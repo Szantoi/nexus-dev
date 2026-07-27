@@ -16,6 +16,7 @@ import * as crypto from 'crypto';
 import { telegram, log } from '../pipeline/common';
 import { getDispatchMode, canDispatch, queueDispatch, markDispatchExecuting } from './tokenBudget';
 import { logger } from '../core/logger';
+import { InvalidStateError } from '../core/errors';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export function setProposalDb(database: Database.Database): void {
 
 function getDb(): Database.Database {
   if (!db) {
-    throw new Error('Proposal database not initialized. Call setProposalDb first.');
+    throw new InvalidStateError('Proposal database not initialized. Call setProposalDb first.');
   }
   return db;
 }

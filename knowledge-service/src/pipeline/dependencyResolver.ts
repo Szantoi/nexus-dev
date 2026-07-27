@@ -11,6 +11,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { logger } from '../core/logger';
+import { NotFoundError } from '../core/errors';
 import { getEpicsPath } from '../config/paths';
 
 export interface EpicInfo {
@@ -65,7 +66,7 @@ export async function resolveDependencies(epicId: string, checkBlockers: boolean
   const epics = loadEpics();
   const epic = epics[epicId];
   if (!epic) {
-    throw new Error(`Epic not found: ${epicId}`);
+    throw new NotFoundError('Epic', epicId);
   }
 
   const blockedBy = epic.depends_on || [];

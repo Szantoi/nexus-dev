@@ -10,6 +10,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 import { log } from '../pipeline/common';
+import { InvalidStateError } from '../core/errors';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -91,7 +92,7 @@ export function setWindowsDb(database: Database.Database): void {
 
 function getDb(): Database.Database {
   if (!db) {
-    throw new Error('Windows database not initialized. Call setWindowsDb first.');
+    throw new InvalidStateError('Windows database not initialized. Call setWindowsDb first.');
   }
   return db;
 }

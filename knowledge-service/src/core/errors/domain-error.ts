@@ -51,6 +51,13 @@ export class MessageNotFoundError extends NotFoundError {
   }
 }
 
+export class MemoryNotFoundError extends NotFoundError {
+  constructor(id: number | string) {
+    super('Memory', String(id));
+    this.message = `Memory #${id} not found`;
+  }
+}
+
 // ─── Validation Errors ────────────────────────────────────────────────────────
 
 export class ValidationError extends DomainError {

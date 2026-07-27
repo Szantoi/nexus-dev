@@ -17,6 +17,7 @@ import Database from 'better-sqlite3';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { log as pipelineLog } from './common';
+import { MemoryNotFoundError } from '../core/errors';
 
 const log = (prefix: string, message: string) => pipelineLog(`[${prefix}] ${message}`);
 
@@ -383,7 +384,7 @@ export async function promoteMemory(id: number, newTier: MemoryTier, reason: str
   const current = selectStmt.get(id) as Record<string, unknown> | undefined;
 
   if (!current) {
-    throw new Error(`Memory #${id} not found`);
+    throw new MemoryNotFoundError(id);
   }
 
   const currentTier = current.tier as MemoryTier;

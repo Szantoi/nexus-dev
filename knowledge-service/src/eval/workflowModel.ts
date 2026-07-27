@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as yaml from 'js-yaml';
 import { WORKFLOWS_CONFIG_PATH } from '../config/paths';
 import { logger } from '../core/logger';
+import { ConfigurationError } from '../core/errors';
 
 const log = (msg: string) => logger.info(`[WorkflowModel] ${msg}`);
 const warn = (msg: string) => logger.warn(`[WorkflowModel] ⚠️ ${msg}`);
@@ -43,7 +44,7 @@ function loadConfig(): WorkflowsConfig {
     const raw = fs.readFileSync(WORKFLOWS_CONFIG_PATH, 'utf-8');
     const cfg = yaml.load(raw) as WorkflowsConfig;
     if (!cfg || typeof cfg.workflows !== 'object' || !cfg.default_workflow) {
-      throw new Error('workflows.yaml missing "workflows" map or "default_workflow"');
+      throw new ConfigurationError('workflows.yaml missing "workflows" map or "default_workflow"');
     }
     cached = cfg;
     log(`Loaded workflow definitions v${cfg.version}: ${Object.keys(cfg.workflows).length} type(s) from ${WORKFLOWS_CONFIG_PATH}`);

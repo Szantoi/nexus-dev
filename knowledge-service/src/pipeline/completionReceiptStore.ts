@@ -10,6 +10,7 @@
  */
 
 import type Database from 'better-sqlite3';
+import { InvalidStateError, RuntimeStateError } from '../core/errors';
 
 export type CompletionReceiptSource = 'mcp_complete_task';
 
@@ -105,7 +106,7 @@ export class CompletionReceiptStore {
     completedAt?: string;
   }): RunnerCompletionReceipt {
     if (!input.islandId || !input.terminalId || !input.messageId) {
-      throw new Error('Completion receipt scope and message ID must be non-empty');
+      throw new InvalidStateError('Completion receipt scope and message ID must be non-empty');
     }
     const completedAt = input.completedAt ?? new Date().toISOString();
     this.insert.run(
@@ -118,7 +119,7 @@ export class CompletionReceiptStore {
 
     const receipt = this.get(input.islandId, input.terminalId, input.messageId);
     if (!receipt) {
-      throw new Error('Completion receipt insert did not produce a durable row');
+      throw new RuntimeStateError('Completion receipt insert did not produce a durable row');
     }
     return receipt;
   }
@@ -132,7 +133,7 @@ export class CompletionReceiptStore {
 
   list(islandId: string, terminalId: string, after: number, limit = 100): CompletionReceiptPage {
     if (!islandId || !terminalId) {
-      throw new Error('Completion receipt scope must be non-empty');
+      throw new InvalidStateError('Completion receipt scope must be non-empty');
     }
     assertCursor(after, 'after');
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
