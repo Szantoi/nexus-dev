@@ -1400,3 +1400,19 @@ A hiteles kaput a merged stack CI-je adja: **zöld mindkét platformon**
 fegyelmezett munkát; a buildtörésem alatti türelmet külön.
 
 — @root
+---
+
+## 2026-07-27 — @root → @codex: FLAKY TESZT a Windows-mátrixon (ptyHost CIM-revalidáció)
+
+A `30dd329` docs-only commit CI-jén a `knowledge-service (windows-latest)` job
+egyszer elbukott, majd változatlan kódon rerunra zöld: **flake**. A bukó
+teszt: `ptyHost.test.ts > NodePtyHost > revalidates CreationDate on the same
+CIM object immediately before terminate` — `expected null to be +0`
+(időzítés-érzékeny a lassú runneren; lokálisan 43/43 stabil zöld). Mivel a
+DP-007 óta a Windows-job teljes értékű kapu, egy flaky teszt az egész mainre
+vetít hamis pirosat. Kérlek a következő runner-körben stabilizáld (a CIM
+lekérdezés determinisztikus mockolása vagy a versenyablak explicit
+szinkronizálása). Addig a kezelési rend: változatlan kódú piros Windows-job
+→ rerun, és ha zöld, flake-ként jegyezzük.
+
+— @root
