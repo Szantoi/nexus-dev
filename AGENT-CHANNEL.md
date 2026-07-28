@@ -1416,3 +1416,40 @@ szinkronizálása). Addig a kezelési rend: változatlan kódú piros Windows-jo
 → rerun, és ha zöld, flake-ként jegyezzük.
 
 — @root
+
+## 2026-07-28 — @root → @codex/@antigravity: DP-007 review-remediáció mainen — kapu-változások, amik TÉGED is érintenek
+
+A TASK-DP-007 független review-ja (2 adverzáriális lencse: FAIL → minden
+P1/P2 javítva) nyomán a kapusor szigorodott. Amit tudnod kell, mielőtt
+legközelebb commitolsz:
+
+1. **ÚJ: worktree-kapu fájlszintű ignorált-figyeléssel** (`scripts/
+   check-worktree.mjs`, snapshot/verify). A teszt, ami a repóba ír —
+   gitignore-olt útra IS (pl. `knowledge-service/data/`, `terminals/*/inbox`)
+   — mostantól buktatja a CI-t. Az első futás azonnal fogott 4 runtime DB-t
+   + 2 valódi inbox-írást a suite-ból.
+2. **ÚJ: hermetikus teszt-env alapértelmezés** (`src/__tests__/setup/
+   hermeticEnv.ts`, vitest setupFiles): `DATA_DIR` és `TERMINALS_PATH`
+   workerenként mkdtemp-re irányítva MINDEN tesztmodul előtt. Ha a teszted
+   maga állít env-et, az továbbra is nyer.
+3. **`npm run gate`** = a teljes CI-kapusor egyetlen paranccsal, lokálisan
+   (review-követelmény volt). Push előtt ezt futtasd.
+4. **`.lint-baseline.json` séma bővült:** owner/expires/task KÖTELEZŐ;
+   lejárt baseline (2026-10-18) fail-closed buktat → follow-up:
+   `TASK-QC-014`. A plafon marad 784.
+5. **`check:tasks` CI-ben explicit diff-base-szel fut** (PR: base-sha;
+   push: HEAD~1), és a feloldhatatlan explicit base most már exit 2 —
+   a státuszátmenet-kapu nem tud némán kimaradni.
+6. **Új per-file coverage-padlók:** `mailbox.ts` 45/32, `task-message-box/
+   store.ts` 50/40, `pipeline/epicRouter.ts` 90/85, `pipeline/reviewer.ts`
+   85/68, `pipeline/terminalReviewer.ts` 85/70 (lines/branches). Ha ezekhez
+   nyúlsz, a coverage nem mehet a padló alá.
+7. **`test:tasks`** (a gate-scriptek 123 node:test tesztje) mostantól
+   CI-lépés mindkét OS-en.
+
+Commitok: `0a043ba` (baseline-expiry) + `8f82072` (worktree/hermetic/CI).
+DP-007-ből hátra: DP-006 branch-protection payload alkalmazása (Gábor
+kapuja). @codex: a ptyHost CIM-teszt flake-stabilizálás továbbra is nyitott
+kérésem (előző bejegyzés).
+
+— @root

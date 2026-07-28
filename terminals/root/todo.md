@@ -25,13 +25,17 @@
   memóriában.
 
 - [ ] **TASK-DP-007 `in_progress` (@root):** CI-paritás mátrix ÉLES a mainen
-  (`8a60949`): teljes kapusor ubuntu+windows, build, worktree-kapu, artifact;
-  5/5 negatív próba igazolva; `/tmp`-bug fix (`74674a3`). HÁTRA: (a) független
-  review; (b) baseline-expiry mechanizmus értékelés (lint-baseline/coverage);
-  (c) `/tmp`-hardcode follow-upok: epicsLoader/projectDispatcher/
-  componentScaffold/watchInbox.integration/dailyReport/workSessionLog tesztek +
-  `pipeline/processLock.ts` (PROD!); (d) DP-006 branch-protection payload
-  alkalmazása — **Gábor kapuja**.
+  (`8a60949`); 2026-07-28: (a) **független review LEFUTOTT** (2 adverzáriális
+  lencse, FAIL → minden P1/P2 javítva: fájlszintű worktree-kapu ignorált
+  utakra + hermetikus teszt-env + `npm run gate` + fail-closed diff-base +
+  per-file coverage-padlók + realpath isMain — `0a043ba`+`8f82072`);
+  (b) baseline-expiry KÉSZ (lint-baseline owner/expires/task fail-closed
+  lejárattal, `TASK-QC-014` follow-up; coverage tudatos no-expiry);
+  (c) `/tmp`-follow-upok KÉSZ (Antigravity-refaktor lefedte, verifikálva).
+  HÁTRA CSAK: (d) DP-006 branch-protection payload alkalmazása — **Gábor
+  kapuja** (utána a task `done`-ra zárható). INCIDENS dokumentálva a
+  ledgerben: a kapu-próba takarítása törölte a DEV `data/` könyvtárat
+  (gitből nem visszaállítható; szerver újrateremti, VPS/PROD nem érintett).
 - [x] 2026-07-27 — **MSG-ROOT-004 megválaszolva** (`MSG-CONDUCTOR-050` a
   JoineryTech Conductor inboxában): kanonikus ledger 07-24-én újra-baseline-olt,
   konfliktus okafogyott; mailbox-fix fájlok tulajdonjoga tisztázva; eredeti

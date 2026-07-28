@@ -3,9 +3,34 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-27 (napzárás)
+**Utolsó frissítés:** 2026-07-28
 
 ## Aktuális fókusz
+
+**DP-007 REVIEW-REMEDIÁCIÓ KÉSZ (2026-07-28, @root):** a CI-paritás szelet
+független review-ja (2 adverzáriális lencse) FAIL-t adott — 1 P1 + 7 P2 —,
+mind javítva és mainre commitolva (`0a043ba` + `8f82072` + docs):
+(1) **fájlszintű worktree-kapu** (`scripts/check-worktree.mjs`
+snapshot/verify, ignorált utak fájlszinten — az első futása azonnal valós
+teszt-szennyezést fogott: 4 runtime DB + 2 valódi inbox-írás);
+(2) **hermetikus teszt-env alapértelmezés** (vitest setupFiles: DATA_DIR +
+TERMINALS_PATH → mkdtemp; 1710 teszt zöld, nulla kiesés);
+(3) **`npm run gate`** egyparancsos lokális CI-ekvivalens;
+(4) **lint-baseline expiry** (owner/expires/task kötelező, lejárat
+fail-closed, follow-up: új `TASK-QC-014`); (5) fail-closed explicit
+diff-base a check:tasks-ban + CI-oldali explicit bázis; (6) per-file
+coverage-padlók a task/lifecycle/review modulokra; (7) realpath-isMain
+(junction fail-open zárva). Scope-5 döntés: a coverage-küszöbökre TUDATOSAN
+nincs expiry (padlók, nem kivételek — configban dokumentálva). A `/tmp`-
+follow-upok az Antigravity-refaktorral már készen voltak (verifikálva).
+DP-007-ből hátra egyedül a DP-006 branch-protection alkalmazása (Gábor).
+**INCIDENS:** a kapu-próba takarítása a teljes DEV `knowledge-service/data/`
+könyvtárat törölte (runtime SQLite-ok; gitből nem visszaállítható — a
+szerver üresen újrateremti, registry/agent_messages a mailbox-fájlokból
+újraindexelhető, VPS/PROD nem érintett). Tanulság: destruktív takarítás
+csak a létrehozott fájlra célozva.
+
+
 
 **NAPZÁRÁS 2026-07-27 — minden szál lezárt, `origin/main` = `08a1e1a`, CI
 zöld.** A nap terméke időrendben: (1) Antigravity 5 csomag audit+merge

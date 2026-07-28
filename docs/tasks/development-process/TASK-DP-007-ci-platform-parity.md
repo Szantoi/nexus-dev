@@ -123,3 +123,123 @@ Az implementáló a program README kötelező protokollja szerint tölti ki.
      → FAIL. Minden fixture revertálva, a klón tiszta.
 - **Toolchain-rögzítés élesben:** a CI-lépés kiírja az OS/node/npm/git
   verziót minden platformon (run-logban visszakereshető).
+
+### 2026-07-28 — @root: 3. inkrementum — baseline-expiry (scope-5) + `/tmp`-follow-up lezárás
+
+- **`/tmp`-hardcode follow-upok KÉSZ (verifikálva):** a 2. inkrementumban
+  listázott 6 teszt + `pipeline/processLock.ts` `/tmp`-hardcode-jait az
+  Antigravity mainre került `/tmp`-refaktorja (`7e21785..294eb5f` sáv)
+  kivezette; a mai fán `["'\`]/tmp` találat a `src/` alatt: 1 magyarázó
+  komment + 1 terv-doksi példa — kód-hardcode nulla.
+- **Scope-5 baseline-expiry audit — eredmény és implementáció:**
+  - **File-size allowlist** (`.file-size-allowlist.json` +
+    `check-file-size.mjs`): már megfelelt (owner+expires+task kötelező,
+    lejárat fail-closed). Nincs teendő.
+  - **Lint-baseline** (`.lint-baseline.json`): a 784-es warning-plafon
+    tömbösített kivétel-lista volt lejárat nélkül → **owner/expires/task
+    mezők mostantól kötelezők** (hiányuk exit 2 konfigurációs hiba), a
+    **lejárt baseline fail-closed exit 1**, az üzenet a felelőst és a
+    konkrét follow-up taskot nevezi meg (`TASK-QC-014`, új, `ready`,
+    EPICS.yaml-ba felvéve a QC-VERIFICATION alá). A lejárat-ellenőrzés a
+    ratchet-összevetés ELŐTT fut, így plafon alatti warning-szám sem
+    engedi át a lejárt baseline-t; `--update` a mezőket megőrzi és
+    továbbra sem emelhet. BOM-strip a parse előtt (Windows/Notepad-eset).
+  - **Coverage-küszöbök** (`vitest.config.ts`): TUDATOSAN nincs lejárat —
+    ezek nem kivételek, hanem csak felfelé ratchetelhető, regressziónál
+    már ma is fail-closed padlók; a döntés indoklása a configban
+    dokumentálva (owner: backend). A kritikus modulok per-file küszöbei
+    (5 auth/security fájl, 80/70) változatlanul külön mértek.
+  - **Refaktor + teszt:** `lint-ratchet.mjs` exportált tiszta függvények
+    (`parseCounts`/`validateBaseline`/`isExpired`) + `isMain`-kapu (a
+    check-tasks.mjs mintája); új `scripts/__tests__/lint-ratchet.test.mjs`
+    (16 teszt, node:test), a `test:tasks` script mindkét suite-ot futtatja.
+  - **Negatív próbák élő Biome-futással:** lejárt baseline → exit 1 a
+    task-hivatkozással; hiányos baseline (csak maxWarnings) → exit 2 mind
+    a 3 hiányzó mezőt megnevezve; `--update` 999→784 leszorítás
+    mezők megőrzésével → exit 0. Pozitív út: 784/784 exit 0.
+- **Kapuk a fán:** typecheck 0; `test:tasks` 103/103 PASS; lint:ratchet,
+  check:tasks (47 task), check:links, check:size, secret-scan mind zöld.
+- **Hátra:** független review (folyamatban, friss reviewer-agentek);
+  DP-006 branch-protection payload alkalmazása (Gábor kapuja).
+
+### 2026-07-28 — @root: 4. inkrementum — FÜGGETLEN REVIEW (2 lencse) + javítások
+
+**Review-verdiktek (készítőtől független adverzáriális agentek):** CI-mátrix
+lencse **FAIL (1 P1 + 5 P2 + 7 P3)**; lint-baseline-expiry lencse **FAIL
+(2 P2 + 3 P3)**. Minden P1/P2 javítva vagy dokumentáltan emberi kapun:
+
+- **P1 (worktree-kapu vak az ignorált útvonalakra):** a sima
+  `git status --porcelain` a gitignore-olt runtime-írást (pl.
+  `knowledge-service/data/`) nem látta. Fix: új
+  `scripts/check-worktree.mjs` snapshot/verify kapu — porcelain `-uall` +
+  `git ls-files --others --ignored --exclude-standard` FÁJLSZINTŰ
+  ignorált-enumeráció (az élő próba megmutatta: a `--ignored=matching`
+  könyvtár-kollabálása miatt a MEGLÉVŐ ignorált könyvtárba írás láthatatlan
+  maradt volna), capture-kori allowlist a legitim kimenetekre
+  (node_modules/dist/coverage), eltűnt bejegyzés is bukás. Élő negatív
+  próba: `data/` alá írás → exit 1; takarítás után → exit 0. A CI mindkét
+  jobja (gate + PTY-smoke) snapshot/verify párral fut.
+- **P2 (nincs egyparancsos lokális ekvivalens):** új **`npm run gate`**
+  aggregátor — a CI kapusor 1:1 sorrendben, ugyanazokkal a scriptekkel
+  (worktree-kapu és a gate-script tesztek is). A ci.yml fejléc-táblázat
+  frissítve (Build + test:tasks + worktree sorok).
+- **P2 (check:tasks diff-base fail-open):** a CI explicit bázist ad
+  (PR: base-sha; push: HEAD~1), és a `check-tasks.mjs` mostantól
+  **fail-closed exit 2** feloldhatatlan explicit `--diff-base`-re
+  (korábban minden git-show hibát „új task"-ként nyelt le). +2 CLI-teszt.
+- **P2 (lint-ratchet isMain symlink/junction fail-open):** a
+  refaktor-bevezette `resolve()`-összevetés junction alatt NÉMA exit 0-t
+  adott (reviewer-repró). Fix: `realpathSync`-alapú összevetés mindkét új
+  scriptben; junction-próba igazolva (exit 2 a bogus flagre).
+- **P2 (expiry-invariánsok tesztfedetlenek + suite nem fut CI-ben):** a
+  baseline-validáció és a lejárat-ellenőrzés a Biome-futás ELÉ került
+  (olcsó integrációs tesztek), +2 CLI integrációs teszt (lejárt baseline
+  a plafon ALATT → exit 1 a follow-up task nevével; hiányos → exit 2 minden
+  hiányzó mezővel); a **`test:tasks` mostantól CI-lépés** mindkét OS-en.
+- **P2 (kritikus task/lifecycle/review modulok külön küszöbe hiányzott):**
+  per-file coverage-padlók a mért értékek −5 pontján: `mailbox.ts` 45/32,
+  `task-message-box/store.ts` 50/40, `pipeline/epicRouter.ts` 90/85,
+  `pipeline/reviewer.ts` 85/68, `pipeline/terminalReviewer.ts` 85/70
+  (lines/branches). A release-felület (bash deploy-scriptek) vitest-en
+  kívül esik — saját hermetikus suite kapuzza (QC-004), dokumentálva.
+- **P2 (Windows npm-log artifact-út néma):** a hiba-artifact mindkét
+  platform npm-log útvonalát felsorolja; a halott `coverage-summary.json`
+  út mögé bekerült a `json-summary` reporter.
+- **P3-fixek:** `--update` lejárt baseline-nál hangos WARN; szigorúbb
+  baseline-séma (valódi nem-negatív egész `maxWarnings`, szemantikus
+  dátum-validáció — a formátumra jó, de lehetetlen `9999-99-99` elutasítva;
+  whitespace-only owner/task elutasítva); BOM-tűrő baseline-olvasás.
+- **Dokumentált, nem javított maradékok:** (a) branch-protection
+  alkalmazása = P2, de Gábor emberi kapuja (DP-006 payload draft kész);
+  (b) Node major-pin (22.x) + npm-verzió rekord-de-nem-pin — tudatos:
+  a setup-node minor-frissítései kívánatosak, az eltérés a toolchain-log
+  lépésből visszakereshető; (c) nincs `.gitattributes` — a checkout-
+  normalizálás runner-defaultokon áll, felvétele külön, izolált változtatás
+  legyen (tömeges sorvég-churn kockázata miatt nem e task mellékhatása);
+  (d) az `npm ci` a setup-node npm-cache-sel fut („cache nélküli" helyett
+  integrity-hash-védett install — a lock-integritás a tényleges garancia).
+- **INCIDENS (transzparencia):** a worktree-kapu élő próbája közben a
+  takarító lépésem a TELJES meglévő `knowledge-service/data/` könyvtárat
+  törölte a szándékolt egyetlen próbafájl helyett (DEV-gép, runtime
+  SQLite-ok: workflow/memory/dispatch/registry/telegram). A szerver
+  induláskor üresen újrateremti őket; a lokális DEV-történet elveszett.
+  VPS/PROD nem érintett. Tanulság: destruktív takarítás CSAK a létrehozott
+  fájlra célozva, sosem könyvtár-rekurzióval.
+- **A KAPU ELSŐ ÉLES FOGÁSA (a P1-fix értékének bizonyítéka):** az első
+  teljes `npm run gate` futás a verify-lépésen BUKOTT — a hermetikusnak
+  hitt suite valójában 4 runtime DB-t írt a `knowledge-service/data/` alá
+  (epic_router/taskmessagebox/telegram/workflow + shm/wal) és 2 valódi
+  workflow-taskfájlt a `terminals/backend/inbox/`-ba. A régi
+  (`git status --porcelain`) kapu MINDKETTŐT némán átengedte volna
+  (gitignore-olt utak). Gyökérok: több modul import-időben számol
+  `DATA_DIR`/`TERMINALS_PATH`-alapú útvonalat, és env-felülbírálás nélküli
+  teszt-importnál a valós fába ír. **Szisztémás fix:** globális vitest
+  setup (`src/__tests__/setup/hermeticEnv.ts`) — workerenként mkdtemp-elt
+  `DATA_DIR` + `TERMINALS_PATH` minden tesztmodul betöltése ELŐTT; a
+  jövőbeli tesztek is öröklik. Teljes suite az átirányítással: 106 fájl /
+  1710 PASS + 1 skipped, nulla kiesés. A szennyezés-műtermékek célzottan
+  (fájlonként, tartalom-ellenőrzés után) eltávolítva.
+- **Kapuk a javítások után:** `test:tasks` 123/123 PASS (3 suite);
+  junction-, data-írás-, expired-, incomplete-, update-próbák mind a várt
+  exit-kóddal; a teljes `npm run gate` egyparancsos futás eredménye a
+  commit előtt rögzítve (lásd alább).
