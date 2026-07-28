@@ -84,7 +84,7 @@
  *       (pl. hiányzó könyvtár, betölthetetlen séma).
  */
 
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve, relative, sep, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -370,13 +370,30 @@ function resolveDefaultDiffBase(root) {
     const topLevel = execFileSync('git', ['rev-parse', '--show-toplevel'], {
       cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
-    if (resolve(topLevel) !== resolve(root)) return null;
+    if (canonicalPath(topLevel) !== canonicalPath(root)) return null;
     execFileSync('git', ['rev-parse', '--verify', 'HEAD~1'], {
       cwd: root, stdio: ['ignore', 'ignore', 'ignore'],
     });
     return 'HEAD~1';
   } catch {
     return null; // nincs git, nem git-repó, vagy nincs szülő-commit (pl. első commit)
+  }
+}
+
+/**
+ * OS-kanonikus útvonal-összevetéshez: Windowson a 8.3-as rövidnév
+ * (`RUNNER~1`) és a hosszú név ugyanaz a könyvtár, de string-szinten eltér —
+ * a GitHub-runner `os.tmpdir()`-je rövidnevet ad, a `git rev-parse
+ * --show-toplevel` hosszút, és a sima resolve()-összevetés hamisan
+ * nem-egyezést jelez (a diff-base némán null → a státuszátmenet-kapu
+ * kimarad). realpathSync.native oldja fel mindkettőt; hibánál resolve-
+ * fallback (a hívó try/catch-e fail-safe null-t ad).
+ */
+function canonicalPath(p) {
+  try {
+    return realpathSync.native(p);
+  } catch {
+    return resolve(p);
   }
 }
 

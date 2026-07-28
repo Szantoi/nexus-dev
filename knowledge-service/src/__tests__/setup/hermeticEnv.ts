@@ -23,10 +23,29 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // Workerenként egyszer: a process-cache-elt env-érték megakadályozza a
-// tesztfájlonkénti újra-mkdtemp-et ugyanabban a workerben.
-if (!process.env.DATA_DIR) {
-  process.env.DATA_DIR = mkdtempSync(join(tmpdir(), 'nexus-test-data-'));
+// tesztfájlonkénti újra-mkdtemp-et ugyanabban a workerben. Csak az ÍRÓ
+// gyökereket irányítjuk át — az olvasó utak (EPICS_PATH, KNOWLEDGE_BASE_PATH,
+// PROJECTS_DIR) a valós repóra maradnak, azokat a tesztek fixture-env-vel
+// kezelik.
+if (!process.env.NEXUS_TEST_SCRATCH) {
+  process.env.NEXUS_TEST_SCRATCH = mkdtempSync(join(tmpdir(), 'nexus-test-'));
 }
+const scratch = process.env.NEXUS_TEST_SCRATCH;
+const defaults: Record<string, string> = {
+  DATA_DIR: join(scratch, 'data'),
+  LOGS_DIR: join(scratch, 'logs'),
+  GOALS_DIR: join(scratch, 'goals'),
+  IDEAS_DIR: join(scratch, 'ideas'),
+  QUEUE_DIR: join(scratch, 'queue'),
+  CONDUCTOR_STATE_DIR: join(scratch, 'conductor-state'),
+  IDEA_SCAN_PROJECT_PATH: join(scratch, 'tasks-new'),
+  AUTONOMOUS_DEV_FOCUS_FILE: join(scratch, 'tasks-new', 'PROJECT_STATUS.md'),
+};
+for (const [key, value] of Object.entries(defaults)) {
+  if (!process.env[key]) process.env[key] = value;
+}
+// A terminals-fa két elfogadott env-kulcsa közül bármelyik beállítottsága
+// felülbírálásnak számít.
 if (!process.env.TERMINALS_PATH && !process.env.TERMINALS_DIR) {
-  process.env.TERMINALS_PATH = mkdtempSync(join(tmpdir(), 'nexus-test-terminals-'));
+  process.env.TERMINALS_PATH = join(scratch, 'terminals');
 }

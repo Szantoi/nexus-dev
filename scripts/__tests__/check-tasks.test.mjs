@@ -904,6 +904,14 @@ describe('explicit --diff-base fail-closed validation (CLI)', () => {
     }
   });
 
+  // MEGJEGYZÉS (8.3 short-path regresszió): a GitHub Windows-runner
+  // os.tmpdir()-je 8.3-as rövidnév (C:\Users\RUNNER~1\...), a git
+  // rev-parse --show-toplevel hosszú nevet ad — a resolveDefaultDiffBase
+  // canonicalPath (realpathSync.native) normalizálása hidalja át. Erre
+  // KÜLÖN teszt nem kell: a fenti resolveDefaultDiffBase-tesztek a runneren
+  // os.tmpdir() alatt futnak, tehát a CI Windows-lege pontosan ezt az esetet
+  // gyakorolja minden futásban (az első CI-futás így fogta meg a hibát).
+
   test('a resolvable explicit --diff-base is accepted (no exit-2 validation error)', () => {
     const dir = makeTempGitRepo();
     try {
