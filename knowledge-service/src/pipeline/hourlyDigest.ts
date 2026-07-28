@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { SPACEOS_ROOT, telegram, log } from './common';
+import { LOG_DIR, SPACEOS_ROOT, telegram, log } from './common';
 import { logger } from '../core/logger';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ export async function collectDigestData(): Promise<DigestData> {
 
       // Parse recent log for skipped cycles
       try {
-        const logFile = path.join(SPACEOS_ROOT, 'logs/dispatcher/nightwatch.log');
+        const logFile = path.join(LOG_DIR, 'nightwatch.log');
         const logContent = await fs.readFile(logFile, 'utf-8');
         const lines = logContent.split('\n').filter(l => l.includes('[AutonomousDev]')).slice(-10);
         const skipped = lines.filter(l => l.includes('skipped')).length;

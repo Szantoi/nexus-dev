@@ -11,10 +11,10 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
 import { log } from './pipeline/common';
-import { TERMINALS_PATH, SPACEOS_ROOT, GOALS_DIR, getEpicsPath, getTerminalsPath } from './config/paths';
+import { TERMINALS_PATH, LOGS_DIR, GOALS_DIR, getEpicsPath, getTerminalsPath } from './config/paths';
 import { logger } from './core/logger';
 
-const GOALS_LOG = path.join(SPACEOS_ROOT, 'logs', 'dispatcher', 'goals.log');
+const GOALS_LOG = path.join(LOGS_DIR, 'dispatcher', 'goals.log');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

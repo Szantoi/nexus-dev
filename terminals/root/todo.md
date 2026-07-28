@@ -188,6 +188,14 @@
 
 ## Backlog
 
+- [ ] **SPACEOS_ROOT-hardcode maradékok a pipeline-ban (DP-007 kapu-vadászat
+  mellékleletei, 2026-07-28):** `alertRules.ts` (`.alertState.json` a
+  repo-gyökérben íródik; `terminals/` közvetlen SPACEOS_ROOT-ból, nem
+  TERMINALS_PATH-ból — 32/175/291. sor), `hourlyDigest.ts` (terminals
+  hardcode — 97/128. sor). A nightwatch/goals log-írók már config-vezéreltek
+  (LOGS_DIR). Ha egy teszt gyakorolja őket, a worktree-kapu fogja — addig
+  alacsony prioritás, a QC-007 hibaosztály folytatása.
+
 - [x] 2026-07-25 — **`src/routes/` maradék 2 fájl átmozgatva `interfaces/http/routes/` alá:**
   `escalationRoutes.ts` és `subscriptionRoutes.ts` átmozgatva, `src/routes` mappa törölve, `app.ts`, `subscriptionManager.ts` és `routes/index.ts` frissítve. Typecheck + 101 suite / 1685 teszt PASS.
 - [x] 2026-07-25 — **Két `memoryStore.ts` elnevezései tisztázva:**

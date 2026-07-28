@@ -12,7 +12,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { SPACEOS_ROOT, telegram, log } from './common';
+import { LOG_DIR, SPACEOS_ROOT, telegram, log } from './common';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -131,9 +131,9 @@ export async function checkConsecutiveSkips(): Promise<string | null> {
     // Check if autonomous dev is enabled
     if (!status.enabled) return null;
 
-    // Read recent cycle history from logs
-    const logDir = path.join(SPACEOS_ROOT, 'logs/dispatcher');
-    const logFile = path.join(logDir, 'nightwatch.log');
+    // Read recent cycle history from logs (same config-driven dir the
+    // nightwatch writer uses).
+    const logFile = path.join(LOG_DIR, 'nightwatch.log');
 
     try {
       const content = await fs.readFile(logFile, 'utf-8');

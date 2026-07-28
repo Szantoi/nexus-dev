@@ -40,6 +40,7 @@ const defaults: Record<string, string> = {
   CONDUCTOR_STATE_DIR: join(scratch, 'conductor-state'),
   IDEA_SCAN_PROJECT_PATH: join(scratch, 'tasks-new'),
   AUTONOMOUS_DEV_FOCUS_FILE: join(scratch, 'tasks-new', 'PROJECT_STATUS.md'),
+  NIGHTWATCH_STATE_FILE: join(scratch, 'nightwatch-state'),
 };
 for (const [key, value] of Object.entries(defaults)) {
   if (!process.env[key]) process.env[key] = value;

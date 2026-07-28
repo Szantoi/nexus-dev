@@ -12,11 +12,14 @@ const execAsync = promisify(exec);
 
 // Environment — config-driven root (re-exported for the many pipeline
 // modules that import it from here).
-import { SPACEOS_ROOT } from '../config/paths';
+import { LOGS_DIR, SPACEOS_ROOT } from '../config/paths';
 import { secrets } from '../config/env';
 export { SPACEOS_ROOT };
-export const LOG_DIR = path.join(SPACEOS_ROOT, 'logs/dispatcher');
-export const STATE_FILE = path.join(SPACEOS_ROOT, 'scripts/.nightwatch-state');
+// LOGS_DIR honors the LOGS_DIR env override (hermetic tests, deploy layouts);
+// its default is <SPACEOS_ROOT>/logs, so production behavior is unchanged.
+export const LOG_DIR = path.join(LOGS_DIR, 'dispatcher');
+export const STATE_FILE =
+  process.env.NIGHTWATCH_STATE_FILE || path.join(SPACEOS_ROOT, 'scripts/.nightwatch-state');
 
 // ─── Tmux Enter Key Variants ──────────────────────────────────────────────────
 // Multiple Enter variants to reduce chance of stuck prompts.
