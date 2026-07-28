@@ -9,13 +9,13 @@
 
 ## Aktív
 
-- [ ] **COVERS follow-upok** (a `docs/plans/COVERAGE-GRAPH-WIRING.md` v2
-  „Ismert korlátok" szakaszából): ~~(a) átfedő index-futások upsert-clobbere
-  → futás-lease~~ **KÉSZ 2026-07-28** (@root, `89f695c` — constraint-as-mutex
-  lease, független konkurencia-review PASS, maradék kockázatok a tervben
-  dokumentálva); HÁTRA: (b) MCP toolok COVERS-elavulás-jelzése; (c) a
-  coverage frissen tartása (test:coverage + env-es index a dev gépen — most
-  kézi).
+- [x] 2026-07-28 — **COVERS follow-upok MIND KÉSZ (@root):** (a) futás-lease
+  (`89f695c`, konkurencia-review PASS) + ÉLŐ VPS-validáció: lease-védett
+  teljes spaceos-újraírás után lease felszabadult, mind az 1229 COVERS-él
+  túlélte a coverage nélküli futást; (b) MCP elavulás-jelzés — `covers_layer`
+  (fresh/stale/absent/unknown) a get_dependencies + impact_analysis
+  válaszában; (c) `npm run coverage:index` egyparancsos frissítés a dev
+  gépen (fail-closed, egy-író szabály).
 - [ ] **CX-1 folytatás (@codex):** attached-mód canary-hangolás — a Codex
   0.145.0 interaktív képernyője még nem ad biztonságosan osztályozható ready
   promptot (30s startup-timeout); headless módban áll, gate zárva. P3: a
@@ -34,10 +34,14 @@
   (b) baseline-expiry KÉSZ (lint-baseline owner/expires/task fail-closed
   lejárattal, `TASK-QC-014` follow-up; coverage tudatos no-expiry);
   (c) `/tmp`-follow-upok KÉSZ (Antigravity-refaktor lefedte, verifikálva).
-  HÁTRA CSAK: (d) DP-006 branch-protection payload alkalmazása — **Gábor
-  kapuja** (utána a task `done`-ra zárható). INCIDENS dokumentálva a
-  ledgerben: a kapu-próba takarítása törölte a DEV `data/` könyvtárat
-  (gitből nem visszaállítható; szerver újrateremti, VPS/PROD nem érintett).
+  2026-07-28 du.: **Gábor döntött — a TELJES DP-006 draft megy fel**
+  (PR-kényszer, enforce_admins, kötelező review; a figyelmeztetés a
+  require_last_push_approval egyfiókos következményéről elhangzott és
+  vállalt). Az alkalmazás a nap utolsó push-a UTÁN történik (utána direct
+  push nincs); a done-átmenet az alkalmazás igazolása után, PR-ben megy.
+  INCIDENS dokumentálva a ledgerben: a kapu-próba takarítása törölte a DEV
+  `data/` könyvtárat (gitből nem visszaállítható; szerver újrateremti,
+  VPS/PROD nem érintett).
 - [x] 2026-07-27 — **MSG-ROOT-004 megválaszolva** (`MSG-CONDUCTOR-050` a
   JoineryTech Conductor inboxában): kanonikus ledger 07-24-én újra-baseline-olt,
   konfliktus okafogyott; mailbox-fix fájlok tulajdonjoga tisztázva; eredeti

@@ -3,7 +3,23 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-28 (2. kör)
+**Utolsó frissítés:** 2026-07-28 (3. kör)
+
+## Aktuális fókusz — 3. kör
+
+**COVERS MIND A HÁROM FOLLOW-UP KÉSZ + BRANCH-PROTECTION DÖNTÉS.**
+(1) A lease ÉLŐ VPS-validációja: pull után lease-védett teljes
+spaceos-újraírás (535 node / 3008 él), lease felszabadult (0 maradvány),
+mind az 1229 COVERS-él túlélte — a típus-szkópolt sweep élesben igazolt.
+(2) COVERS (b): `covers_layer` elavulás-jelzés (fresh/stale/absent/unknown)
+a get_dependencies + impact_analysis válaszában; (c) `npm run
+coverage:index` egyparancsos frissítés. (3) **Gábor döntése: a TELJES
+DP-006 branch-protection draft alkalmazandó** (PR-kényszer adminra is,
+kötelező review — az egyfiókos merge-korlát figyelmeztetése elhangzott és
+vállalt). Az alkalmazás a nap utolsó pushja UTÁNI lépés; onnantól minden
+változás PR-en át megy, a DP-007 done-átmenet is.
+
+
 
 ## Aktuális fókusz
 

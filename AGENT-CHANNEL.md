@@ -1498,3 +1498,23 @@ adverzáriális review után):
 COVERS-ből hátra: (b) MCP elavulás-jelzés, (c) coverage frissen tartás.
 
 — @root
+
+## 2026-07-28 — @root → @all: FONTOS — branch-protection élesítés + COVERS lezárva
+
+**⚠️ MUNKAFOLYAMAT-VÁLTÁS:** Gábor döntése alapján a main ágra felkerül a
+TELJES DP-006 branch-protection (e bejegyzés pushja UTÁN alkalmazom):
+minden változás CSAK PR-en át mehet, zöld kétplatformos required CI +
+1 jóváhagyás + require_last_push_approval, adminra is érvényes. **Direct
+push a mainre mostantól SENKINEK nem működik** — lokál commit + PR +
+jelzés ide; a merge Gábor jóváhagyási folyamatán át megy.
+
+**COVERS follow-upok mind lezárva (@root):**
+- (a) futás-lease ÉLESBEN VPS-validálva: lease-védett teljes
+  spaceos-újraírás után 0 lease-maradvány, 1229 COVERS-él érintetlen.
+- (b) `covers_layer` mező a `get_dependencies` + `impact_analysis`
+  válaszban (fresh/stale/absent/unknown + teendő-note) — ha teszt-listát
+  olvasol a gráfból, EZT nézd meg először.
+- (c) `npm run coverage:index` — egy parancs a COVERS frissítésére a
+  coverage-t termelő gépen (egy-író szabály változatlan).
+
+— @root

@@ -327,11 +327,23 @@ closed). 4 P1 + 3 P2 + 3 P3 lelet — a P1-ek és a javítható P2-k JAVÍTVA:
 - **Elgépelt env-változónév** a forrás-útvonalban megkülönböztethetetlen a
   szándékos „ezen a gépen nincs” esettől (explicit skip-log van, hiba nincs)
   — inherens korlát, a log az őr.
-- **Elavulás-jelzés az MCP toolokban** (v1 4. nyitott kérdése): a
-  `sourceHashesJson` + `indexedAt` alapján a toolok jelezhetnék, ha a
-  COVERS-réteg régebbi, mint a kód-réteg — külön tétel, nincs implementálva.
+- ~~**Elavulás-jelzés az MCP toolokban**~~ **KÉSZ (2026-07-28):** a
+  `get_dependencies` és `impact_analysis` válasza `covers_layer` mezőt hord
+  (`coversLayerStatus` az indexBookkeeping-ben): `fresh` (a coverage-
+  bejegyzés a sziget legutolsó futásából való) / `stale` (mindkét
+  időbélyeggel + teendő-note) / `absent` / `unknown` — az `unknown`
+  (meta-olvasási hiba) szándékosan KÜLÖNBÖZIK az `absent`-től, és a
+  státusz-hiba nem buktatja el a fő traversal-választ. A coverage frissen
+  tartása is egy parancs lett: **`npm run coverage:index`**
+  (test:coverage → fail-closed coverage-final.json kapu → env-kapuzott
+  graph:index; kizárólag a coverage-t termelő gépen futtatandó — egy-író
+  szabály).
 - A meta olvasás-módosítás-írás nem atomi: két átfedő futás legfeljebb egy
   felesleges újraindexelést okoz, hamis „naprakész”-t nem (invalidáció
   feltétel nélkül nyer; az író-ág monoton `indexedAt`-kapus).
+- A `covers_layer` jelzés egy futó index-futás alatt (a meta-invalidálás és
+  a meta-visszaírás közti ablakban) átmenetileg `absent`-et mutathat,
+  miközben a COVERS-élek még lekérdezhetők — alul-állítás (biztonságos
+  irány), az ablak egy index-futásnyi.
 - A régi (egész-korpusz `corpusHash`) meta-formátum olvasáskor üresre
   degradál → az átállás utáni első futás egyszeri teljes index.
