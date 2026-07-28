@@ -7,6 +7,12 @@ import * as path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Driver } from 'neo4j-driver-lite';
 import {
+  GraphLeaseHeldError,
+  acquireIndexLease,
+  readIndexLease,
+  releaseIndexLease,
+} from '../../knowledgeGraph/indexBookkeeping';
+import {
   GraphDisabledError,
   GraphUnavailableError,
   MAX_TRAVERSAL_DEPTH,
@@ -91,6 +97,28 @@ describe('knowledgeGraph module boundary', () => {
       if (path.basename(file) === 'hybridSearch.ts' || path.basename(file) === 'index.ts') continue;
       expect(fs.readFileSync(file, 'utf8'), file).not.toContain("from '../vectorStore'");
     }
+  });
+
+  it('nothing outside knowledgeGraph/ imports the raw-Cypher internal seam', () => {
+    // graphStore exports internalRun/internalResolveIsland ONLY so the split
+    // indexBookkeeping module (800-line gate) can share the query runner —
+    // raw Cypher must stay inside this layer. Tool/route code goes through
+    // the typed public functions.
+    const srcDir = path.join(__dirname, '..', '..');
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === 'knowledgeGraph' || entry.name === '__tests__') continue;
+          walk(full);
+        } else if (entry.name.endsWith('.ts') && /internalRun|internalResolveIsland/.test(fs.readFileSync(full, 'utf8'))) {
+          offenders.push(full);
+        }
+      }
+    };
+    walk(srcDir);
+    expect(offenders).toEqual([]);
   });
 });
 
@@ -333,12 +361,14 @@ describe('knowledgeGraph/graphStore', () => {
     // One meta node per island — concurrent first runs would otherwise each
     // create their own and a later read would pick one arbitrarily.
     expect(cyphers[3]).toContain('CREATE CONSTRAINT knowledge_index_meta_island');
-    expect(cyphers[4]).toContain('MATCH (n:KnowledgeEntity');
+    // The lease's uniqueness constraint IS the index-run mutex.
+    expect(cyphers[4]).toContain('CREATE CONSTRAINT knowledge_index_lease_island');
+    expect(cyphers[5]).toContain('MATCH (n:KnowledgeEntity');
     // A successful bootstrap is not repeated on subsequent queries.
     await searchEntities('y', { island: 'isle' });
     expect(
       executeQuery.mock.calls.filter((c) => String(c[0]).includes('CREATE '))
-    ).toHaveLength(4);
+    ).toHaveLength(5);
   });
 
   it('sends a server-side timeout with every query', async () => {
@@ -505,5 +535,128 @@ describe('knowledgeGraph/graphStore', () => {
     // would report the wiped island as up to date.
     expect(clearCalls[1][0]).toContain('MATCH (m:KnowledgeIndexMeta');
     for (const [, params] of clearCalls) expect(params.island).toBe('isle');
+  });
+});
+
+describe('index-run lease (upsert-clobber guard)', () => {
+  it('acquire reaps a stale lease first, then CREATEs with holder + TTL expiry', async () => {
+    const { executeQuery } = fakeDriver();
+    const before = Date.now();
+    await acquireIndexLease('host:1:tag', 'isle', 60_000);
+    const calls = executeQuery.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
+    expect(String(calls[0][0])).toContain('WHERE l.expiresAt < $now DELETE l');
+    expect(calls[0][1].island).toBe('isle');
+    const create = calls[1];
+    expect(String(create[0])).toContain('CREATE (l:KnowledgeIndexLease');
+    expect(create[1].holder).toBe('host:1:tag');
+    const expires = Date.parse(String(create[1].expiresAt));
+    expect(expires).toBeGreaterThanOrEqual(before + 60_000);
+    expect(expires).toBeLessThan(before + 120_000);
+  });
+
+  it('a constraint violation on CREATE surfaces as GraphLeaseHeldError naming the holder', async () => {
+    const executeQuery = vi.fn(async (cypher: string) => {
+      if (String(cypher).includes('CREATE (l:KnowledgeIndexLease')) {
+        const err = new Error('already exists') as Error & { code: string };
+        err.code = 'Neo.ClientError.Schema.ConstraintValidationFailed';
+        throw err;
+      }
+      if (String(cypher).includes('RETURN l')) {
+        return {
+          records: [
+            nodeRecord('l', {
+              holder: 'other-host:99:t0',
+              acquiredAt: '2026-07-28T00:00:00.000Z',
+              expiresAt: '2026-07-28T00:10:00.000Z',
+            }),
+          ],
+          summary: { counters: {} },
+        };
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as import('neo4j-driver-lite').Driver);
+
+    await expect(acquireIndexLease('me:2:t1', 'isle')).rejects.toThrow(GraphLeaseHeldError);
+    await expect(acquireIndexLease('me:2:t1', 'isle')).rejects.toThrow(/other-host:99:t0/);
+  });
+
+  it('a replayed CREATE colliding with our OWN lease counts as acquired, not held', async () => {
+    // Driver-level retry can replay a CREATE whose first attempt committed
+    // but lost its response — self-collision must not block the run for a TTL.
+    const executeQuery = vi.fn(async (cypher: string) => {
+      if (String(cypher).includes('CREATE (l:KnowledgeIndexLease')) {
+        const err = new Error('already exists') as Error & { code: string };
+        err.code = 'Neo.ClientError.Schema.ConstraintValidationFailed';
+        throw err;
+      }
+      if (String(cypher).includes('RETURN l')) {
+        return {
+          records: [
+            nodeRecord('l', {
+              holder: 'me:5:t4',
+              acquiredAt: '2026-07-28T00:00:00.000Z',
+              expiresAt: '2026-07-28T00:10:00.000Z',
+            }),
+          ],
+          summary: { counters: {} },
+        };
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as import('neo4j-driver-lite').Driver);
+    await expect(acquireIndexLease('me:5:t4', 'isle')).resolves.toBeUndefined();
+  });
+
+  it('a non-constraint failure on CREATE is NOT translated into "lease held"', async () => {
+    const executeQuery = vi.fn(async (cypher: string) => {
+      if (String(cypher).includes('CREATE (l:KnowledgeIndexLease')) {
+        throw new Error('connection reset');
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as import('neo4j-driver-lite').Driver);
+    await expect(acquireIndexLease('me:3:t2', 'isle')).rejects.toThrow(GraphUnavailableError);
+  });
+
+  it('release deletes only the OWN lease (holder-scoped MATCH)', async () => {
+    const { executeQuery } = fakeDriver();
+    await releaseIndexLease('me:4:t3', 'isle');
+    const [cypher, params] = executeQuery.mock.calls[0] as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(String(cypher)).toContain('KnowledgeIndexLease {island: $island, holder: $holder}');
+    expect(params.holder).toBe('me:4:t3');
+    expect(params.island).toBe('isle');
+  });
+
+  it('readIndexLease maps the node and returns null when absent', async () => {
+    fakeDriver([
+      nodeRecord('l', {
+        holder: 'h',
+        acquiredAt: '2026-07-28T00:00:00.000Z',
+        expiresAt: '2026-07-28T00:10:00.000Z',
+      }),
+    ]);
+    await expect(readIndexLease('isle')).resolves.toEqual({
+      holder: 'h',
+      acquiredAt: '2026-07-28T00:00:00.000Z',
+      expiresAt: '2026-07-28T00:10:00.000Z',
+    });
+    fakeDriver([]);
+    await expect(readIndexLease('isle')).resolves.toBeNull();
   });
 });

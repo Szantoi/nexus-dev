@@ -15,8 +15,6 @@ export {
   graphEnabled,
   graphHealth,
   graphStats,
-  type IndexMeta,
-  readIndexMeta,
   searchEntities,
   searchEntitiesByTerms,
   sweepStale,
@@ -24,6 +22,18 @@ export {
   upsertEntities,
   upsertRelations,
 } from './graphStore';
+export {
+  GraphLeaseHeldError,
+  type IndexLeaseInfo,
+  type IndexMeta,
+  type SourceIndexEntry,
+  acquireIndexLease,
+  clearIndexMeta,
+  readIndexLease,
+  readIndexMeta,
+  releaseIndexLease,
+  writeIndexMeta,
+} from './indexBookkeeping';
 export {
   type HybridHit,
   type HybridSearchResult,

@@ -72,8 +72,10 @@ const EnvSchema = z.object({
   // Index-run lease TTL: how long a crashed index run's write lease blocks the
   // island before a new run may take over. Must exceed the longest real index
   // run (JoineryTech full: ~15 s) with generous margin; the VPS timer cadence
-  // is 15 min, so a crash costs at most one skipped cycle.
-  GRAPH_INDEX_LEASE_TTL_MS: z.coerce.number().int().min(30000).default(600000),
+  // is 15 min, so a crash costs at most one skipped cycle. Upper bound: a
+  // mistyped giant value would disable the TTL reaper (crash → island blocked
+  // until manual surgery).
+  GRAPH_INDEX_LEASE_TTL_MS: z.coerce.number().int().min(30000).max(3600000).default(600000),
 
   // DataHaven dashboard integration (missionControl cross-sync).
   DATAHAVEN_URL: z.url().default('https://datahaven.joinerytech.hu'),

@@ -16,6 +16,7 @@ import {
   resetGraphStoreForTests,
   setGraphDriverForTests,
 } from '../../knowledgeGraph/graphStore';
+import { GraphLeaseHeldError } from '../../knowledgeGraph/indexBookkeeping';
 
 let repoRoot: string;
 
@@ -132,9 +133,13 @@ describe('runGraphIndex', () => {
     );
     const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
     // No sweep, no clear of the CORPUS. (The index fingerprint is deliberately
-    // dropped before writing — that one delete is the crash guard, not a sweep.)
+    // dropped before writing — that one delete is the crash guard, not a
+    // sweep; the lease reap/release deletes are the run-mutex bookkeeping.)
     const corpusDeletes = cyphers.filter(
-      (c) => c.includes('DELETE') && !c.includes('KnowledgeIndexMeta')
+      (c) =>
+        c.includes('DELETE') &&
+        !c.includes('KnowledgeIndexMeta') &&
+        !c.includes('KnowledgeIndexLease')
     );
     expect(corpusDeletes).toEqual([]);
   });
@@ -747,5 +752,95 @@ describe('runIndexCli', () => {
       String(c[0]).includes('MERGE')
     )?.[1] as { rows: Array<{ id: string }> };
     expect(params.rows.map((row) => row.id)).toContain('docs/knowledge/note.md');
+  });
+});
+
+describe('index-run lease wiring (upsert-clobber guard)', () => {
+  function fakeDriverFor(impl: (cypher: string) => Promise<{ records: unknown[]; summary: { counters: Record<string, never> } }>) {
+    const executeQuery = vi.fn(async (cypher: string) => impl(String(cypher)));
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+    return executeQuery;
+  }
+
+  it('acquires the lease BEFORE any write and releases it AFTER the meta write', async () => {
+    const executeQuery = fakeDriverFor(async (cypher) => ({
+      records: cypher.includes('count(DISTINCT n)') ? [statsRecord] : [],
+      summary: { counters: {} },
+    }));
+    await runGraphIndex(corpusFor(repoRoot), 'tag-lease-1');
+
+    const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
+    const acquire = cyphers.findIndex((c) => c.includes('CREATE (l:KnowledgeIndexLease'));
+    const release = cyphers.reduce(
+      (acc, c, i) => (c.includes('{island: $island, holder: $holder}) DELETE l') ? i : acc),
+      -1
+    );
+    const firstWrite = cyphers.findIndex(
+      (c) => (c.includes('MERGE') || c.includes('DELETE')) && !c.includes('KnowledgeIndexLease')
+    );
+    const metaWrite = cyphers.findIndex((c) => c.includes('MERGE (m:KnowledgeIndexMeta'));
+    expect(acquire).toBeGreaterThan(-1);
+    expect(release).toBeGreaterThan(-1);
+    expect(firstWrite).toBeGreaterThan(acquire); // no write before the lease
+    expect(metaWrite).toBeGreaterThan(-1);
+    expect(release).toBeGreaterThan(metaWrite); // held through the whole write
+  });
+
+  it('a held lease aborts the run with GraphLeaseHeldError and ZERO graph writes', async () => {
+    const executeQuery = fakeDriverFor(async (cypher) => {
+      if (cypher.includes('CREATE (l:KnowledgeIndexLease')) {
+        const err = new Error('lease node exists') as Error & { code: string };
+        err.code = 'Neo.ClientError.Schema.ConstraintValidationFailed';
+        throw err;
+      }
+      if (cypher.includes('MATCH (l:KnowledgeIndexLease') && cypher.includes('RETURN l')) {
+        return {
+          records: [
+            {
+              get: () => ({
+                properties: {
+                  holder: 'vps:123:t0',
+                  acquiredAt: '2026-07-28T00:00:00.000Z',
+                  expiresAt: '2026-07-28T00:10:00.000Z',
+                },
+              }),
+            },
+          ],
+          summary: { counters: {} },
+        };
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+
+    await expect(runGraphIndex(corpusFor(repoRoot), 'tag-lease-2')).rejects.toThrow(
+      GraphLeaseHeldError
+    );
+    const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
+    // No corpus upsert, no sweep, no meta invalidation happened.
+    expect(cyphers.some((c) => c.includes('MERGE') && !c.includes('KnowledgeIndexLease'))).toBe(
+      false
+    );
+    expect(cyphers.some((c) => c.includes('< $syncTag'))).toBe(false);
+    expect(cyphers.some((c) => c.includes('KnowledgeIndexMeta'))).toBe(false);
+  });
+
+  it('releases the lease even when a write inside the leased section fails', async () => {
+    const executeQuery = fakeDriverFor(async (cypher) => {
+      if (cypher.includes('MERGE') && !cypher.includes('KnowledgeIndex')) {
+        throw new Error('write exploded');
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+    await expect(runGraphIndex(corpusFor(repoRoot), 'tag-lease-3')).rejects.toThrow(
+      GraphUnavailableError
+    );
+    const cyphers = executeQuery.mock.calls.map((c) => String(c[0]));
+    expect(
+      cyphers.some((c) => c.includes('{island: $island, holder: $holder}) DELETE l'))
+    ).toBe(true);
   });
 });
