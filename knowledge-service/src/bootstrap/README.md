@@ -44,9 +44,11 @@ itt nincs). Teljes lista: [.env.example](../../.env.example).
 
 ## Ismert korlátok
 
-- Az inbox-fájl-watcher az `initialize()`-ban **feltétel nélkül** elindul; a
-  session-indítást a `shouldWakeUp()` kapuzza. Külön `ENABLE_INBOX_WATCHER`
-  kapcsolót a kód jelenleg nem olvas (a `.env.dev.example`-ben szereplő kulcs
-  hatástalan — jelezve a QC-programnak).
+- Az inbox-fájl-watcher indítását az `ENABLE_INBOX_WATCHER` env-kulcs kapuzza
+  (TASK-QC-013; opt-out: alapból BE, `false` érték kikapcsolja — a `.env.dev`
+  `false`-a adja a DEV-elszigeteltséget). A kapu az indító-út függvénye: a
+  `.env.dev`-et a `scripts/dev-start.mjs` tölti be; közvetlen `npm run dev`
+  esetén a kulcs unset marad és a watcher elindul. A session-indítást ettől
+  függetlenül a `shouldWakeUp()` kapuzza.
 - A rate-limit memóriában él (nem osztott), több processzes futásnál
   processzenként számol.

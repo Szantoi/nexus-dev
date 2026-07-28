@@ -144,6 +144,23 @@ export function setupInboxWatcherBridge(): void {
   });
 }
 
+/**
+ * Config-gated inbox-watcher start (TASK-QC-013). Returns whether the watcher
+ * was started. The ENABLE_INBOX_WATCHER key is opt-out (default true) so
+ * production behavior is unchanged; DEV isolation (conductor CLAUDE.md:
+ * "Inbox-watcher KI") is enforced by setting it to 'false' in .env.dev.
+ */
+export function startInboxWatcherIfEnabled(): boolean {
+  if (!env.ENABLE_INBOX_WATCHER) {
+    logger.info('📪 Inbox watcher: DISABLED (set ENABLE_INBOX_WATCHER to re-enable)');
+    return false;
+  }
+  logger.info('📬 Inbox watcher: ENABLED (set ENABLE_INBOX_WATCHER=false to disable)');
+  startInboxWatcher();
+  setupInboxWatcherBridge();
+  return true;
+}
+
 // ─── Initialization ─────────────────────────────────────────────────────────
 
 export async function initialize(): Promise<void> {
@@ -170,9 +187,8 @@ export async function initialize(): Promise<void> {
   // Initialize message registry (sync with filesystem)
   await initializeRegistry();
 
-  // Start inbox file watcher
-  startInboxWatcher();
-  setupInboxWatcherBridge();
+  // Start inbox file watcher (config-gated: DEV isolation keeps it off)
+  startInboxWatcherIfEnabled();
 
   // Log existing UNREAD messages on startup
   const existingUnread = await scanExistingUnread();

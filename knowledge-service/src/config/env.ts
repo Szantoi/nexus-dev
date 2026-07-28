@@ -69,6 +69,12 @@ const EnvSchema = z.object({
   // Neo4j instance for every island.
   GRAPH_QUERY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(15000),
 
+  // Index-run lease TTL: how long a crashed index run's write lease blocks the
+  // island before a new run may take over. Must exceed the longest real index
+  // run (JoineryTech full: ~15 s) with generous margin; the VPS timer cadence
+  // is 15 min, so a crash costs at most one skipped cycle.
+  GRAPH_INDEX_LEASE_TTL_MS: z.coerce.number().int().min(30000).default(600000),
+
   // DataHaven dashboard integration (missionControl cross-sync).
   DATAHAVEN_URL: z.url().default('https://datahaven.joinerytech.hu'),
   MARVEEN_URL: z.url().optional(),
@@ -118,6 +124,13 @@ const EnvSchema = z.object({
   ENABLE_MULTI_BOT: boolFlag(false),
   // Hourly digest is opt-out: enabled unless explicitly set to 'false'.
   ENABLE_HOURLY_DIGEST: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false'),
+  // Inbox watcher is opt-out: enabled unless explicitly set to 'false'
+  // (TASK-QC-013 — the conductor CLAUDE.md mandates DEV isolation with the
+  // watcher OFF; before this key the watcher started unconditionally).
+  ENABLE_INBOX_WATCHER: z
     .string()
     .optional()
     .transform((v) => v !== 'false'),
