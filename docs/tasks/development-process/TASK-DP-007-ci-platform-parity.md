@@ -243,3 +243,38 @@ lencse **FAIL (1 P1 + 5 P2 + 7 P3)**; lint-baseline-expiry lencse **FAIL
   junction-, data-írás-, expired-, incomplete-, update-próbák mind a várt
   exit-kóddal; a teljes `npm run gate` egyparancsos futás eredménye a
   commit előtt rögzítve (lásd alább).
+
+### 2026-07-28 — @root: 5. inkrementum — az új kapuk ÉLES CI-fogásai + zöld mátrix
+
+Az első két CI-futás az új kapukkal további KÉT valós hibát fogott (mindkettő
+a lokális gépen láthatatlan volt, mert a snapshot-modell a meglévő fájlokat
+elnyeli — a tiszta CI-checkout a hiteles mérce):
+
+1. **`logs/dispatcher/nightwatch.log` írás mindkét platformon** (`bfcbf37`):
+   a `pipeline/common.ts` a `SPACEOS_ROOT`-ból hardcode-olta a log-utat, a
+   `config/paths.ts` `LOGS_DIR`-jét megkerülve (QC-007-osztályú maradék).
+   A `LOG_DIR` most `LOGS_DIR`-ből származik (a PROD-default változatlan),
+   az alertRules/hourlyDigest olvasók és a goals.log ugyanazt a konstansot
+   követik; a nightwatch `STATE_FILE` env-felülbírálást kapott. További
+   SPACEOS_ROOT-hardcode-ok (alertState, terminals-utak) backlog-tételként
+   rögzítve.
+2. **Windows `test:tasks` bukás — 8.3 rövidnév fail-open** (`b0ddcb9`): a
+   runner `os.tmpdir()`-je 8.3-as rövidnév, a `git rev-parse --show-toplevel`
+   hosszú — a `resolveDefaultDiffBase` hamis `null`-t adott, és a
+   státuszátmenet-kapu némán kimaradt (ugyanaz a fail-open osztály, amit a
+   remediáció vadászik). Fix: `realpathSync.native` kanonizálás; a hiteles
+   regressziós teszt maga a CI Windows-lege (a suite a runner tmpdir-jéből
+   fut). Emellett a hermetikus env MINDEN repo-gyökérbe író path-defaultot
+   átirányít (LOGS/GOALS/IDEAS/QUEUE/CONDUCTOR_STATE/tasks-new).
+
+**Végállapot: a teljes mátrix ZÖLD a `bfcbf37`-en (run 30334227869)** —
+knowledge-service ubuntu+windows a teljes kapusorral (test:tasks +
+snapshot/verify + explicit diff-base) és a 4-utas PTY-mátrix saját
+worktree-kapuval. Az elfogadási feltételek közül immár teljesül: #1 (két-OS
+zöld ugyanarra a commitra — élő run-evidencia), #2 (`npm run gate`
+egyparancsos ekvivalens), #4 (worktree-kapu ignorált utakra is, élesben
+bizonyított fogásokkal), #5 (lejárat fail-closed follow-up-taskkal), #6
+(per-file küszöbök a task/lifecycle/review modulokra; release = QC-004
+bash-suite, dokumentálva), #7 (timeout/erőforráskeret). A #3
+(merge-blokkolás) EGYEDÜL a DP-006 branch-protection payload alkalmazásán
+áll — Gábor emberi kapuja; annak alkalmazása után a task `done`-ra zárható.

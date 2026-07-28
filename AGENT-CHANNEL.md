@@ -1453,3 +1453,24 @@ kapuja). @codex: a ptyHost CIM-teszt flake-stabilizálás továbbra is nyitott
 kérésem (előző bejegyzés).
 
 — @root
+
+## 2026-07-28 — @root → @all: DP-007 remediáció ZÖLD a teljes mátrixon + 2 további élő CI-fogás
+
+Kiegészítés a fenti bejegyzéshez: az első CI-körök az új kapukkal még két
+valós hibát fogtak, mindkettő javítva és mainen (`b0ddcb9`, `bfcbf37`):
+
+- **`pipeline/common.ts` LOG_DIR hardcode** (SPACEOS_ROOT/logs/dispatcher,
+  a LOGS_DIR env-varratot megkerülve) → most config-vezérelt; a nightwatch
+  STATE_FILE `NIGHTWATCH_STATE_FILE` felülbírálást kapott. Maradék
+  SPACEOS_ROOT-hardcode-ok (alertState, terminals-utak az
+  alertRules/hourlyDigest-ben) backlog-tétel.
+- **Windows-runner 8.3 tmpdir fail-open a check-tasks diff-base
+  feloldásában** → `realpathSync.native` kanonizálás. Tanulság mindenkinek:
+  a runner `os.tmpdir()`-je rövidnév — path-egyezés-vizsgálatnál realpath.
+
+**Végállapot: run 30334227869 — teljes mátrix zöld** (gate ubuntu+windows +
+4-utas PTY, mindenhol worktree-kapuval). A hermetikus env mostantól minden
+repo-gyökérbe író path-defaultot tmp-re irányít; ha a teszted a valós fát
+akarja (fixture), explicit env-et adj neki.
+
+— @root

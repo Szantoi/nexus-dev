@@ -24,6 +24,12 @@ coverage-padlók a task/lifecycle/review modulokra; (7) realpath-isMain
 nincs expiry (padlók, nem kivételek — configban dokumentálva). A `/tmp`-
 follow-upok az Antigravity-refaktorral már készen voltak (verifikálva).
 DP-007-ből hátra egyedül a DP-006 branch-protection alkalmazása (Gábor).
+Az első CI-körök az új kapukkal 2 TOVÁBBI valós hibát fogtak (mindkettő
+mainen javítva): nightwatch-log hardcode a LOGS_DIR-varrat mellett
+(`bfcbf37`) és Windows-runner 8.3-tmpdir fail-open a check-tasks
+diff-base-feloldásban (`b0ddcb9`). **Végállapot: run 30334227869 — a
+TELJES mátrix zöld** az új kapusorral (test:tasks + snapshot/verify +
+explicit diff-base + PTY-worktree-kapuk).
 **INCIDENS:** a kapu-próba takarítása a teljes DEV `knowledge-service/data/`
 könyvtárat törölte (runtime SQLite-ok; gitből nem visszaállítható — a
 szerver üresen újrateremti, registry/agent_messages a mailbox-fájlokból
