@@ -870,3 +870,57 @@ describe('integration: real repository docs/tasks', () => {
     assert.deepEqual(checkEpicsReferences({ epicsDoc, tasks }), []);
   });
 });
+
+// ── TASK-DP-007 review P2 fix: explicit --diff-base must fail closed ─────────
+// An unresolvable explicit base ref used to degrade silently: every git-show
+// failed, every task looked "new", and the status-transition check skipped
+// without a trace. The CLI now exits 2 before running any checks.
+describe('explicit --diff-base fail-closed validation (CLI)', () => {
+  const script = resolve(here, '../check-tasks.mjs');
+
+  function makeTempGitRepo() {
+    const dir = mkdtempSync(join(tmpdir(), 'check-tasks-explicit-base-'));
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    execFileSync('git', ['config', 'user.email', 't@t.com'], { cwd: dir });
+    execFileSync('git', ['config', 'user.name', 't'], { cwd: dir });
+    writeFileSync(join(dir, 'a.txt'), 'first', 'utf8');
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    execFileSync('git', ['commit', '-q', '-m', 'first'], { cwd: dir });
+    return dir;
+  }
+
+  test('an unresolvable explicit --diff-base exits 2 with a loud error', () => {
+    const dir = makeTempGitRepo();
+    try {
+      execFileSync(process.execPath, [script, '--root', dir, '--diff-base', 'no-such-ref-xyz'], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      assert.fail('expected exit 2');
+    } catch (err) {
+      assert.equal(err.status, 2);
+      assert.match(`${err.stdout ?? ''}${err.stderr ?? ''}`, /nem oldható fel commitra/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a resolvable explicit --diff-base is accepted (no exit-2 validation error)', () => {
+    const dir = makeTempGitRepo();
+    try {
+      // The fixture repo has no docs/tasks tree, so the run may fail LATER for
+      // structural reasons — the assertion is only that the diff-base
+      // validation itself passes (the exit-2 message is absent).
+      let out = '';
+      try {
+        out = execFileSync(process.execPath, [script, '--root', dir, '--diff-base', 'HEAD'], {
+          encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+        });
+      } catch (err) {
+        out = `${err.stdout ?? ''}${err.stderr ?? ''}`;
+      }
+      assert.doesNotMatch(out, /nem oldható fel commitra/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

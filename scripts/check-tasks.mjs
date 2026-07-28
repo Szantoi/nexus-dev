@@ -875,6 +875,21 @@ function main() {
     if (opts.diffBase) {
       log(`[check:tasks] --diff-base nincs explicit megadva — automatikusan 'HEAD~1'-et használom (root egy git-repó gyökere, van szülő-commit).`);
     }
+  } else if (opts.diffBase) {
+    // EXPLICIT --diff-base: fail-closed ref-validáció (TASK-DP-007 review).
+    // Enélkül egy elgépelt/le nem fetchelt ref esetén a previousStatus()
+    // minden git-show hibát "új task"-ként nyelne le, és a státuszátmenet-
+    // ellenőrzés NÉMÁN kimaradna — a hívó pedig azt hinné, lefutott.
+    try {
+      execFileSync('git', ['rev-parse', '--verify', `${opts.diffBase}^{commit}`], {
+        cwd: opts.root, stdio: ['ignore', 'ignore', 'ignore'],
+      });
+    } catch {
+      console.error(`HIBA: az explicit --diff-base '${opts.diffBase}' nem oldható fel commitra ` +
+        '(nincs ilyen ref, vagy nincs lefetchelve). A státuszátmenet-kapu fail-closed: ' +
+        'adj meg létező refet, vagy tiltsd le tudatosan a --no-diff-base kapcsolóval.');
+      process.exit(2);
+    }
   }
 
   // A séma a formátum-specifikáció, nem fixture-specifikus adat — mindig a

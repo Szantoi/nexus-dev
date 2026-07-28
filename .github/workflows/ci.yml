@@ -7,6 +7,7 @@
 #   Gate            | Local reproduction (cd knowledge-service)
 #   ----------------|-------------------------------------------------------
 #   Typecheck       | npm run typecheck
+#   Build (tsc emit)| npm run build
 #   Lint ratchet    | npm run lint:ratchet   (details: npm run lint)
 #   File size gate  | npm run check:size     (= node ../scripts/check-file-size.mjs)
 #   Tests+coverage  | npm run test:coverage
@@ -14,7 +15,11 @@
 #   Secret scan     | npm run secret-scan    (= node ../scripts/secret-scan.mjs)
 #   Doc link check  | npm run check:links    (= node ../scripts/check-doc-links.mjs)
 #   Task schema gate| npm run check:tasks    (= node ../scripts/check-tasks.mjs, TASK-DP-003)
+#   Gate-script test| npm run test:tasks     (node:test suite of the gate scripts)
+#   Worktree gate   | npm run gate:worktree:snapshot / gate:worktree:verify
 #   Native PTY      | npm run smoke:pty     (Windows ConPTY + Linux forkpty matrix)
+#
+# ONE-COMMAND local equivalent of the full suite (TASK-DP-007): npm run gate
 #
 # Gate semantics:
 #   - Lint ratchet: Biome errors always fail; the warning count may not exceed
@@ -80,8 +85,16 @@ jobs:
       - name: Install exact Linux-generated lockfile
         run: npm ci --prefer-offline
 
+      # TASK-DP-007 review P3: the PTY smoke must not dirty the repo either
+      # (same snapshot/verify pair as the main gate job, ignored paths too).
+      - name: Worktree snapshot (before smoke)
+        run: npm run gate:worktree:snapshot
+
       - name: Native PTY contract smoke
         run: npm run smoke:pty
+
+      - name: Worktree must be unchanged after the smoke
+        run: npm run gate:worktree:verify
 
   # TASK-DP-007: the FULL gate suite runs on BOTH supported platforms from the
   # same commit — green only means merge-ready if Windows and Linux agree.
@@ -101,16 +114,13 @@ jobs:
         working-directory: knowledge-service
     steps:
       # fetch-depth: 2 (not the default shallow depth-1 clone) — the task
-      # schema gate's status-transition check (TASK-DP-003, check-tasks.mjs
-      # `resolveDefaultDiffBase`) auto-diffs the checked-out commit against
-      # its immediate parent (`HEAD~1`) with zero flags required; a
-      # depth-1 clone has no parent commit to diff against, and the gate
-      # would silently skip the transition check (fail open, not closed).
-      # KNOWN, UNVERIFIED RESIDUAL RISK (documented, not yet exercised in a
-      # real Actions run): for `pull_request`-triggered jobs, `HEAD` may be
-      # a synthetic merge commit rather than the PR's own head commit,
-      # depending on GitHub's checkout semantics — the exact interaction
-      # with `HEAD~1` there has not been validated against a live run.
+      # schema gate's status-transition check (TASK-DP-003) diffs against an
+      # explicit base (see the "Task schema and consistency gate" step below):
+      # on push HEAD~1 (needs the parent commit → depth 2), on pull_request
+      # the PR base sha (the synthetic merge commit's first parent, also
+      # present at depth 2). check-tasks.mjs fail-closes if the explicit base
+      # cannot be resolved, so a depth/semantics regression turns the gate
+      # RED instead of silently skipping the transition check.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
@@ -143,6 +153,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # TASK-DP-007 (review P1 fix): the worktree gate is snapshot/verify and
+      # watches IGNORED paths too (git status --porcelain --ignored=matching) —
+      # a test writing into gitignored runtime dirs (knowledge-service/data/,
+      # terminal state) must fail the gate, not hide behind .gitignore.
+      # Snapshot AFTER install+build so node_modules/dist are in the baseline;
+      # coverage/ is an allowlisted expected output (see check-worktree.mjs).
+      - name: Worktree snapshot (before the test-running gates)
+        run: npm run gate:worktree:snapshot
+
       # Local repro: npm run lint:ratchet (rule details: npm run lint)
       - name: Lint ratchet (errors fail, warning count may not grow)
         run: npm run lint:ratchet
@@ -173,22 +192,37 @@ jobs:
       # Local repro: npm run check:tasks (= node ../scripts/check-tasks.mjs)
       # Task-frontmatter schema, DAG, EPICS.yaml membership and archive-
       # invariant gate (TASK-DP-003, docs/tasks/task-schema.json).
+      # TASK-DP-007 (review P2 fix): the diff base is EXPLICIT here — on
+      # pull_request the PR base sha (HEAD is a synthetic merge commit whose
+      # first parent is the base tip, present at fetch-depth 2), on push
+      # HEAD~1. check-tasks.mjs fail-closes on an unresolvable explicit base,
+      # so the status-transition check can no longer silently skip in CI.
       - name: Task schema and consistency gate
-        run: npm run check:tasks
+        shell: bash
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha || '' }}
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            npm run check:tasks -- --diff-base "$PR_BASE"
+          else
+            npm run check:tasks -- --diff-base HEAD~1
+          fi
+
+      # TASK-DP-007 (review P2 fix): the gate scripts' own node:test suite
+      # (check-tasks, lint-ratchet expiry invariants, worktree gate) — a
+      # reordering inside a gate script must fail CI, not wait for the first
+      # real expiry in production.
+      - name: Gate-script unit and integration tests
+        run: npm run test:tasks
 
       # TASK-DP-007: a hermetic suite must leave the repository untouched — a
       # test that writes into the worktree (data/, terminal state, fixtures)
       # passes locally by accident and poisons every later gate. Fail closed
-      # on ANY tracked modification or new untracked file.
+      # on ANY tracked modification, new untracked file OR new ignored path
+      # (review P1 fix: plain `git status --porcelain` was blind to gitignored
+      # runtime dirs like knowledge-service/data/). Local repro: npm run gate.
       - name: Worktree must be unchanged after the full gate suite
-        working-directory: .
-        shell: bash
-        run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "::error::Gate suite modified the repository worktree:"
-            git status --porcelain
-            exit 1
-          fi
+        run: npm run gate:worktree:verify
 
       # TASK-DP-007: on failure, archive the machine-readable outputs needed
       # to diagnose without re-running (coverage report, npm debug logs).
@@ -199,9 +233,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: gate-failure-${{ matrix.os }}-${{ github.run_id }}
+          # npm debug logs live under ~/.npm on Linux but under
+          # %LOCALAPPDATA%\npm-cache on Windows (review P2 fix: the old
+          # Linux-only path silently uploaded nothing on the Windows leg).
+          # coverage-summary.json exists because vitest.config.ts includes the
+          # 'json-summary' reporter.
           path: |
             knowledge-service/coverage/coverage-summary.json
             knowledge-service/coverage/coverage-final.json
             ~/.npm/_logs/
+            ~/AppData/Local/npm-cache/_logs/
           if-no-files-found: ignore
           retention-days: 7
