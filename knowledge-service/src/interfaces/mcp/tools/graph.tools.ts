@@ -13,6 +13,10 @@ import {
   searchEntities,
   traverse,
 } from '../../../knowledgeGraph/graphStore';
+import {
+  type CoversLayerStatus,
+  coversLayerStatus,
+} from '../../../knowledgeGraph/indexBookkeeping';
 import { searchHybrid } from '../../../knowledgeGraph/hybridSearch';
 import { ENTITY_TYPES, RELATION_TYPES } from '../../../knowledgeGraph/types';
 import { error, success, toolRegistry, type ToolResult } from './base-tool';
@@ -39,6 +43,41 @@ function numericArg(value: unknown): NumericArg {
   if (value === undefined || value === null) return { ok: true, value: undefined };
   const n = Number(value);
   return Number.isNaN(n) ? { ok: false } : { ok: true, value: n };
+}
+
+/**
+ * Wire format of the COVERS-layer freshness signal. Attached to the two tools
+ * whose answers a caller may read as "which tests cover this file": an answer
+ * built on stale or missing COVERS edges must SAY so (the recurring failure
+ * class is the confident incomplete answer), and `unknown` stays distinct
+ * from `absent` — inability to read the status is not a statement about the
+ * graph.
+ */
+function coversLayerWire(status: CoversLayerStatus): Record<string, unknown> {
+  switch (status.status) {
+    case 'fresh':
+      return { status: 'fresh', indexed_at: status.indexedAt };
+    case 'stale':
+      return {
+        status: 'stale',
+        covers_indexed_at: status.coversIndexedAt,
+        island_indexed_at: status.islandIndexedAt,
+        note:
+          'COVERS (test→code) edges predate the island\'s latest index run — ' +
+          'test lists may be stale; refresh with `npm run coverage:index` on ' +
+          'the coverage-producing machine.',
+      };
+    case 'absent':
+      return {
+        status: 'absent',
+        note:
+          'No test→code (COVERS) layer is indexed for this island — test ' +
+          'coverage questions cannot be answered from the graph. Run ' +
+          '`npm run coverage:index` on the machine that produces coverage.',
+      };
+    case 'unknown':
+      return { status: 'unknown', error: status.error };
+  }
 }
 
 /**
@@ -143,6 +182,9 @@ export function registerGraphTools(): void {
           depth,
           count: hits.length,
           truncated,
+          // A caller reading COVERS edges out of this answer must know how
+          // fresh that layer is (it only updates where coverage is produced).
+          covers_layer: coversLayerWire(await coversLayerStatus(context?.island)),
           results: hits,
         });
       } catch (err) {
@@ -271,6 +313,9 @@ export function registerGraphTools(): void {
           // When true, affected_count is a LOWER BOUND — the impact set was
           // cut at the traversal cap and must not be read as complete.
           truncated,
+          // Test-type dependents come from the COVERS layer — its freshness
+          // bounds how much the "which tests are affected" part can be trusted.
+          covers_layer: coversLayerWire(await coversLayerStatus(context?.island)),
           affected_by_type: byType,
         });
       } catch (err) {

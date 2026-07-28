@@ -322,3 +322,96 @@ describe('graph MCP tools', () => {
     expect(result.content[0].text).toContain('Unknown relation type');
   });
 });
+
+describe('covers_layer freshness signal (COVERS follow-up b)', () => {
+  /**
+   * Fake driver: the traversal query returns one row with a null `m`
+   * (existing entity, zero neighbours -> found=true), the meta query is
+   * scripted per test case.
+   */
+  function driverWithMeta(metaProps: Record<string, unknown> | null | Error) {
+    const executeQuery = vi.fn(async (cypher: string) => {
+      const c = String(cypher);
+      if (c.includes('KnowledgeIndexMeta')) {
+        if (metaProps instanceof Error) throw metaProps;
+        return {
+          records: metaProps === null ? [] : [{ get: () => ({ properties: metaProps }) }],
+          summary: { counters: {} },
+        };
+      }
+      if (c.includes('OPTIONAL MATCH')) {
+        return {
+          records: [{ get: (f: string) => (f === 'm' ? null : null) }],
+          summary: { counters: {} },
+        };
+      }
+      return { records: [], summary: { counters: {} } };
+    });
+    setGraphDriverForTests({
+      executeQuery,
+      getServerInfo: vi.fn(async () => ({})),
+      close: vi.fn(async () => undefined),
+    } as unknown as Driver);
+  }
+
+  function parseResult(result: { content: Array<{ text?: string }> }): {
+    covers_layer: { status: string; [k: string]: unknown };
+  } {
+    return JSON.parse(result.content[0].text ?? '{}');
+  }
+
+  it('reports FRESH when the coverage entry comes from the latest run', async () => {
+    driverWithMeta({
+      sourceHashesJson: JSON.stringify({
+        'coverage:${NEXUS_COVERAGE_ROOT}': { h: 'abc', t: 'T1' },
+        'typescript:knowledge-service/src': { h: 'def', t: 'T1' },
+      }),
+      indexedAt: 'T1',
+    });
+    const result = await toolRegistry.call('get_dependencies', { entity_id: 'src/a.ts' }, { island: 'isle' });
+    expect(result.isError).not.toBe(true);
+    expect(parseResult(result).covers_layer).toEqual({ status: 'fresh', indexed_at: 'T1' });
+  });
+
+  it('reports STALE with both timestamps when a later run reindexed without coverage', async () => {
+    driverWithMeta({
+      sourceHashesJson: JSON.stringify({
+        'coverage:${NEXUS_COVERAGE_ROOT}': { h: 'abc', t: 'T0' },
+      }),
+      indexedAt: 'T1',
+    });
+    const result = await toolRegistry.call('impact_analysis', { entity_id: 'src/a.ts' }, { island: 'isle' });
+    const covers = parseResult(result).covers_layer;
+    expect(covers.status).toBe('stale');
+    expect(covers.covers_indexed_at).toBe('T0');
+    expect(covers.island_indexed_at).toBe('T1');
+    expect(String(covers.note)).toContain('coverage:index');
+  });
+
+  it('reports ABSENT when the island has no coverage source entry (and when it has no meta at all)', async () => {
+    driverWithMeta({
+      // A key CONTAINING 'coverage' in a non-extractor position must not
+      // match (mutation guard: startsWith must not degrade to includes).
+      sourceHashesJson: JSON.stringify({
+        'typescript:knowledge-service/src': { h: 'x', t: 'T1' },
+        'markdown:docs/coverage-notes': { h: 'y', t: 'T1' },
+      }),
+      indexedAt: 'T1',
+    });
+    const withMeta = await toolRegistry.call('get_dependencies', { entity_id: 'src/a.ts' }, { island: 'isle' });
+    expect(parseResult(withMeta).covers_layer.status).toBe('absent');
+
+    driverWithMeta(null);
+    const noMeta = await toolRegistry.call('get_dependencies', { entity_id: 'src/a.ts' }, { island: 'isle' });
+    expect(parseResult(noMeta).covers_layer.status).toBe('absent');
+  });
+
+  it('reports UNKNOWN (distinct from absent) when the meta read fails — and the tool still answers', async () => {
+    driverWithMeta(new Error('meta read exploded'));
+    const result = await toolRegistry.call('impact_analysis', { entity_id: 'src/a.ts' }, { island: 'isle' });
+    expect(result.isError).not.toBe(true); // the traversal answer survives
+    const covers = parseResult(result).covers_layer;
+    expect(covers.status).toBe('unknown');
+    expect(String(covers.error)).toContain('meta read exploded');
+  });
+});

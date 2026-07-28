@@ -16,6 +16,7 @@
     "index": "tsx src/indexer.ts",
     "graph:index": "tsx src/knowledgeGraph/indexCli.ts",
     "graph:index:auto": "tsx src/knowledgeGraph/indexCli.ts --if-changed --all-islands",
+    "coverage:index": "node scripts/coverage-index.mjs",
     "validate": "./scripts/validate-imports.sh",
     "lint": "biome check src",
     "lint:fix": "biome check --write src",

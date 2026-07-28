@@ -267,3 +267,45 @@ export async function releaseIndexLease(holder: string, island?: string): Promis
     holder,
   });
 }
+
+// ─── COVERS-réteg frissesség (MCP elavulás-jelzés) ──────────────────────────
+//
+// A teszt→kód (COVERS) réteg env-kapuzott forrásból jön, és csak a coverage-t
+// termelő gépen frissül — a sziget kód-rétege ettől függetlenül, gyakrabban
+// indexelődik (VPS-timer). A visszatérő hibaosztályunk a MAGABIZTOS hiányos
+// válasz: egy tool, ami elavult COVERS-élekből mond teszt-listát, rosszabb,
+// mint ami kimondja, hogy a rétege régi. A státusz a meta {h,t} bejegyzéséből
+// és a sziget indexedAt-jéből számolódik — external írás nélkül.
+
+export type CoversLayerStatus =
+  | { status: 'fresh'; indexedAt: string }
+  | { status: 'stale'; coversIndexedAt: string; islandIndexedAt: string }
+  | { status: 'absent' }
+  | { status: 'unknown'; error: string };
+
+/**
+ * A sziget COVERS-rétegének frissessége. `unknown` szándékosan különbözik az
+ * `absent`-től: az "nincs COVERS-réteg" a gráfról szóló állítás, a "nem tudom
+ * elolvasni" a saját képességünkről — a kettő összemosása hazug választ adna.
+ */
+export async function coversLayerStatus(island?: string): Promise<CoversLayerStatus> {
+  try {
+    const meta = await readIndexMeta(island);
+    // A kulcs-konvenció a sourceKeyOf-é (`extractor:declaredPath`, indexCli),
+    // az extractor-név a registry-ben él ('coverage') — ha ott átnevezik, ez
+    // a prefix is frissítendő, különben a jelzés tartósan 'absent'-re
+    // degradál (review P3, tudatos csatolás komment-őrrel; a kettősponttal
+    // zárt prefix declaredPath-ra nem illeszkedhet, hamis pozitív nincs).
+    const entry =
+      meta === null
+        ? undefined
+        : Object.entries(meta.sourceHashes).find(([key]) => key.startsWith('coverage:'));
+    if (meta === null || entry === undefined) return { status: 'absent' };
+    const t = entry[1].t;
+    return t === meta.indexedAt
+      ? { status: 'fresh', indexedAt: t }
+      : { status: 'stale', coversIndexedAt: t, islandIndexedAt: meta.indexedAt };
+  } catch (err) {
+    return { status: 'unknown', error: err instanceof Error ? err.message : String(err) };
+  }
+}
