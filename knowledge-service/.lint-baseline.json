@@ -1,4 +1,7 @@
 {
   "maxWarnings": 784,
-  "note": "Biome warning ratchet baseline (TASK-QC-005, 2026-07-18). Measured with: npx biome check src --max-diagnostics=none --reporter=summary. New warnings fail CI; lower this only via scripts/lint-ratchet.mjs --update. Raising requires a documented ADR."
+  "owner": "backend",
+  "expires": "2026-10-18",
+  "task": "TASK-QC-014",
+  "note": "Biome warning ratchet baseline (TASK-QC-005, 2026-07-18; expiry added by TASK-DP-007). Measured with: npx biome check src --max-diagnostics=none --reporter=summary. New warnings fail CI; lower this only via scripts/lint-ratchet.mjs --update. Raising requires a documented ADR. Expired baseline fails CI: reduce warnings (TASK-QC-014) or renew 'expires' with documented justification."
 }

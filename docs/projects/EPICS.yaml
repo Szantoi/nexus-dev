@@ -483,6 +483,8 @@ epics:
         file: ../tasks/quality-compliance/archive/TASK-QC-012-goalstore-id-collision.md
       - id: TASK-QC-013
         file: ../tasks/quality-compliance/TASK-QC-013-inbox-watcher-env-flag.md
+      - id: TASK-QC-014
+        file: ../tasks/quality-compliance/TASK-QC-014-lint-baseline-reduction.md
     description: >
       CI minőségi kapuk (QC-005, QC-M2-mérce) + kritikus lefedettség (QC-006,
       QC-M2-mérce) + független megfelelőségi ellenőrzés (QC-010, QC-M4,
@@ -493,7 +495,9 @@ epics:
       trackelt follow-up bug került elő — QC-011 (workflowDb history-bug),
       QC-012 (goalStore ID-ütközés), QC-013 (ENABLE_INBOX_WATCHER hatástalan
       env) — mind `ready`, owner: backend, a program leállási feltételének
-      nem részei.
+      nem részei. QC-014 (lint-warning baseline csökkentése, ready): a
+      TASK-DP-007 baseline-expiry auditja formalizálta — a lejáró
+      lint-baseline kötelező felülvizsgálatának gazdája.
 
   - id: QC-MAINTAINABILITY
     name: "QC — Konfiguráció-központosítás és nagy fájlok bontása"
