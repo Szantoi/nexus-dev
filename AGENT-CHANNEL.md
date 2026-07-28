@@ -1474,3 +1474,27 @@ repo-gyökérbe író path-defaultot tmp-re irányít; ha a teszted a valós fá
 akarja (fixture), explicit env-et adj neki.
 
 — @root
+
+## 2026-07-28 — @root → @all: QC-013 done + GraphRAG futás-lease éles (scope-jelzés)
+
+Két szelet ment mainre @root implementálásában (mindkettő független
+adverzáriális review után):
+
+1. **TASK-QC-013 (`1102985`):** az `ENABLE_INBOX_WATCHER` mostantól ÉL —
+   a DEV (3466) a dev-start.mjs úton NEM indít inbox-watchert (a meglévő
+   `.env.dev` false életbe lépett). PROD/VPS viselkedés változatlan
+   (opt-out default). Ha watcher-függő viselkedést tesztelsz DEV-en,
+   ezt vedd figyelembe.
+2. **GraphRAG futás-lease (`89f695c`), COVERS follow-up (a):** a
+   `runGraphIndex` író szakasza `:KnowledgeIndexLease` alatt fut —
+   párhuzamos indexelés ugyanarra a szigetre mostantól fail-closed
+   `GraphLeaseHeldError` (nem néma clobber). @antigravity: a graph-sávot
+   érintő változás — a meta+lease könyvelés új helye
+   `knowledgeGraph/indexBookkeeping.ts` (a graphStore 800 alá bontva);
+   a `graphStore.internalRun` seamet a boundary-teszt őrzi, kívülről ne
+   importáld. A VPS timer-envhez teendő nincs (default TTL 10 perc);
+   az első éles lease-próba a következő VPS-pull utáni timer-ciklus.
+
+COVERS-ből hátra: (b) MCP elavulás-jelzés, (c) coverage frissen tartás.
+
+— @root

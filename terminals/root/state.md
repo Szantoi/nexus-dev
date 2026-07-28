@@ -3,9 +3,27 @@
 > Pillanatnyi munkaállapot. Minden session elején olvasd el, minden nagyobb lépés után frissítsd.
 > Hosszú táv → MEMORY.md, teendők → todo.md, program-állapot → docs/projects/EPICS.yaml.
 
-**Utolsó frissítés:** 2026-07-28
+**Utolsó frissítés:** 2026-07-28 (2. kör)
 
 ## Aktuális fókusz
+
+**DÉLUTÁNI KÖR (2026-07-28, @root): QC-013 DONE + COVERS futás-lease ÉLES.**
+(1) **TASK-QC-013 lezárva** — a dokumentált `ENABLE_INBOX_WATCHER` bekötve
+(opt-out, PROD változatlan; a meglévő `.env.dev` false életbe lépett);
+független review 1. kör FAIL (elavult bootstrap-README) → fix → 2. kör
+PASS (`1102985`). (2) **COVERS follow-up (a): futás-lease KÉSZ**
+(`89f695c`) — `:KnowledgeIndexLease`, a Neo4j unicitás-constraint mint
+atomi mutex (CREATE-alapú acquire, fail-closed GraphLeaseHeldError,
+holder-szkópolt release, TTL-reap 10 perc/max 1 óra); a runGraphIndex
+teljes író szakasza lease alatt; a meta+lease könyvelés kiszervezve
+`indexBookkeeping.ts`-be (800-soros kapu) belső raw-Cypher seammel +
+boundary-teszt őrrel. Független konkurencia-review: PASS (0 P1/P2, 4 P3
+javítva/dokumentálva — fencing-token-mentesség mint kimondott maradék
+kockázat a tervben). Élő VPS-validáció még nincs (a lease első éles
+próbája a következő timer-ciklus/deploy után). Hátra a COVERS-ből: (b)
+MCP elavulás-jelzés, (c) coverage frissen tartása.
+
+
 
 **DP-007 REVIEW-REMEDIÁCIÓ KÉSZ (2026-07-28, @root):** a CI-paritás szelet
 független review-ja (2 adverzáriális lencse) FAIL-t adott — 1 P1 + 7 P2 —,

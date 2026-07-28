@@ -5,7 +5,7 @@ program: NEXUS-QUALITY
 project: nexus/knowledge-service
 milestone: QC-M2
 epic: QC-VERIFICATION
-status: in_progress
+status: done
 priority: medium
 depends_on: []
 owner_role: backend
@@ -55,12 +55,13 @@ session-indítási kapun (`shouldWakeUp`) keresztül csillapodjon.
 
 ## Elfogadási feltételek
 
-- [ ] `ENABLE_INBOX_WATCHER=false` mellett a watcher nem indul (teszttel
+- [x] `ENABLE_INBOX_WATCHER=false` mellett a watcher nem indul (teszttel
       igazolva).
-- [ ] A kulcs szerepel a zod-sémában, típusos, dokumentált defaulttal.
-- [ ] A conductor CLAUDE.md DEV-elszigeteltségi állítása ("Inbox-watcher KI")
-      ténylegesen igaz DEV configgal.
-- [ ] `npm run typecheck && npm test` zöld.
+- [x] A kulcs szerepel a zod-sémában, típusos, dokumentált defaulttal.
+- [x] A conductor CLAUDE.md DEV-elszigeteltségi állítása ("Inbox-watcher KI")
+      ténylegesen igaz DEV configgal (a dokumentált `dev-start.mjs` indító
+      úton; a közvetlen `npm run dev` korlát a bootstrap README-ben).
+- [x] `npm run typecheck && npm test` zöld (teljes `npm run gate` zöld).
 
 ## Kötelező ellenőrzés
 

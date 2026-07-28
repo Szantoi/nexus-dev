@@ -289,17 +289,36 @@ closed). 4 P1 + 3 P2 + 3 P3 lelet — a P1-ek és a javítható P2-k JAVÍTVA:
 - **P2 (javítva):** üres `--config` némán defaultra esett → hiba; duplikált
   (extractor, path) forrás-bejegyzés → hiba; bulk/all-gated ágak tesztei
   pótolva.
-- **P1 (pre-existing, NEM javítva — follow-up): átfedő futások upsert-
-  clobbere.** Egy lassú, régebbi tagű futás feltétel nélküli SET-jei
-  felülírhatják egy gyorsabb, újabb futás friss adatát (és feltámaszthatnak
-  törölt node-okat), miközben a meta az újabb futásé marad. Ez a viselkedés
-  a mostani változás ELŐTT is fennállt; érdemi gyógyír egy futás-lease
-  (pl. meta-node-alapú) — külön tétel.
+- **P1 (pre-existing): átfedő futások upsert-clobbere — JAVÍTVA
+  (2026-07-28, futás-lease).** Egy lassú, régebbi tagű futás feltétel
+  nélküli SET-jei felülírhatták egy gyorsabb, újabb futás friss adatát (és
+  feltámaszthattak törölt node-okat), miközben a meta az újabb futásé
+  maradt. Gyógyír: `:KnowledgeIndexLease` futás-lease
+  (`knowledgeGraph/indexBookkeeping.ts`) — a mutex maga a Neo4j unicitás-
+  constraint (az acquire sima CREATE; két rivális közül pontosan egy nyer,
+  a másik fail-closed `GraphLeaseHeldError`-t kap), holder-szkópolt
+  release, TTL-reap a crash-elt futások ellen
+  (`GRAPH_INDEX_LEASE_TTL_MS`, default 10 perc, felső korlát 1 óra). A
+  `runGraphIndex` teljes író szakasza (meta-invalidálás → upsertek → sweep
+  → meta-írás) a lease alatt fut; az extrakció és a `--if-changed`
+  skip-check lease-mentes (read-only). Bulk futásnál a lease-elt sziget
+  hibája nem viszi el a többi szigetet (per-island catch, exit 1).
+  Független review: PASS (0 P1/P2). **Kimondott maradék kockázatok:**
+  (a) az írások NEM hordoznak fencing tokent — egy a TTL-t TÚLLÉPŐ, még élő
+  futás lease-ét egy új futás átveheti, és a régi futás további upsertjei
+  ezután is landolnak (a meta-írását a monoton kapu blokkolja): a clobber
+  ekkor visszatér. Belépési feltétel ~40× margó túllépése (valós futás
+  ~15 s vs 600 s TTL) — tudatosan vállalt maradék; (b) a lease-lejárat a
+  KLIENS óráján alapul: előresiető óra (~10 perc skew) korai takeover-t
+  engedne — NTP mellett irreális, lemaradó óra csak tovább blokkol
+  (önjavító); (c) driver-retry által újrajátszott CREATE a saját lease-ébe
+  ütközhet — a saját-holder ütközés megszerzésnek számít, nem
+  contention-nek.
 
 ## Ismert korlátok / follow-up
 
-- **Átfedő futások upsert-clobbere** (lásd fent, pre-existing) — futás-lease
-  follow-up.
+- ~~**Átfedő futások upsert-clobbere**~~ **JAVÍTVA** — futás-lease (lásd
+  fent, maradék kockázatokkal együtt dokumentálva).
 - **Checkout-drift átmeneti törlés:** két gép eltérő checkoutja esetén a
   később futó gép sweepje törli a másik gép még nem szinkronizált entitásait
   (minden entitás-típusra, nem COVERS-specifikus, pre-existing). Öngyógyuló:

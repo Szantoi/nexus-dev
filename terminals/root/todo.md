@@ -10,10 +10,12 @@
 ## Aktív
 
 - [ ] **COVERS follow-upok** (a `docs/plans/COVERAGE-GRAPH-WIRING.md` v2
-  „Ismert korlátok" szakaszából, jelölt: @antigravity ha visszatér a kerete):
-  (a) átfedő index-futások upsert-clobbere (pre-existing) → futás-lease;
-  (b) MCP toolok COVERS-elavulás-jelzése; (c) a coverage frissen tartása
-  (test:coverage + env-es index a dev gépen — most kézi).
+  „Ismert korlátok" szakaszából): ~~(a) átfedő index-futások upsert-clobbere
+  → futás-lease~~ **KÉSZ 2026-07-28** (@root, `89f695c` — constraint-as-mutex
+  lease, független konkurencia-review PASS, maradék kockázatok a tervben
+  dokumentálva); HÁTRA: (b) MCP toolok COVERS-elavulás-jelzése; (c) a
+  coverage frissen tartása (test:coverage + env-es index a dev gépen — most
+  kézi).
 - [ ] **CX-1 folytatás (@codex):** attached-mód canary-hangolás — a Codex
   0.145.0 interaktív képernyője még nem ad biztonságosan osztályozható ready
   promptot (30s startup-timeout); headless módban áll, gate zárva. P3: a
@@ -185,6 +187,13 @@
 - [ ] **joinerytech pre-existens registry-bug (owner: joinerytech-csapat):** a régi `messageRegistry` SQLite CHECK-constraintje (`type IN (...)`, `priority IN ('critical','high','medium','low')`) elutasít pár valódi üzenetet a sync során (3678 halmozott hiba a log életében — nem a mailbox-fix okozta). Az üzenetek fájlként megvannak/kézbesíthetők, csak a registry-index hiányos. A modern nexus-kódban ez a modul már más — a végleges gyógyír a sziget kódfrissítése.
 - [ ] **joinerytech testvér path-bugok:** `task-message-box/store.ts:28` (`../../../..`) és `indexer.ts:15` ugyanazt a `src/`-re tévedő útvonalhibát hordozza, mint a mailbox volt. Nem javítva (sebészi scope a mailbox volt) — a kódfrissítéssel oldódik.
 - [ ] **doorstar-ks felügyelet-hiány:** a 3460 NEM systemd, hanem `setsid`/`nohup` node-folyamat (egy korábbi Claude-session indította). Túléli az ssh-t, de **nem indul újra reboot/crash után**. Javasolt: systemd user-unit (mint a nexus-dev/prod). Nem sürgős, de rögzítendő.
+
+- [x] 2026-07-28 — **TASK-QC-013 DONE (@root):** a dokumentált, de bekötetlen
+  `ENABLE_INBOX_WATCHER` env-kulcs bekötve (opt-out: PROD változatlan, a
+  meglévő `.env.dev` `false` életbe lépett → a DEV-elszigeteltségi állítás
+  igaz a dev-start.mjs úton). Független review: 1. kör FAIL (elavult
+  bootstrap-README) → javítva → 2. kör PASS. Ezzel a QC-011/012/013
+  follow-up trió mind lezárt.
 
 ## Backlog
 
